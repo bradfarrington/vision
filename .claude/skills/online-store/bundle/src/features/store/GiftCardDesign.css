@@ -1,0 +1,377 @@
+/* ============================================================
+   Gift Card Visual Design
+   ============================================================ */
+
+/* ─── Base Card ─────────────────────────── */
+
+.gc-card {
+  position: relative;
+  aspect-ratio: 1.586 / 1;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  font-family: 'Inter', -apple-system, sans-serif;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+
+.gc-card:hover {
+  transform: translateY(-2px);
+}
+
+.gc-card-compact {
+  max-width: 180px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.gc-card-compact:hover {
+  transform: none;
+}
+
+/* ─── Card Inner Elements ───────────────── */
+
+.gc-card-bg-decoration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.gc-card-header,
+.gc-card-balance,
+.gc-card-code,
+.gc-card-footer,
+.gc-card-label {
+  position: relative;
+  z-index: 1;
+}
+
+.gc-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.gc-card-logo {
+  height: 2.2rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.gc-card-compact .gc-card-logo {
+  height: 1rem;
+}
+
+.gc-card-gift-icon {
+  opacity: 0.5;
+}
+
+.gc-card-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+}
+
+.gc-card-currency {
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.gc-card-amount {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.gc-card-compact .gc-card-currency {
+  font-size: 0.6rem;
+}
+
+.gc-card-compact .gc-card-amount {
+  font-size: 1rem;
+}
+
+.gc-card-code {
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  opacity: 0.7;
+}
+
+.gc-card-compact .gc-card-code {
+  font-size: 0.4rem;
+  letter-spacing: 0.08em;
+}
+
+.gc-card-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.gc-card-recipient {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gc-card-recipient-placeholder {
+  opacity: 0.3;
+}
+
+.gc-card-compact .gc-card-recipient {
+  font-size: 0.4rem;
+}
+
+.gc-card-compact .gc-card-footer {
+  display: none;
+}
+
+.gc-card-message {
+  font-size: 0.65rem;
+  font-style: italic;
+  opacity: 0.6;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gc-card-label {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  opacity: 0.35;
+  text-transform: uppercase;
+}
+
+.gc-card-compact .gc-card-label {
+  bottom: 0.5rem;
+  right: 0.65rem;
+  font-size: 0.3rem;
+}
+
+/* ─── Design: Classic ───────────────────── */
+
+.gc-design-classic {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #ffffff;
+}
+
+.gc-design-classic .gc-card-bg-decoration {
+  background:
+    radial-gradient(circle at 90% 0%, rgba(220, 38, 38, 0.25) 0%, transparent 50%),
+    radial-gradient(circle at 10% 100%, rgba(220, 38, 38, 0.12) 0%, transparent 40%);
+}
+
+.gc-design-classic .gc-card-currency,
+.gc-design-classic .gc-card-amount {
+  color: #dc2626;
+}
+
+.gc-design-classic .gc-card-gift-icon {
+  color: #dc2626;
+}
+
+/* ─── Design: Industrial ────────────────── */
+
+.gc-design-industrial {
+  background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 40%, #111111 100%);
+  color: #e0e0e0;
+}
+
+.gc-design-industrial .gc-card-bg-decoration {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 20px,
+      rgba(255, 255, 255, 0.015) 20px,
+      rgba(255, 255, 255, 0.015) 21px
+    ),
+    radial-gradient(ellipse at 100% 0%, rgba(220, 38, 38, 0.15) 0%, transparent 60%);
+}
+
+.gc-design-industrial .gc-card-currency {
+  color: #dc2626;
+}
+
+.gc-design-industrial .gc-card-amount {
+  color: #ffffff;
+}
+
+.gc-design-industrial .gc-card-gift-icon {
+  color: #dc2626;
+}
+
+.gc-design-industrial .gc-card-code {
+  color: #888888;
+}
+
+/* ─── Design: Festive ───────────────────── */
+
+.gc-design-festive {
+  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 40%, #ef4444 100%);
+  color: #ffffff;
+}
+
+.gc-design-festive .gc-card-bg-decoration {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(255, 215, 0, 0.25) 0%, transparent 40%),
+    radial-gradient(circle at 15% 85%, rgba(255, 215, 0, 0.15) 0%, transparent 35%),
+    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.05) 0%, transparent 70%);
+}
+
+.gc-design-festive .gc-card-currency,
+.gc-design-festive .gc-card-amount {
+  color: #fef3c7;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.gc-design-festive .gc-card-gift-icon {
+  color: #fde68a;
+}
+
+
+
+/* ─── Design: Minimal ──────────────────── */
+
+.gc-design-minimal {
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid #e5e7eb;
+}
+
+.gc-design-minimal .gc-card-bg-decoration {
+  background:
+    radial-gradient(circle at 95% 5%, rgba(220, 38, 38, 0.06) 0%, transparent 40%);
+}
+
+.gc-design-minimal .gc-card-currency,
+.gc-design-minimal .gc-card-amount {
+  color: #dc2626;
+}
+
+.gc-design-minimal .gc-card-gift-icon {
+  color: #dc2626;
+}
+
+.gc-design-minimal .gc-card-code {
+  color: #9ca3af;
+}
+
+.gc-design-minimal .gc-card-recipient {
+  color: #374151;
+}
+
+.gc-design-minimal .gc-card-label {
+  color: #9ca3af;
+}
+
+/* ─── Design Picker Strip ───────────────── */
+
+.gc-design-picker {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.gc-design-picker-option {
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 3px;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.gc-design-picker-option:hover {
+  transform: translateY(-1px);
+}
+
+.gc-design-picker-option.active {
+  border-color: var(--color-primary);
+}
+
+.gc-design-picker-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gc-design-picker-option.active .gc-design-picker-label {
+  color: var(--color-primary);
+}
+
+/* ─── Form + Preview Layout ─────────────── */
+
+.gc-form-layout {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 2rem;
+  align-items: start;
+}
+
+.gc-form-preview {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.gc-form-preview-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 900px) {
+  .gc-form-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gc-form-preview {
+    order: -1;
+    position: static;
+  }
+
+  .gc-card {
+    max-width: 340px;
+    margin: 0 auto;
+  }
+}
+
+/* ─── Compact card in table rows ────────── */
+
+.gc-table-preview {
+  display: flex;
+  align-items: center;
+}

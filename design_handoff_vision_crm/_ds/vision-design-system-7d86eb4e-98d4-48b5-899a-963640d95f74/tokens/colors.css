@@ -1,0 +1,79 @@
+/* ============================================================
+   Vision — Colour tokens
+   Neutral platform palette by design: graphite + one blue.
+   Tenants supply their own accent; Vision stays neutral.
+   ============================================================ */
+:root {
+  /* --- Brand core --- */
+  --vs-ink: #101418;          /* graphite — primary text & wordmark on light */
+  --vs-panel: #0f1620;        /* deep panel — dark surfaces, app-icon bg */
+  --vs-white: #ffffff;
+
+  /* --- Accent blue (used sparingly, "current through a wire") --- */
+  --vs-blue: #2f7de1;         /* accent on light — full-stop, primary CTA, active, focus */
+  --vs-blue-hover: #2568c2;
+  --vs-blue-active: #1f56a3;
+  --vs-blue-on-dark: #4d94ff; /* accent on dark surfaces */
+  --vs-blue-tint: #eaf2fd;    /* faint blue wash for selected rows / active nav */
+  --vs-blue-tint-strong: #d5e6fb;
+
+  /* --- Neutral grey ramp (cool graphite) --- */
+  --vs-neutral-0:  #ffffff;
+  --vs-neutral-50: #f7f9fb;   /* app canvas / subtle fill */
+  --vs-neutral-100:#eef1f5;   /* hover fill, muted surface */
+  --vs-neutral-150:#e7ebf1;
+  --vs-neutral-200:#e2e7ee;   /* hairline borders, dividers */
+  --vs-neutral-300:#cfd6df;   /* stronger border, disabled edge */
+  --vs-neutral-400:#aab4c0;   /* placeholder, icon idle */
+  --vs-neutral-500:#7a8696;   /* muted / secondary text */
+  --vs-neutral-600:#566173;   /* tertiary heading, label */
+  --vs-neutral-700:#3a4453;   /* body on light (softer than ink) */
+  --vs-neutral-800:#232c38;
+  --vs-neutral-900:#101418;   /* == ink */
+
+  /* --- Semantic (quiet, business-grade) --- */
+  --vs-success: #1f9d63;
+  --vs-success-tint: #e7f5ee;
+  --vs-warning: #c77d1a;
+  --vs-warning-tint: #fbf1df;
+  --vs-danger:  #d64545;
+  --vs-danger-tint: #fdecec;
+  --vs-info: #2f7de1;
+  --vs-info-tint: #eaf2fd;
+
+  /* ============================================================
+     Semantic aliases — reference these in components
+     ============================================================ */
+  /* Text */
+  --text-strong: var(--vs-ink);        /* headings */
+  --text-body:   var(--vs-neutral-700);
+  --text-muted:  var(--vs-neutral-500);
+  --text-subtle: var(--vs-neutral-400);
+  --text-on-accent: #ffffff;
+  --text-on-dark: #ffffff;
+  --text-link: var(--vs-blue);
+
+  /* Surfaces */
+  --surface-app:    var(--vs-neutral-50);   /* app background canvas */
+  --surface-card:   var(--vs-white);        /* cards, panels */
+  --surface-raised: var(--vs-white);
+  --surface-sunken: var(--vs-neutral-100);  /* wells, inputs on canvas */
+  --surface-hover:  var(--vs-neutral-100);
+  --surface-selected: var(--vs-blue-tint);
+  --surface-dark:   var(--vs-panel);        /* dark nav / footer */
+
+  /* Borders */
+  --border-hairline: var(--vs-neutral-200);
+  --border-default:  var(--vs-neutral-300);
+  --border-strong:   var(--vs-neutral-400);
+  --border-focus:    var(--vs-blue);
+
+  /* Accent */
+  --accent:        var(--vs-blue);
+  --accent-hover:  var(--vs-blue-hover);
+  --accent-active: var(--vs-blue-active);
+  --accent-tint:   var(--vs-blue-tint);
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px rgba(47,125,225,0.35);
+}

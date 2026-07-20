@@ -1,0 +1,244 @@
+/* ─── Barcode Label Printer Modal ──────────────────────────── */
+
+.label-printer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.label-printer-modal {
+  background: var(--color-surface, #fff);
+  border-radius: 0.75rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.label-printer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.label-printer-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+}
+
+.label-printer-header .close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary, #64748b);
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.label-printer-header .close-btn:hover {
+  background: var(--color-hover, #f1f5f9);
+  color: var(--color-text, #1e293b);
+}
+
+.label-printer-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.label-printer-subtitle {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #64748b);
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+
+/* ─── Sheet Grid (3×7) ───────────────────────────────────── */
+
+.label-sheet-preview {
+  border: 2px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px 6px;
+  background: #f8fafc;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  aspect-ratio: 210 / 297; /* A4 proportions */
+  max-height: 420px;
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+
+.label-cell {
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 0.65rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 2px;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.label-cell:hover {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #6366f1;
+}
+
+.label-cell.selected {
+  border-color: #4f46e5;
+  border-style: solid;
+  background: #eef2ff;
+  color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.label-cell.selected .label-cell-check {
+  display: flex;
+}
+
+.label-cell-check {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4f46e5;
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+
+.label-cell.disabled {
+  cursor: default;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.label-cell.filled {
+  border-color: #a5b4fc;
+  border-style: solid;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 0.55rem;
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.label-cell-name {
+  font-weight: 600;
+  font-size: 0.55rem;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label-cell-variant {
+  font-size: 0.5rem;
+  opacity: 0.7;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Bulk summary ───────────────────────────────────────── */
+
+.label-bulk-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.5rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.85rem;
+  color: #166534;
+}
+
+.label-bulk-summary svg {
+  flex-shrink: 0;
+}
+
+/* ─── Sheet page indicator ───────────────────────────────── */
+
+.label-sheet-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.label-sheet-pagination button {
+  background: none;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--color-text-secondary, #64748b);
+  transition: all 0.15s;
+}
+
+.label-sheet-pagination button:hover:not(:disabled) {
+  background: var(--color-hover, #f1f5f9);
+  border-color: #6366f1;
+  color: #4f46e5;
+}
+
+.label-sheet-pagination button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.label-sheet-pagination span {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #64748b);
+  font-weight: 500;
+}
+
+/* ─── Footer ─────────────────────────────────────────────── */
+
+.label-printer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface-alt, #f8fafc);
+}
