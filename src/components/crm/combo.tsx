@@ -93,12 +93,12 @@ export function Combo({
           type="button"
           onClick={() => setOpen((o) => !o)}
           className={cn(
-            "group -mx-1 inline-flex items-center gap-1 rounded px-1 text-right text-[12.5px] font-medium text-[#3f3f46] transition-colors hover:bg-[var(--accent-tint)]",
+            "-mx-1 rounded px-1 text-right text-[12.5px] font-medium text-[#3f3f46] transition-colors hover:bg-[var(--accent-tint)]",
             mono && "font-mono",
+            !shown && "text-[#a1a1aa]",
           )}
         >
-          <span className={cn(!shown && "text-[#a1a1aa]")}>{shown ?? placeholder}</span>
-          <Icon name="chevron-down" size={11} className="text-[#a1a1aa] opacity-0 group-hover:opacity-100" />
+          {shown ?? placeholder}
         </button>
       ) : (
         <button
