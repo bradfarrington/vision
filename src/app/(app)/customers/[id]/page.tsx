@@ -282,22 +282,38 @@ function RelationshipsTab({
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {c.relationships.map((r) => (
-            <Card key={r.id}>
-              <div className="flex items-start gap-2.5">
-                <Avatar name={r.related?.name ?? "?"} size={34} />
+            <Card key={r.id} className="flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <Avatar name={r.related?.name ?? "?"} size={42} />
                 <div className="min-w-0 flex-1">
-                  {r.related ? (
-                    <Link
-                      href={`/customers/${r.related.id}`}
-                      className="block truncate font-semibold text-[#0a0a0a] hover:text-[var(--accent-blue)]"
-                    >
-                      {r.related.name}
-                    </Link>
-                  ) : (
-                    <span className="text-[#71717a]">Unknown customer</span>
-                  )}
-                  {r.related && (
-                    <div className="mt-0.5 text-[11.5px] text-[#71717a]">
+                  <div className="flex items-center gap-2">
+                    {r.related ? (
+                      <Link
+                        href={`/customers/${r.related.id}`}
+                        className="truncate font-[family-name:var(--font-inter-tight)] text-[15px] font-bold text-[#0a0a0a] hover:text-[var(--accent-blue)]"
+                      >
+                        {r.related.name}
+                      </Link>
+                    ) : (
+                      <span className="text-[#71717a]">Unknown customer</span>
+                    )}
+                    {r.related?.customerNumber != null && (
+                      <span className="font-mono text-[11px] text-[#a1a1aa]">
+                        {String(r.related.customerNumber).padStart(4, "0")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1.5">
+                    <RelationshipTypeEditor
+                      variant="pill"
+                      relationshipId={r.id}
+                      viewerIsA={r.viewerIsA}
+                      value={r.label}
+                      types={types}
+                    />
+                  </div>
+                  {r.related && (r.related.contractCount > 0 || r.related.liveLeadCount > 0 || r.related.lifetimeValue > 0) && (
+                    <div className="mt-1.5 text-[11.5px] text-[#71717a]">
                       {r.related.contractCount}{" "}
                       {r.related.contractCount === 1 ? "contract" : "contracts"}
                       {r.related.liveLeadCount > 0 && ` · ${r.related.liveLeadCount} live`}
@@ -306,33 +322,20 @@ function RelationshipsTab({
                   )}
                 </div>
               </div>
-              <div className="mt-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="shrink-0 text-[11.5px] text-[#71717a]">Relationship</span>
-                  <RelationshipTypeEditor
-                    relationshipId={r.id}
-                    viewerIsA={r.viewerIsA}
-                    value={r.label}
-                    types={types}
-                    className="w-[190px]"
-                  />
-                </div>
-                <div>
-                  <span className="text-[11.5px] text-[#71717a]">Note</span>
-                  <div className="mt-0.5">
-                    <EditableField
-                      id={r.id}
-                      field="notes"
-                      value={r.notes}
-                      action={updateRelationshipField}
-                      type="textarea"
-                      placeholder="Add a note…"
-                      className="!block w-full !text-left text-[12px]"
-                    />
-                  </div>
-                </div>
+
+              <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+                <EditableField
+                  id={r.id}
+                  field="notes"
+                  value={r.notes}
+                  action={updateRelationshipField}
+                  type="textarea"
+                  placeholder="Add a note…"
+                  className="!block w-full !text-left text-[12px] text-[#3f3f46]"
+                />
               </div>
-              <div className="mt-3 flex items-center border-t border-[#f4f4f5] pt-2.5">
+
+              <div className="flex items-center border-t border-[#f4f4f5] pt-2.5">
                 {r.related && (
                   <Link
                     href={`/customers/${r.related.id}`}

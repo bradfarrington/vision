@@ -51,11 +51,13 @@ function RelationshipTypeSelect({
   value,
   onChange,
   className,
+  variant = "input",
 }: {
   types: RelationshipType[];
   value: string | null;
   onChange: (thisSide: string, otherSide: string) => void;
   className?: string;
+  variant?: "input" | "pill";
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -109,15 +111,26 @@ function RelationshipTypeSelect({
   }
 
   return (
-    <div ref={ref} className={cn("relative", className)}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
-      >
-        <span className={cn("flex-1 truncate", !value && "text-[#a1a1aa]")}>{value ?? "Set type…"}</span>
-        <Icon name="chevron-down" size={13} className="text-[#71717a]" />
-      </button>
+    <div ref={ref} className={cn("relative", variant === "pill" ? "inline-block" : "", className)}>
+      {variant === "pill" ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-[12px] font-semibold text-[var(--accent-active)] transition-[filter] hover:brightness-95"
+        >
+          {value ?? "Set type"}
+          <Icon name="chevron-down" size={11} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+        >
+          <span className={cn("flex-1 truncate", !value && "text-[#a1a1aa]")}>{value ?? "Set type…"}</span>
+          <Icon name="chevron-down" size={13} className="text-[#71717a]" />
+        </button>
+      )}
 
       {open && (
         <div className="absolute z-50 mt-1 w-[260px] overflow-hidden rounded-lg border border-[#e7e7ea] bg-white shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]">
@@ -391,8 +404,11 @@ export function RelationshipAdder({
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#52525b]">
-              This customer is the… {thisSide && otherSide && thisSide !== otherSide && (
-                <span className="font-normal text-[#71717a]">(other side: “{otherSide}”)</span>
+              {picked ? `${picked.name} is the…` : "Relationship"}{" "}
+              {thisSide && otherSide && thisSide !== otherSide && (
+                <span className="font-normal text-[#71717a]">
+                  (on {picked?.name ?? "their"} record it reads “{otherSide}”)
+                </span>
               )}
             </span>
             <RelationshipTypeSelect
@@ -435,17 +451,20 @@ export function RelationshipTypeEditor({
   value,
   types,
   className,
+  variant = "input",
 }: {
   relationshipId: string;
   viewerIsA: boolean;
   value: string | null;
   types: RelationshipType[];
   className?: string;
+  variant?: "input" | "pill";
 }) {
   const [, start] = useTransition();
   const router = useRouter();
   return (
     <RelationshipTypeSelect
+      variant={variant}
       className={className}
       types={types}
       value={value}
