@@ -37,15 +37,26 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Auth gating goes here once /login exists. Until then we let all requests
-  // through so the app still renders during the build-out.
-  //
-  // if (!user && !request.nextUrl.pathname.startsWith("/login")) {
-  //   const url = request.nextUrl.clone();
-  //   url.pathname = "/login";
-  //   return NextResponse.redirect(url);
-  // }
-  void user;
+  // Auth gate. Public paths: the sign-in and reset screens, and the Supabase
+  // email-link handler under /auth. Everything else requires a session.
+  const path = request.nextUrl.pathname;
+  const isPublicPath =
+    path === "/login" ||
+    path.startsWith("/reset") ||
+    path.startsWith("/auth");
+
+  if (!user && !isPublicPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Already signed in? Skip the sign-in screen.
+  if (user && path === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
 
   // IMPORTANT: return `supabaseResponse` as-is. If you build your own response,
   // copy over supabaseResponse.cookies or sessions will break.
