@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 
 import {
   getCustomerRecord,
-  getTenantOptions,
+  getRelationshipTypes,
   type CustomerRecord,
-  type TenantOption,
+  type RelationshipType,
 } from "@/lib/data/customer-record";
 import {
   updateCustomerField,
@@ -29,7 +29,7 @@ import { AddContactButton, ContactCardActions } from "@/components/crm/contact-a
 import {
   RelationshipAdder,
   RelationshipRemove,
-  RelationshipTypeCombo,
+  RelationshipTypeEditor,
 } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
@@ -46,7 +46,7 @@ export default async function CustomerDetailPage({
   const c = await getCustomerRecord(id);
   if (!c) notFound();
 
-  const relationshipTypes = await getTenantOptions("relationship_type");
+  const relationshipTypes = await getRelationshipTypes();
   const typeLabel = c.customer_type === "commercial" ? "Commercial" : "Residential";
 
   return (
@@ -100,7 +100,7 @@ export default async function CustomerDetailPage({
           {
             label: "Relationships",
             count: c.relationships.length,
-            content: <RelationshipsTab c={c} typeOptions={relationshipTypes} />,
+            content: <RelationshipsTab c={c} types={relationshipTypes} />,
           },
           { label: "Address & access", content: <AddressTab c={c} /> },
           { label: "Billing & account", content: <BillingTab c={c} /> },
@@ -258,10 +258,10 @@ function CRow({
 
 function RelationshipsTab({
   c,
-  typeOptions,
+  types,
 }: {
   c: CustomerRecord;
-  typeOptions: TenantOption[];
+  types: RelationshipType[];
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -271,7 +271,7 @@ function RelationshipsTab({
           {c.relationships.length === 1 ? "customer" : "customers"}
         </span>
         <div className="ml-auto">
-          <RelationshipAdder customerId={c.id} typeOptions={typeOptions} />
+          <RelationshipAdder customerId={c.id} types={types} />
         </div>
       </div>
       {c.relationships.length === 0 ? (
@@ -309,11 +309,12 @@ function RelationshipsTab({
               <div className="mt-3 flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="shrink-0 text-[11.5px] text-[#71717a]">Relationship</span>
-                  <RelationshipTypeCombo
+                  <RelationshipTypeEditor
                     relationshipId={r.id}
-                    value={r.relationshipType}
-                    typeOptions={typeOptions}
-                    className="w-[170px]"
+                    viewerIsA={r.viewerIsA}
+                    value={r.label}
+                    types={types}
+                    className="w-[190px]"
                   />
                 </div>
                 <div>

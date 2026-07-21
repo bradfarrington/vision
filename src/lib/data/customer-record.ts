@@ -53,7 +53,12 @@ export type CustomerNote = {
 
 export type CustomerRelationship = {
   id: string;
-  relationshipType: string | null;
+  /** How the relationship reads from the customer being viewed. */
+  label: string | null;
+  /** How it reads from the other customer's side (the reverse wording). */
+  labelOtherSide: string | null;
+  /** True when the viewed customer is the customer_id / "a" side of the row. */
+  viewerIsA: boolean;
   notes: string | null;
   related: {
     id: string;
@@ -65,9 +70,32 @@ export type CustomerRelationship = {
   } | null;
 };
 
+export type RelationshipType = {
+  id: number;
+  forwardLabel: string;
+  inverseLabel: string;
+};
+
 export type TenantOption = { id: string; label: string };
 
-/** A tenant's editable option list (relationship types, etc.). */
+/** The tenant's editable relationship-type pairs. */
+export async function getRelationshipTypes(): Promise<RelationshipType[]> {
+  const supabase = await createClient();
+  const db = supabase as unknown as { from(t: string): any };
+  const { data } = await db
+    .from("relationship_types")
+    .select("id, forward_label, inverse_label")
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("forward_label");
+  return ((data ?? []) as any[]).map((r) => ({
+    id: r.id,
+    forwardLabel: r.forward_label,
+    inverseLabel: r.inverse_label,
+  }));
+}
+
+/** A tenant's editable option list (generic pick-lists). */
 export async function getTenantOptions(listKey: string): Promise<TenantOption[]> {
   const supabase = await createClient();
   const db = supabase as unknown as { from(t: string): any };
@@ -201,12 +229,12 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     db.from("custom_field_values").select("definition_id, value, initials").eq("customer_id", id),
     db.from("documents").select("id, name, file_name, file_type, file_size, file_url, category, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
     db.from("lead_notes").select("id, content, created_at").eq("customer_id", id).is("lead_id", null).order("created_at", { ascending: false }),
-    db.from("customer_relationships").select("id, customer_id, related_customer_id, relationship_type, notes").or(`customer_id.eq.${id},related_customer_id.eq.${id}`).order("created_at"),
+    db.from("customer_relationships").select("id, customer_id, related_customer_id, label_a, label_b, notes").or(`customer_id.eq.${id},related_customer_id.eq.${id}`).order("created_at"),
   ]);
 
-  // Relationships are bidirectional — one row is visible from both customers.
-  // The "other party" is whichever side isn't this customer.
-  const relRows = (relsRes.data ?? []) as { id: string; customer_id: string; related_customer_id: string; relationship_type: string | null; notes: string | null }[];
+  // Relationships are bidirectional — one row is visible from both customers,
+  // worded per side (label_a = customer_id's side, label_b = related's side).
+  const relRows = (relsRes.data ?? []) as { id: string; customer_id: string; related_customer_id: string; label_a: string | null; label_b: string | null; notes: string | null }[];
   const otherOf = (r: { customer_id: string; related_customer_id: string }) =>
     r.customer_id === id ? r.related_customer_id : r.customer_id;
   const relatedById = new Map<string, any>();
@@ -221,9 +249,12 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
   const relationships: CustomerRelationship[] = relRows.map((r) => {
     const rc = relatedById.get(otherOf(r));
     const relLeads = (rc?.leads ?? []) as { status: string | null; gross_value: number | null }[];
+    const viewerIsA = r.customer_id === id;
     return {
       id: r.id,
-      relationshipType: r.relationship_type,
+      label: viewerIsA ? r.label_a : r.label_b,
+      labelOtherSide: viewerIsA ? r.label_b : r.label_a,
+      viewerIsA,
       notes: r.notes,
       related: rc
         ? {

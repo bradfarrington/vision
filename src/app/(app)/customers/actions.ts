@@ -260,12 +260,62 @@ export async function deleteTenantOption(id: string): Promise<{ error?: string }
   return {};
 }
 
+// --- Relationship types (directional pairs) ---------------------------------
+/** Add (or reuse) a relationship-type pair. Blank inverse → symmetric. */
+export async function addRelationshipType(
+  forwardLabel: string,
+  inverseLabel?: string | null,
+): Promise<{ id?: number; forwardLabel?: string; inverseLabel?: string; error?: string }> {
+  const fwd = forwardLabel.trim();
+  const inv = (inverseLabel ?? "").trim() || fwd;
+  if (!fwd) return { error: "Enter a label." };
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const existing = await db
+    .from("relationship_types")
+    .select("id, forward_label, inverse_label")
+    .eq("forward_label", fwd)
+    .eq("inverse_label", inv)
+    .limit(1);
+  if (existing.data?.[0]) {
+    revalidatePath("/customers", "layout");
+    return { id: existing.data[0].id, forwardLabel: fwd, inverseLabel: inv };
+  }
+  const ins = await db
+    .from("relationship_types")
+    .insert({ company_id: companyId, forward_label: fwd, inverse_label: inv })
+    .select("id")
+    .single();
+  if (ins.error) return { error: ins.error.message };
+  revalidatePath("/customers", "layout");
+  return { id: ins.data.id, forwardLabel: fwd, inverseLabel: inv };
+}
+
+/** Remove a relationship-type pair. */
+export async function deleteRelationshipType(id: number): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("relationship_types").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
 // --- Customer relationships -------------------------------------------------
-/** Link this customer to another existing customer (bidirectional). */
+/**
+ * Link this customer to another. `labelThisSide` is how it reads on THIS
+ * customer's record; `labelOtherSide` is the reverse wording on the other's.
+ * Stored with customer_id = this customer (the "a" side).
+ */
 export async function addCustomerRelationship(
   customerId: string,
   relatedCustomerId: string,
-  relationshipType: string | null,
+  labelThisSide: string | null,
+  labelOtherSide: string | null,
   notes?: string | null,
 ): Promise<{ error?: string }> {
   if (!relatedCustomerId) return { error: "Choose a customer to link." };
@@ -278,12 +328,34 @@ export async function addCustomerRelationship(
     company_id: companyId,
     customer_id: customerId,
     related_customer_id: relatedCustomerId,
-    relationship_type: relationshipType || null,
+    label_a: labelThisSide || null,
+    label_b: labelOtherSide || null,
     notes: notes || null,
   });
   if (error) return { error: error.message };
   revalidatePath(`/customers/${customerId}`);
   revalidatePath(`/customers/${relatedCustomerId}`);
+  return {};
+}
+
+/** Change a relationship's type from a given customer's perspective. */
+export async function setRelationshipLabels(
+  relationshipId: string,
+  viewerIsA: boolean,
+  labelThisSide: string | null,
+  labelOtherSide: string | null,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const patch = viewerIsA
+    ? { label_a: labelThisSide || null, label_b: labelOtherSide || null }
+    : { label_b: labelThisSide || null, label_a: labelOtherSide || null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("customer_relationships")
+    .update(patch)
+    .eq("id", relationshipId);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
   return {};
 }
 

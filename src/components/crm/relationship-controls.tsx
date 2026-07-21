@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation";
 
 import {
   addCustomerRelationship,
-  addTenantOption,
+  addRelationshipType,
   deleteCustomerRelationship,
-  deleteTenantOption,
+  deleteRelationshipType,
   searchCustomers,
-  updateRelationshipField,
+  setRelationshipLabels,
 } from "@/app/(app)/customers/actions";
-import type { TenantOption } from "@/lib/data/customer-record";
+import type { RelationshipType } from "@/lib/data/customer-record";
 import { cn } from "@/lib/utils";
-import { Combo } from "./combo";
 import { Icon } from "./icon";
 import { btnPrimary, btnSecondary } from "./primitives";
 import {
@@ -28,7 +27,203 @@ import {
 
 type Found = { id: string; name: string; customerNumber: number | null; town: string | null };
 
-// Async customer search picker for choosing the customer to link.
+// Flatten relationship-type pairs into the directional phrasings shown from one
+// customer's perspective. A symmetric type yields one; an asymmetric pair
+// yields both (e.g. "Referred" and "Referred by").
+type DirOption = { key: string; label: string; thisSide: string; otherSide: string; typeId: number };
+function toDirOptions(types: RelationshipType[]): DirOption[] {
+  const out: DirOption[] = [];
+  for (const t of types) {
+    if (t.forwardLabel === t.inverseLabel) {
+      out.push({ key: `${t.id}:s`, label: t.forwardLabel, thisSide: t.forwardLabel, otherSide: t.inverseLabel, typeId: t.id });
+    } else {
+      out.push({ key: `${t.id}:f`, label: t.forwardLabel, thisSide: t.forwardLabel, otherSide: t.inverseLabel, typeId: t.id });
+      out.push({ key: `${t.id}:i`, label: t.inverseLabel, thisSide: t.inverseLabel, otherSide: t.forwardLabel, typeId: t.id });
+    }
+  }
+  return out;
+}
+
+// The directional relationship-type dropdown: search, pick a phrasing, or add a
+// new pair (this-side + reverse wording). Accent-themed.
+function RelationshipTypeSelect({
+  types,
+  value,
+  onChange,
+  className,
+}: {
+  types: RelationshipType[];
+  value: string | null;
+  onChange: (thisSide: string, otherSide: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [newFwd, setNewFwd] = useState("");
+  const [newInv, setNewInv] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setAdding(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const options = toDirOptions(types);
+  const q = query.trim().toLowerCase();
+  const filtered = options.filter((o) => o.label.toLowerCase().includes(q));
+
+  function choose(o: DirOption) {
+    onChange(o.thisSide, o.otherSide);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function saveNew() {
+    const fwd = newFwd.trim();
+    if (!fwd) return;
+    setError(null);
+    start(async () => {
+      const res = await addRelationshipType(fwd, newInv);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+      onChange(res.forwardLabel ?? fwd, res.inverseLabel ?? fwd);
+      router.refresh();
+      setAdding(false);
+      setNewFwd("");
+      setNewInv("");
+      setOpen(false);
+    });
+  }
+
+  return (
+    <div ref={ref} className={cn("relative", className)}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+      >
+        <span className={cn("flex-1 truncate", !value && "text-[#a1a1aa]")}>{value ?? "Set type…"}</span>
+        <Icon name="chevron-down" size={13} className="text-[#71717a]" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-[260px] overflow-hidden rounded-lg border border-[#e7e7ea] bg-white shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]">
+          {adding ? (
+            <div className="flex flex-col gap-2 p-3">
+              <div className="text-[12px] font-semibold text-[#0a0a0a]">New relationship type</div>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-[#71717a]">This side reads</span>
+                <input
+                  autoFocus
+                  value={newFwd}
+                  onChange={(e) => setNewFwd(e.target.value)}
+                  placeholder="e.g. Referred by"
+                  className="rounded-md border border-[#d4d4d8] px-2.5 py-1.5 text-[12.5px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-[#71717a]">Other side reads (optional)</span>
+                <input
+                  value={newInv}
+                  onChange={(e) => setNewInv(e.target.value)}
+                  placeholder="e.g. Referred"
+                  className="rounded-md border border-[#d4d4d8] px-2.5 py-1.5 text-[12.5px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+                />
+              </label>
+              {error && <div className="text-[11px] font-medium text-[#d64545]">{error}</div>}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={saveNew}
+                  className="rounded-md bg-[var(--accent-blue)] px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                >
+                  {pending ? "Saving…" : "Save type"}
+                </button>
+                <button type="button" onClick={() => setAdding(false)} className="text-[12px] font-semibold text-[#71717a]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="border-b border-[#f4f4f5] p-2">
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search relationship types…"
+                  className="w-full rounded-md border border-[#d4d4d8] px-2.5 py-1.5 text-[12.5px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto p-1">
+                {filtered.map((o) => (
+                  <div key={o.key} className="group flex items-center rounded-md hover:bg-[var(--accent-tint)]">
+                    <button
+                      type="button"
+                      onClick={() => choose(o)}
+                      className={cn(
+                        "flex-1 px-2.5 py-1.5 text-left text-[12.5px]",
+                        o.thisSide === value ? "font-semibold text-[var(--accent-active)]" : "text-[#3f3f46]",
+                      )}
+                    >
+                      {o.label}
+                      {o.thisSide !== o.otherSide && (
+                        <span className="ml-1.5 text-[10.5px] text-[#a1a1aa]">↔ {o.otherSide}</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${o.label}`}
+                      disabled={pending}
+                      onClick={() =>
+                        start(async () => {
+                          await deleteRelationshipType(o.typeId);
+                          router.refresh();
+                        })
+                      }
+                      className="mr-1 px-1.5 text-[12px] text-[#a1a1aa] opacity-0 hover:text-[#d64545] group-hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {filtered.length === 0 && (
+                  <div className="px-2.5 py-2 text-[12.5px] text-[#a1a1aa]">No matches</div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdding(true);
+                    setNewFwd(query.trim());
+                  }}
+                  className="mt-1 flex w-full items-center gap-1.5 rounded-md border-t border-[#f4f4f5] px-2.5 py-2 text-left text-[12.5px] font-semibold text-[var(--accent-blue)] hover:bg-[var(--accent-tint)]"
+                >
+                  <Icon name="plus" size={12} strokeWidth={2.2} /> Add a relationship type…
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Async customer search picker.
 function CustomerPicker({
   customerId,
   onPick,
@@ -121,24 +316,24 @@ function CustomerPicker({
 
 export function RelationshipAdder({
   customerId,
-  typeOptions,
+  types,
 }: {
   customerId: string;
-  typeOptions: TenantOption[];
+  types: RelationshipType[];
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Found | null>(null);
-  const [type, setType] = useState<string | null>(null);
+  const [thisSide, setThisSide] = useState<string | null>(null);
+  const [otherSide, setOtherSide] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
 
-  const comboOptions = typeOptions.map((o) => ({ id: o.id, value: o.label, label: o.label }));
-
   function reset() {
     setPicked(null);
-    setType(null);
+    setThisSide(null);
+    setOtherSide(null);
     setNote("");
     setError(null);
   }
@@ -150,7 +345,7 @@ export function RelationshipAdder({
       return;
     }
     start(async () => {
-      const res = await addCustomerRelationship(customerId, picked.id, type, note || null);
+      const res = await addCustomerRelationship(customerId, picked.id, thisSide, otherSide, note || null);
       if (res?.error) {
         setError(res.error);
         return;
@@ -178,8 +373,8 @@ export function RelationshipAdder({
             Link a customer
           </DialogTitle>
           <DialogDescription>
-            Connect this customer to another record — family, a neighbour, a referrer — so
-            their own history is one click away.
+            Connect this customer to another record. The relationship reads correctly from both
+            sides — pick how it reads here and the reverse is stored automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,16 +390,18 @@ export function RelationshipAdder({
             <CustomerPicker customerId={customerId} onPick={setPicked} picked={picked} />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#52525b]">Relationship</span>
-            <Combo
-              options={comboOptions}
-              value={type}
-              onChange={setType}
-              placeholder="Select a relationship…"
-              searchPlaceholder="Search or add a type…"
-              addNounLabel="Add"
-              onAddNew={(label) => addTenantOption("relationship_type", label)}
-              onDelete={(id) => deleteTenantOption(id)}
+            <span className="text-[12px] font-medium text-[#52525b]">
+              This customer is the… {thisSide && otherSide && thisSide !== otherSide && (
+                <span className="font-normal text-[#71717a]">(other side: “{otherSide}”)</span>
+              )}
+            </span>
+            <RelationshipTypeSelect
+              types={types}
+              value={thisSide}
+              onChange={(a, b) => {
+                setThisSide(a);
+                setOtherSide(b);
+              }}
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -231,40 +428,33 @@ export function RelationshipAdder({
   );
 }
 
-// The relationship type as an inline-editable dropdown (persists on change,
-// and supports adding new types on the fly).
-export function RelationshipTypeCombo({
+// Inline type editor on a relationship card — persists from the viewer's side.
+export function RelationshipTypeEditor({
   relationshipId,
+  viewerIsA,
   value,
-  typeOptions,
+  types,
   className,
 }: {
   relationshipId: string;
+  viewerIsA: boolean;
   value: string | null;
-  typeOptions: TenantOption[];
+  types: RelationshipType[];
   className?: string;
 }) {
-  const [val, setVal] = useState<string | null>(value);
   const [, start] = useTransition();
   const router = useRouter();
-  const options = typeOptions.map((o) => ({ id: o.id, value: o.label, label: o.label }));
-
   return (
-    <Combo
+    <RelationshipTypeSelect
       className={className}
-      options={options}
-      value={val}
-      onChange={(v) => {
-        setVal(v);
+      types={types}
+      value={value}
+      onChange={(a, b) => {
         start(async () => {
-          await updateRelationshipField(relationshipId, "relationship_type", v);
+          await setRelationshipLabels(relationshipId, viewerIsA, a, b);
           router.refresh();
         });
       }}
-      placeholder="Set type…"
-      searchPlaceholder="Search or add a type…"
-      onAddNew={(label) => addTenantOption("relationship_type", label)}
-      onDelete={(id) => deleteTenantOption(id)}
     />
   );
 }
