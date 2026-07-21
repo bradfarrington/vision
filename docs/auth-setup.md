@@ -92,6 +92,23 @@ npm run dev
 - **Forgot password?** → enter the email → the reset link (from Resend) lands on
   `/reset/update` to set a new password.
 
+## Deploying to Vercel (production)
+
+The Next.js CRM deploys to **Vercel**. The `send-auth-email` function stays on
+**Supabase** (Auth must be able to call it) — two hosting homes, by design.
+
+When you deploy, point everything at the real domain or reset links will email a
+broken `localhost` URL:
+
+1. **Vercel → Environment Variables:** add `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and set `NEXT_PUBLIC_SITE_URL` to the
+   production URL (not localhost).
+2. **Supabase → Auth → URL Configuration → Site URL:** set to the production URL.
+3. **Redirect allow-list:** add `https://<prod-domain>/**`.
+
+(Tenant *websites* built in the app deploy to their own per-tenant Vercel projects
+via the Vercel API — separate from this CRM deployment. See AGENTS.md.)
+
 ## What's deferred (pre-launch)
 
 - Self-serve **free-trial** signup (creates company + owner, `plan='trial'`)
