@@ -554,11 +554,11 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
         <CardTitle className="mb-1">Marketing consent</CardTitle>
-        <p className="mb-1 text-[11.5px] text-[#a1a1aa]">Yes = consented on that channel</p>
-        <E c={c} label="Email" field="email_opt_in" value={c.email_opt_in} type="boolean" />
-        <E c={c} label="SMS" field="sms_opt_in" value={c.sms_opt_in} type="boolean" />
-        <E c={c} label="Phone" field="phone_opt_in" value={c.phone_opt_in} type="boolean" />
-        <E c={c} label="Post" field="letter_opt_in" value={c.letter_opt_in} type="boolean" last />
+        <p className="mb-1 text-[11.5px] text-[#a1a1aa]">Blank = not asked · click to set Yes / No</p>
+        <E c={c} label="Email" field="email_opt_in" value={c.email_opt_in} type="tristate" />
+        <E c={c} label="SMS" field="sms_opt_in" value={c.sms_opt_in} type="tristate" />
+        <E c={c} label="Phone" field="phone_opt_in" value={c.phone_opt_in} type="tristate" />
+        <E c={c} label="Post" field="letter_opt_in" value={c.letter_opt_in} type="tristate" last />
       </Card>
       <Card>
         <CardTitle className="mb-2">Marketing</CardTitle>

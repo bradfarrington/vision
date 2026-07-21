@@ -16,6 +16,7 @@ export type EditableType =
   | "date"
   | "select"
   | "boolean"
+  | "tristate"
   | "lookup";
 
 type SaveAction = (
@@ -129,6 +130,29 @@ export function EditableField({
         onChange={(v) => save(v)}
         placeholder={placeholder}
       />
+    );
+  }
+
+  // --- tristate: unknown (—) → Yes → No → unknown, click to cycle ----------
+  if (type === "tristate") {
+    const v = (current as boolean | null | undefined) ?? null;
+    const next = v === null ? true : v === true ? false : null;
+    return (
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => save(next)}
+        className={cn("transition-opacity", pending && "opacity-50", className)}
+        title="Click to cycle blank / Yes / No"
+      >
+        {v === true ? (
+          <Pill tone="success">Yes</Pill>
+        ) : v === false ? (
+          <Pill tone="neutral">No</Pill>
+        ) : (
+          <span className="text-[#a1a1aa] hover:text-[#71717a]">—</span>
+        )}
+      </button>
     );
   }
 
