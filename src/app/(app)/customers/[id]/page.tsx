@@ -7,6 +7,8 @@ import {
   getTenantOptionLists,
   type CustomerRecord,
   type RelationshipType,
+  type CustomerFinancials,
+  type ContractLine,
 } from "@/lib/data/customer-record";
 import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
 import {
@@ -425,7 +427,9 @@ function BillingTab({
   salesUsers: StaffOption[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="flex flex-col gap-4">
+      <FinancialsPanel financials={c.financials} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
         <CardTitle className="mb-2">Invoice address</CardTitle>
         <E c={c} label="Invoice name" field="invoice_name" value={c.invoice_name} />
@@ -462,7 +466,85 @@ function BillingTab({
           )}
         </Card>
       </div>
+      </div>
     </div>
+  );
+}
+
+function FinancialsPanel({ financials }: { financials: CustomerFinancials }) {
+  const { lifetimeValue, outstandingTotal, outstanding, completed } = financials;
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
+        <CardTitle>Financials</CardTitle>
+        <span className="text-[12.5px] text-[#71717a]">
+          Lifetime value{" "}
+          <strong className="ml-1 text-[14px] text-[#0a0a0a]">{gbp(lifetimeValue)}</strong>
+        </span>
+        <span className="text-[12.5px] text-[#71717a]">
+          Outstanding{" "}
+          <strong
+            className={`ml-1 text-[14px] ${outstandingTotal > 0 ? "text-[#b86e00]" : "text-[#0a0a0a]"}`}
+          >
+            {gbp(outstandingTotal)}
+          </strong>
+        </span>
+      </div>
+
+      {outstanding.length === 0 && completed.length === 0 ? (
+        <p className="mt-3 text-[12.5px] text-[#71717a]">
+          No contracts yet — they appear here once a lead is converted.
+        </p>
+      ) : (
+        <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 lg:grid-cols-2">
+          <div>
+            <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+              Outstanding · {outstanding.length}
+            </div>
+            {outstanding.length === 0 ? (
+              <p className="py-1.5 text-[12px] text-[#71717a]">Nothing outstanding.</p>
+            ) : (
+              outstanding.map((l) => <ContractRow key={l.id} l={l} showBalance />)
+            )}
+          </div>
+          <div>
+            <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+              Completed &amp; paid · {completed.length}
+            </div>
+            {completed.length === 0 ? (
+              <p className="py-1.5 text-[12px] text-[#71717a]">None yet.</p>
+            ) : (
+              completed.map((l) => <ContractRow key={l.id} l={l} />)
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ContractRow({ l, showBalance }: { l: ContractLine; showBalance?: boolean }) {
+  const body = (
+    <div className="flex items-center gap-2.5 border-b border-[#f4f4f5] py-2 text-[12.5px] last:border-b-0">
+      <RefChip inverted>{l.ref}</RefChip>
+      <span className="min-w-0 flex-1 truncate text-[#3f3f46]">
+        {l.type ?? "Contract"}
+        {l.date && <span className="text-[#a1a1aa]"> · {longDate(l.date)}</span>}
+      </span>
+      {showBalance ? (
+        <span className="shrink-0 font-semibold text-[#b86e00]">{gbp(l.balance)}</span>
+      ) : (
+        <span className="shrink-0 font-semibold text-[#0a0a0a]">{gbp(l.value)}</span>
+      )}
+      {l.leadId && <span className="shrink-0 text-[var(--accent-blue)]">→</span>}
+    </div>
+  );
+  return l.leadId ? (
+    <Link href={`/leads/${l.leadId}`} className="-mx-2 block rounded px-2 hover:bg-[#fafafa]">
+      {body}
+    </Link>
+  ) : (
+    body
   );
 }
 

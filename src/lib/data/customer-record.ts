@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "@/lib/supabase/server";
-import { isLiveLead } from "@/lib/leads";
+import { isLiveLead, contractRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
 import type { CustomerLead, ContractSummary } from "./customers";
 
@@ -77,6 +77,25 @@ export type RelationshipType = {
   id: number;
   forwardLabel: string;
   inverseLabel: string;
+};
+
+export type ContractLine = {
+  id: string;
+  contractNumber: number | null;
+  ref: string;
+  value: number;
+  balance: number;
+  status: string | null;
+  date: string | null;
+  type: string | null;
+  leadId: string | null;
+};
+
+export type CustomerFinancials = {
+  lifetimeValue: number;
+  outstandingTotal: number;
+  outstanding: ContractLine[];
+  completed: ContractLine[];
 };
 
 export type TenantOption = { id: string; label: string };
@@ -222,6 +241,7 @@ export type CustomerRecord = CustomerFields & {
   documents: CustomerDoc[];
   customerNotes: CustomerNote[];
   relationships: CustomerRelationship[];
+  financials: CustomerFinancials;
 };
 
 const LEAD_FIELDS =
@@ -325,6 +345,48 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
 
   const contactList = (contactsRes.data ?? []) as CustomerContact[];
 
+  // Contract financials — balance = contract value minus payments recorded on
+  // finance_lines, grouped into outstanding vs completed & paid.
+  const contractIds = contracts.map((ct) => ct.id);
+  const paidByContract = new Map<string, number>();
+  if (contractIds.length) {
+    const { data: finLines } = await db
+      .from("finance_lines")
+      .select("contract_id, payment_amount")
+      .in("contract_id", contractIds);
+    for (const fl of finLines ?? []) {
+      if (!fl.contract_id) continue;
+      paidByContract.set(
+        fl.contract_id,
+        (paidByContract.get(fl.contract_id) ?? 0) + Number(fl.payment_amount ?? 0),
+      );
+    }
+  }
+  const contractLines: ContractLine[] = contracts.map((ct) => {
+    const value = Number(ct.gross_value ?? 0);
+    const paid = paidByContract.get(ct.id) ?? 0;
+    return {
+      id: ct.id,
+      contractNumber: ct.contract_number,
+      ref: contractRef(ct.contract_number),
+      value,
+      balance: Math.round((value - paid) * 100) / 100,
+      status: ct.status,
+      date: ct.contract_date,
+      type: ct.contract_type,
+      leadId: ct.lead_id,
+    };
+  });
+  const cancelled = (s: string | null) => (s ?? "").toLowerCase() === "cancelled";
+  const outstanding = contractLines.filter((l) => l.balance > 0.005 && !cancelled(l.status));
+  const completed = contractLines.filter((l) => l.balance <= 0.005 || cancelled(l.status));
+  const financials: CustomerFinancials = {
+    lifetimeValue: contractLines.reduce((s, l) => s + l.value, 0),
+    outstandingTotal: outstanding.reduce((s, l) => s + l.balance, 0),
+    outstanding,
+    completed,
+  };
+
   return {
     ...(c as CustomerFields),
     displayName: displayName(c),
@@ -341,6 +403,7 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     documents: (docsRes.data ?? []) as CustomerDoc[],
     customerNotes: (notesRes.data ?? []) as CustomerNote[],
     relationships,
+    financials,
   };
 }
 
