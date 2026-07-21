@@ -561,7 +561,7 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
       </Card>
       <Card>
         <CardTitle className="mb-2">Marketing</CardTitle>
-        <E c={c} label="Marketing source" field="marketing_code" value={c.marketing_code} type="lookup" listKey="marketing_source" lookupOptions={lookups.marketing_source} />
+        <E c={c} label="Referral source" field="marketing_code" value={c.marketing_code} type="lookup" listKey="marketing_source" lookupOptions={lookups.marketing_source} />
         <E c={c} label="Consent date" field="opt_in_date" value={c.opt_in_date} type="date" />
         <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} />
         <E c={c} label="Consent document" field="opt_in_document" value={c.opt_in_document} last />
