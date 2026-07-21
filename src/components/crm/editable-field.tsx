@@ -3,10 +3,19 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { addTenantOption, deleteTenantOption } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
+import { Combo } from "./combo";
 import { Pill } from "./primitives";
 
-export type EditableType = "text" | "textarea" | "number" | "date" | "select" | "boolean";
+export type EditableType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "select"
+  | "boolean"
+  | "lookup";
 
 type SaveAction = (
   id: string,
@@ -21,6 +30,10 @@ type Props = {
   action: SaveAction;
   type?: EditableType;
   options?: { value: string; label: string }[];
+  /** Tenant-editable dropdown options (type="lookup"). */
+  lookupOptions?: { id: string; label: string }[];
+  /** tenant_options list_key for add-new / delete (type="lookup"). */
+  listKey?: string;
   placeholder?: string;
   mono?: boolean;
   /** Show boolean as a red pill when true (e.g. Do-not-contact). */
@@ -38,6 +51,8 @@ export function EditableField({
   action,
   type = "text",
   options,
+  lookupOptions,
+  listKey,
   placeholder = "—",
   mono,
   booleanDanger,
@@ -77,6 +92,22 @@ export function EditableField({
         router.refresh();
       }
     });
+  }
+
+  // --- lookup: a tenant-editable searchable dropdown -----------------------
+  if (type === "lookup") {
+    return (
+      <Combo
+        className={cn("w-[190px]", className)}
+        options={(lookupOptions ?? []).map((o) => ({ id: o.id, value: o.label, label: o.label }))}
+        value={(current as string) ?? null}
+        onChange={(v) => save(v)}
+        placeholder={placeholder === "—" ? "Select…" : placeholder}
+        searchPlaceholder="Search or add…"
+        onAddNew={listKey ? (label) => addTenantOption(listKey, label) : undefined}
+        onDelete={listKey ? (id) => deleteTenantOption(id) : undefined}
+      />
+    );
   }
 
   // --- boolean: a toggle pill, no edit mode --------------------------------

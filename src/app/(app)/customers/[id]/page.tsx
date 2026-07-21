@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import {
   getCustomerRecord,
   getRelationshipTypes,
+  getTenantOptionLists,
   type CustomerRecord,
   type RelationshipType,
 } from "@/lib/data/customer-record";
@@ -46,7 +47,10 @@ export default async function CustomerDetailPage({
   const c = await getCustomerRecord(id);
   if (!c) notFound();
 
-  const relationshipTypes = await getRelationshipTypes();
+  const [relationshipTypes, lookups] = await Promise.all([
+    getRelationshipTypes(),
+    getTenantOptionLists(["title", "property_type", "payment_terms", "settlement_terms", "marketing_source"]),
+  ]);
   const typeLabel = c.customer_type === "commercial" ? "Commercial" : "Residential";
 
   return (
@@ -95,7 +99,7 @@ export default async function CustomerDetailPage({
 
       <Tabs
         tabs={[
-          { label: "Overview", content: <OverviewTab c={c} /> },
+          { label: "Overview", content: <OverviewTab c={c} lookups={lookups} /> },
           { label: "Contacts", count: c.contacts.length, content: <ContactsTab c={c} /> },
           {
             label: "Relationships",
@@ -103,8 +107,8 @@ export default async function CustomerDetailPage({
             content: <RelationshipsTab c={c} types={relationshipTypes} />,
           },
           { label: "Address & access", content: <AddressTab c={c} /> },
-          { label: "Billing & account", content: <BillingTab c={c} /> },
-          { label: "Marketing & permissions", content: <MarketingTab c={c} /> },
+          { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} /> },
+          { label: "Marketing & permissions", content: <MarketingTab c={c} lookups={lookups} /> },
           { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} /> },
           { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} /> },
           { label: "Notes", count: c.customerNotes.length, content: <NotesTab c={c} /> },
@@ -119,8 +123,10 @@ const TYPE_OPTS = [
   { value: "commercial", label: "Commercial" },
 ];
 
+type Lookups = Record<string, { id: string; label: string }[]>;
+
 // --- Tabs -------------------------------------------------------------------
-function OverviewTab({ c }: { c: CustomerRecord }) {
+function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   const liveLeads = c.leads.filter((l) => isLiveLead(l.status)).length;
   return (
     <div className="flex flex-col gap-4">
@@ -129,12 +135,13 @@ function OverviewTab({ c }: { c: CustomerRecord }) {
           <CardTitle className="mb-2">Identity</CardTitle>
           <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
           <E c={c} label="Type" field="customer_type" value={c.customer_type} type="select" options={TYPE_OPTS} />
-          <E c={c} label="Title" field="title" value={c.title} />
+          <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
           <E c={c} label="First name" field="first_name" value={c.first_name} />
           <E c={c} label="Last name" field="last_name" value={c.last_name} />
           <E c={c} label="2nd first name" field="first_name_2" value={c.first_name_2} />
           <E c={c} label="2nd last name" field="last_name_2" value={c.last_name_2} />
-          <E c={c} label="Salutation" field="salutation" value={c.salutation} last={c.customer_type !== "commercial"} />
+          <E c={c} label="Salutation" field="salutation" value={c.salutation} />
+          <E c={c} label="Property type" field="property_type" value={c.property_type} type="lookup" listKey="property_type" lookupOptions={lookups.property_type} last={c.customer_type !== "commercial"} />
           {c.customer_type === "commercial" && (
             <E c={c} label="Company" field="company_name" value={c.company_name} last />
           )}
@@ -381,7 +388,7 @@ function AddressTab({ c }: { c: CustomerRecord }) {
   );
 }
 
-function BillingTab({ c }: { c: CustomerRecord }) {
+function BillingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
@@ -397,8 +404,8 @@ function BillingTab({ c }: { c: CustomerRecord }) {
       <div className="flex flex-col gap-4">
         <Card>
           <CardTitle className="mb-2">Account settings</CardTitle>
-          <E c={c} label="Payment terms" field="payment_terms" value={c.payment_terms} />
-          <E c={c} label="Early-payment terms" field="settlement_disc_terms" value={c.settlement_disc_terms} />
+          <E c={c} label="Payment terms" field="payment_terms" value={c.payment_terms} type="lookup" listKey="payment_terms" lookupOptions={lookups.payment_terms} />
+          <E c={c} label="Early-payment terms" field="settlement_disc_terms" value={c.settlement_disc_terms} type="lookup" listKey="settlement_terms" lookupOptions={lookups.settlement_terms} />
           <E c={c} label="Early-payment %" field="settlement_disc_pct" value={c.settlement_disc_pct} type="number" />
           <E c={c} label="VAT after discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
           <E c={c} label="In accounts system" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
@@ -424,7 +431,7 @@ function BillingTab({ c }: { c: CustomerRecord }) {
   );
 }
 
-function MarketingTab({ c }: { c: CustomerRecord }) {
+function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
@@ -442,7 +449,7 @@ function MarketingTab({ c }: { c: CustomerRecord }) {
       </Card>
       <Card>
         <CardTitle className="mb-2">Marketing</CardTitle>
-        <E c={c} label="Marketing source" field="marketing_code" value={c.marketing_code} />
+        <E c={c} label="Marketing source" field="marketing_code" value={c.marketing_code} type="lookup" listKey="marketing_source" lookupOptions={lookups.marketing_source} />
         <E c={c} label="Consent date" field="opt_in_date" value={c.opt_in_date} type="date" />
         <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} />
         <E c={c} label="Consent document" field="opt_in_document" value={c.opt_in_document} last />
@@ -515,6 +522,8 @@ function E({
   value,
   type = "text",
   options,
+  lookupOptions,
+  listKey,
   mono,
   danger,
   last,
@@ -525,6 +534,8 @@ function E({
   value: string | number | boolean | null;
   type?: EditableType;
   options?: { value: string; label: string }[];
+  lookupOptions?: { id: string; label: string }[];
+  listKey?: string;
   mono?: boolean;
   danger?: boolean;
   last?: boolean;
@@ -539,6 +550,8 @@ function E({
         action={updateCustomerField}
         type={type}
         options={options}
+        lookupOptions={lookupOptions}
+        listKey={listKey}
         mono={mono}
         booleanDanger={danger}
       />

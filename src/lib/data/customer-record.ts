@@ -97,6 +97,27 @@ export async function getRelationshipTypes(): Promise<RelationshipType[]> {
   }));
 }
 
+/** Several tenant option lists at once, grouped by list_key. */
+export async function getTenantOptionLists(
+  keys: string[],
+): Promise<Record<string, TenantOption[]>> {
+  const supabase = await createClient();
+  const db = supabase as unknown as { from(t: string): any };
+  const { data } = await db
+    .from("tenant_options")
+    .select("id, list_key, label")
+    .in("list_key", keys)
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("label");
+  const out: Record<string, TenantOption[]> = {};
+  for (const k of keys) out[k] = [];
+  for (const r of (data ?? []) as { id: string; list_key: string; label: string }[]) {
+    (out[r.list_key] ??= []).push({ id: r.id, label: r.label });
+  }
+  return out;
+}
+
 /** A tenant's editable option list (generic pick-lists). */
 export async function getTenantOptions(listKey: string): Promise<TenantOption[]> {
   const supabase = await createClient();
