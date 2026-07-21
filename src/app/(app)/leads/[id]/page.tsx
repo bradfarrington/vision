@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getLead, type AddressParts, type LeadDetail } from "@/lib/data/leads";
 import { gbp } from "@/lib/format";
 import { Card, CardTitle, Icon, Pill, btnPrimary, btnSecondary } from "@/components/crm/primitives";
+import { EditableField, type EditableType } from "@/components/crm/editable-field";
+import { updateLeadField } from "@/app/(app)/leads/actions";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import {
   ChecklistToggle,
@@ -97,36 +99,48 @@ export default async function LeadDetailPage({
 }
 
 function LeadPanel({ lead }: { lead: LeadDetail }) {
-  const rows: [string, React.ReactNode][] = [
-    ["Lead no.", <span key="n" className="font-mono font-semibold">{lead.leadNumber ?? "—"}</span>],
-    ["Date received", fmt(lead.leadDate)],
-    ["Salesperson", lead.salesman ?? "—"],
-    ["Source", [lead.source, lead.subSource].filter(Boolean).join(" · ") || "—"],
-    ["Main interest", lead.productType ?? lead.productInterest1 ?? "—"],
-    ["Second interest", lead.productInterest2 ?? "—"],
-    ["Windows", lead.windowCount != null ? String(lead.windowCount) : "—"],
-    ["Quote date · value", lead.quoteDate ? `${fmt(lead.quoteDate)} · ${gbp(lead.value)}` : "—"],
-  ];
-
   return (
     <Card>
       <CardTitle className="mb-1.5 text-[14px]">Lead</CardTitle>
-      {rows.map(([label, value], i) => (
-        <FieldRow key={label} label={label} last={false} border={i < rows.length}>
-          {value}
-        </FieldRow>
-      ))}
-      {lead.followUpDate && (
-        <FieldRow label="Follow-up date" border>
-          <span className="font-semibold text-[#b86e00]">{fmt(lead.followUpDate)}</span>
-        </FieldRow>
-      )}
+      <FieldRow label="Lead no.">
+        <span className="font-mono font-semibold">{lead.leadNumber ?? "—"}</span>
+      </FieldRow>
+      <FieldRow label="Date received">{fmt(lead.leadDate)}</FieldRow>
+      <EL leadId={lead.id} label="Salesperson" field="salesman" value={lead.salesman} />
+      <EL leadId={lead.id} label="Source" field="source" value={lead.source} />
+      <EL leadId={lead.id} label="Sub-source" field="sub_source" value={lead.subSource} />
+      <EL leadId={lead.id} label="Main interest" field="product_type" value={lead.productType} />
+      <EL leadId={lead.id} label="Second interest" field="product_interest_2" value={lead.productInterest2} />
+      <EL leadId={lead.id} label="Windows" field="window_count" value={lead.windowCount} type="number" />
+      <EL leadId={lead.id} label="Follow-up date" field="follow_up_date" value={lead.followUpDate} type="date" />
+      <FieldRow label="Quote date · value">
+        {lead.quoteDate ? `${fmt(lead.quoteDate)} · ${gbp(lead.value)}` : "—"}
+      </FieldRow>
       <FieldRow label="Result" last border={false}>
-        <Pill tone={lead.result === "lost" ? "danger" : lead.result === "won" ? "success" : "success"}>
-          {lead.result ?? "alive"}
-        </Pill>
+        <Pill tone={lead.result === "lost" ? "danger" : "success"}>{lead.result ?? "alive"}</Pill>
       </FieldRow>
     </Card>
+  );
+}
+
+function EL({
+  leadId,
+  label,
+  field,
+  value,
+  type = "text",
+}: {
+  leadId: string;
+  label: string;
+  field: string;
+  value: string | number | boolean | null;
+  type?: EditableType;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2.5 border-b border-[#f4f4f5] py-1.5 text-[12px]">
+      <span className="text-[#71717a]">{label}</span>
+      <EditableField id={leadId} field={field} value={value} action={updateLeadField} type={type} />
+    </div>
   );
 }
 

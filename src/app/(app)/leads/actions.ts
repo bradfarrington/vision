@@ -111,6 +111,42 @@ export async function setLeadStage(leadId: string, status: string): Promise<void
   revalidatePath("/leads");
 }
 
+const EDITABLE_LEAD_FIELDS = new Set<string>([
+  "salesman", "salesperson_type", "source", "sub_source", "product_type",
+  "product_interest_1", "product_interest_2", "window_count", "gross_value",
+  "estimated_value", "priority", "follow_up_date", "notes",
+]);
+
+const NUMERIC_LEAD_FIELDS = new Set(["window_count", "gross_value", "estimated_value"]);
+
+/** Update a single lead field from the inline editor. */
+export async function updateLeadField(
+  id: string,
+  field: string,
+  value: string | number | boolean | null,
+): Promise<{ error?: string }> {
+  if (!EDITABLE_LEAD_FIELDS.has(field)) {
+    return { error: `Field "${field}" is not editable.` };
+  }
+  let normalised: string | number | boolean | null =
+    typeof value === "string" && value.trim() === "" ? null : value;
+  if (NUMERIC_LEAD_FIELDS.has(field) && normalised != null) {
+    const n = Number(String(normalised).replace(/[^0-9.]/g, ""));
+    normalised = Number.isFinite(n) ? n : null;
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("leads")
+    .update({ [field]: normalised } as Database["public"]["Tables"]["leads"]["Update"])
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/leads/${id}`);
+  revalidatePath("/leads");
+  return {};
+}
+
 /** Add a note to a lead's timeline. */
 export async function addLeadNote(leadId: string, content: string): Promise<void> {
   const text = content.trim();

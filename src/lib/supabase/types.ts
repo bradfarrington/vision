@@ -1307,96 +1307,449 @@ export type Database = {
           },
         ]
       }
+      custom_field_definitions: {
+        Row: {
+          company_id: string
+          created_at: string
+          data_type: string
+          entity: string
+          id: number
+          is_active: boolean | null
+          options: string[] | null
+          question: string
+          required: boolean | null
+          sort_order: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          data_type?: string
+          entity?: string
+          id?: number
+          is_active?: boolean | null
+          options?: string[] | null
+          question: string
+          required?: boolean | null
+          sort_order?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          data_type?: string
+          entity?: string
+          id?: number
+          is_active?: boolean | null
+          options?: string[] | null
+          question?: string
+          required?: boolean | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_field_definitions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_field_values: {
+        Row: {
+          company_id: string
+          created_at: string
+          customer_id: string | null
+          definition_id: number
+          id: string
+          initials: string | null
+          lead_id: string | null
+          updated_at: string
+          updated_by: string | null
+          value: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          customer_id?: string | null
+          definition_id: number
+          id?: string
+          initials?: string | null
+          lead_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          customer_id?: string | null
+          definition_id?: number
+          id?: string
+          initials?: string | null
+          lead_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_field_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_field_values_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_field_values_definition_id_fkey"
+            columns: ["definition_id"]
+            isOneToOne: false
+            referencedRelation: "custom_field_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_field_values_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "custom_field_values_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_account_references: {
+        Row: {
+          acc_name: string | null
+          company_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          reference: string | null
+        }
+        Insert: {
+          acc_name?: string | null
+          company_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          reference?: string | null
+        }
+        Update: {
+          acc_name?: string | null
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_account_references_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_account_references_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_contacts: {
+        Row: {
+          company_id: string
+          created_at: string
+          customer_id: string
+          email: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          no_whatsapp: boolean | null
+          phone: string | null
+          position_role: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          customer_id: string
+          email?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          no_whatsapp?: boolean | null
+          phone?: string | null
+          position_role?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          email?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          no_whatsapp?: boolean | null
+          phone?: string | null
+          position_role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
+          account_created_in_package: boolean | null
           address: string | null
+          bad_payer: boolean | null
+          business_address: boolean | null
+          calculate_vat_on_reduced: boolean | null
+          cis_reg: string | null
           city: string | null
           company_id: string
           company_name: string | null
           county: string | null
           created_at: string
+          created_by: string | null
+          customer_moved_away: boolean | null
+          customer_number: number | null
           customer_type: string | null
+          default_account_reference: string | null
+          directions: string | null
+          do_not_contact: boolean | null
           email: string | null
+          email_opt_in: boolean | null
+          fax_alt_no: string | null
           first_name: string
+          first_name_2: string | null
+          flash_note: string | null
           home_telephone: string | null
           house_name: string | null
           house_number: string | null
           id: string
+          invoice_address_1: string | null
+          invoice_address_2: string | null
+          invoice_address_3: string | null
+          invoice_address_4: string | null
+          invoice_name: string | null
+          invoice_postcode: string | null
+          invoice_tel: string | null
           last_name: string
+          last_name_2: string | null
+          letter_opt_in: boolean | null
           locality: string | null
+          marketing_code: string | null
+          marketing_notes: string | null
           mobile: string | null
           mobile_2: string | null
+          no_email_marketing: boolean | null
+          no_postal_marketing: boolean | null
+          no_sms_marketing: boolean | null
+          no_telephone_marketing: boolean | null
+          no_whatsapp: boolean | null
           notes: string | null
+          office_ref_1: string | null
+          office_ref_2: string | null
+          opt_in_date: string | null
+          opt_in_document: string | null
+          opted_in_by: string | null
+          payment_terms: string | null
           phone: string | null
+          phone_opt_in: boolean | null
           postcode: string | null
           property_type: string | null
+          sales_manager: string | null
+          salutation: string | null
+          settlement_disc_pct: number | null
+          settlement_disc_terms: string | null
+          sms_opt_in: boolean | null
           state: string | null
           street: string | null
           title: string | null
+          title_2: string | null
           town: string | null
           tt_customer_id: string | null
+          vat_no: string | null
           what_3_words: string | null
           work_telephone: string | null
           zip_code: string | null
         }
         Insert: {
+          account_created_in_package?: boolean | null
           address?: string | null
+          bad_payer?: boolean | null
+          business_address?: boolean | null
+          calculate_vat_on_reduced?: boolean | null
+          cis_reg?: string | null
           city?: string | null
           company_id: string
           company_name?: string | null
           county?: string | null
           created_at?: string
+          created_by?: string | null
+          customer_moved_away?: boolean | null
+          customer_number?: number | null
           customer_type?: string | null
+          default_account_reference?: string | null
+          directions?: string | null
+          do_not_contact?: boolean | null
           email?: string | null
+          email_opt_in?: boolean | null
+          fax_alt_no?: string | null
           first_name: string
+          first_name_2?: string | null
+          flash_note?: string | null
           home_telephone?: string | null
           house_name?: string | null
           house_number?: string | null
           id?: string
+          invoice_address_1?: string | null
+          invoice_address_2?: string | null
+          invoice_address_3?: string | null
+          invoice_address_4?: string | null
+          invoice_name?: string | null
+          invoice_postcode?: string | null
+          invoice_tel?: string | null
           last_name: string
+          last_name_2?: string | null
+          letter_opt_in?: boolean | null
           locality?: string | null
+          marketing_code?: string | null
+          marketing_notes?: string | null
           mobile?: string | null
           mobile_2?: string | null
+          no_email_marketing?: boolean | null
+          no_postal_marketing?: boolean | null
+          no_sms_marketing?: boolean | null
+          no_telephone_marketing?: boolean | null
+          no_whatsapp?: boolean | null
           notes?: string | null
+          office_ref_1?: string | null
+          office_ref_2?: string | null
+          opt_in_date?: string | null
+          opt_in_document?: string | null
+          opted_in_by?: string | null
+          payment_terms?: string | null
           phone?: string | null
+          phone_opt_in?: boolean | null
           postcode?: string | null
           property_type?: string | null
+          sales_manager?: string | null
+          salutation?: string | null
+          settlement_disc_pct?: number | null
+          settlement_disc_terms?: string | null
+          sms_opt_in?: boolean | null
           state?: string | null
           street?: string | null
           title?: string | null
+          title_2?: string | null
           town?: string | null
           tt_customer_id?: string | null
+          vat_no?: string | null
           what_3_words?: string | null
           work_telephone?: string | null
           zip_code?: string | null
         }
         Update: {
+          account_created_in_package?: boolean | null
           address?: string | null
+          bad_payer?: boolean | null
+          business_address?: boolean | null
+          calculate_vat_on_reduced?: boolean | null
+          cis_reg?: string | null
           city?: string | null
           company_id?: string
           company_name?: string | null
           county?: string | null
           created_at?: string
+          created_by?: string | null
+          customer_moved_away?: boolean | null
+          customer_number?: number | null
           customer_type?: string | null
+          default_account_reference?: string | null
+          directions?: string | null
+          do_not_contact?: boolean | null
           email?: string | null
+          email_opt_in?: boolean | null
+          fax_alt_no?: string | null
           first_name?: string
+          first_name_2?: string | null
+          flash_note?: string | null
           home_telephone?: string | null
           house_name?: string | null
           house_number?: string | null
           id?: string
+          invoice_address_1?: string | null
+          invoice_address_2?: string | null
+          invoice_address_3?: string | null
+          invoice_address_4?: string | null
+          invoice_name?: string | null
+          invoice_postcode?: string | null
+          invoice_tel?: string | null
           last_name?: string
+          last_name_2?: string | null
+          letter_opt_in?: boolean | null
           locality?: string | null
+          marketing_code?: string | null
+          marketing_notes?: string | null
           mobile?: string | null
           mobile_2?: string | null
+          no_email_marketing?: boolean | null
+          no_postal_marketing?: boolean | null
+          no_sms_marketing?: boolean | null
+          no_telephone_marketing?: boolean | null
+          no_whatsapp?: boolean | null
           notes?: string | null
+          office_ref_1?: string | null
+          office_ref_2?: string | null
+          opt_in_date?: string | null
+          opt_in_document?: string | null
+          opted_in_by?: string | null
+          payment_terms?: string | null
           phone?: string | null
+          phone_opt_in?: boolean | null
           postcode?: string | null
           property_type?: string | null
+          sales_manager?: string | null
+          salutation?: string | null
+          settlement_disc_pct?: number | null
+          settlement_disc_terms?: string | null
+          sms_opt_in?: boolean | null
           state?: string | null
           street?: string | null
           title?: string | null
+          title_2?: string | null
           town?: string | null
           tt_customer_id?: string | null
+          vat_no?: string | null
           what_3_words?: string | null
           work_telephone?: string | null
           zip_code?: string | null
@@ -1407,6 +1760,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -1489,6 +1849,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          category: string | null
           company_id: string
           context: string | null
           contract_id: string | null
@@ -1504,6 +1865,7 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          category?: string | null
           company_id: string
           context?: string | null
           contract_id?: string | null
@@ -1519,6 +1881,7 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          category?: string | null
           company_id?: string
           context?: string | null
           contract_id?: string | null
