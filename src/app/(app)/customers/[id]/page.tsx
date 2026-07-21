@@ -12,7 +12,7 @@ import {
   updateContactField,
   updateRelationshipField,
 } from "@/app/(app)/customers/actions";
-import { gbp, gbpCompact } from "@/lib/format";
+import { gbp } from "@/lib/format";
 import { isLiveLead } from "@/lib/leads";
 import {
   Avatar,
@@ -280,9 +280,9 @@ function RelationshipsTab({
           history is one click away.
         </Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-wrap gap-3">
           {c.relationships.map((r) => (
-            <Card key={r.id} className="flex flex-col gap-3">
+            <Card key={r.id} className="flex w-fit min-w-[260px] max-w-sm flex-col gap-3">
               <div className="flex items-start gap-3">
                 <Avatar name={r.related?.name ?? "?"} size={42} />
                 <div className="min-w-0 flex-1">
@@ -311,16 +311,9 @@ function RelationshipsTab({
                       value={r.label}
                       types={types}
                       nameSuffix={c.first_name}
+                      possessive={r.symmetric}
                     />
                   </div>
-                  {r.related && (r.related.contractCount > 0 || r.related.liveLeadCount > 0 || r.related.lifetimeValue > 0) && (
-                    <div className="mt-1.5 text-[11.5px] text-[#71717a]">
-                      {r.related.contractCount}{" "}
-                      {r.related.contractCount === 1 ? "contract" : "contracts"}
-                      {r.related.liveLeadCount > 0 && ` · ${r.related.liveLeadCount} live`}
-                      {r.related.lifetimeValue > 0 && ` · ${gbpCompact(r.related.lifetimeValue)} lifetime`}
-                    </div>
-                  )}
                 </div>
               </div>
 

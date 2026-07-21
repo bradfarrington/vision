@@ -59,6 +59,8 @@ export type CustomerRelationship = {
   labelOtherSide: string | null;
   /** True when the viewed customer is the customer_id / "a" side of the row. */
   viewerIsA: boolean;
+  /** Both sides read the same (Family, Neighbour…) → read as "X's neighbour". */
+  symmetric: boolean;
   notes: string | null;
   related: {
     id: string;
@@ -255,6 +257,7 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
       label: viewerIsA ? r.label_a : r.label_b,
       labelOtherSide: viewerIsA ? r.label_b : r.label_a,
       viewerIsA,
+      symmetric: r.label_a != null && r.label_a === r.label_b,
       notes: r.notes,
       related: rc
         ? {

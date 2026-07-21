@@ -53,6 +53,7 @@ function RelationshipTypeSelect({
   className,
   variant = "input",
   nameSuffix,
+  possessive,
 }: {
   types: RelationshipType[];
   value: string | null;
@@ -61,8 +62,16 @@ function RelationshipTypeSelect({
   variant?: "input" | "pill";
   /** Appended to the shown value, e.g. "Parent of" + "Margaret". */
   nameSuffix?: string;
+  /** Symmetric types read possessively: "Margaret's neighbour". */
+  possessive?: boolean;
 }) {
-  const display = value ? `${value}${nameSuffix ? ` ${nameSuffix}` : ""}` : null;
+  const display = !value
+    ? null
+    : nameSuffix
+      ? possessive
+        ? `${nameSuffix}'s ${value.toLowerCase()}`
+        : `${value} ${nameSuffix}`
+      : value;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
@@ -457,6 +466,7 @@ export function RelationshipTypeEditor({
   className,
   variant = "input",
   nameSuffix,
+  possessive,
 }: {
   relationshipId: string;
   viewerIsA: boolean;
@@ -465,6 +475,7 @@ export function RelationshipTypeEditor({
   className?: string;
   variant?: "input" | "pill";
   nameSuffix?: string;
+  possessive?: boolean;
 }) {
   const [, start] = useTransition();
   const router = useRouter();
@@ -472,6 +483,7 @@ export function RelationshipTypeEditor({
     <RelationshipTypeSelect
       variant={variant}
       nameSuffix={nameSuffix}
+      possessive={possessive}
       className={className}
       types={types}
       value={value}
