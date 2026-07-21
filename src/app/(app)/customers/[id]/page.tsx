@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getCustomerRecord, type CustomerRecord } from "@/lib/data/customer-record";
+import {
+  getCustomerRecord,
+  getTenantOptions,
+  type CustomerRecord,
+  type TenantOption,
+} from "@/lib/data/customer-record";
 import { updateCustomerField, updateContactField } from "@/app/(app)/customers/actions";
-import { gbp } from "@/lib/format";
+import { gbp, gbpCompact } from "@/lib/format";
 import { isLiveLead } from "@/lib/leads";
 import {
   Avatar,
@@ -17,6 +22,7 @@ import {
 } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
+import { RelationshipAdder, RelationshipRemove } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { Tabs } from "@/components/crm/tabs";
@@ -32,6 +38,7 @@ export default async function CustomerDetailPage({
   const c = await getCustomerRecord(id);
   if (!c) notFound();
 
+  const relationshipTypes = await getTenantOptions("relationship_type");
   const typeLabel = c.customer_type === "commercial" ? "Commercial" : "Residential";
 
   return (
@@ -82,6 +89,11 @@ export default async function CustomerDetailPage({
         tabs={[
           { label: "Overview", content: <OverviewTab c={c} /> },
           { label: "Contacts", count: c.contacts.length, content: <ContactsTab c={c} /> },
+          {
+            label: "Relationships",
+            count: c.relationships.length,
+            content: <RelationshipsTab c={c} typeOptions={relationshipTypes} />,
+          },
           { label: "Address & access", content: <AddressTab c={c} /> },
           { label: "Billing & account", content: <BillingTab c={c} /> },
           { label: "Marketing & permissions", content: <MarketingTab c={c} /> },
@@ -232,6 +244,78 @@ function CRow({
     <div className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
       <span className="shrink-0 text-[#71717a]">{label}</span>
       <EditableField id={id} field={field} value={value} action={updateContactField} />
+    </div>
+  );
+}
+
+function RelationshipsTab({
+  c,
+  typeOptions,
+}: {
+  c: CustomerRecord;
+  typeOptions: TenantOption[];
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[12.5px] text-[#71717a]">
+          {c.relationships.length} related{" "}
+          {c.relationships.length === 1 ? "customer" : "customers"}
+        </span>
+        <div className="ml-auto">
+          <RelationshipAdder customerId={c.id} typeOptions={typeOptions} />
+        </div>
+      </div>
+      {c.relationships.length === 0 ? (
+        <Empty>
+          No linked customers yet. Link family, neighbours or referrers so their
+          history is one click away.
+        </Empty>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {c.relationships.map((r) => (
+            <Card key={r.id}>
+              <div className="flex items-start gap-2.5">
+                <Avatar name={r.related?.name ?? "?"} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {r.related ? (
+                      <Link
+                        href={`/customers/${r.related.id}`}
+                        className="truncate font-semibold text-[#0a0a0a] hover:text-[var(--accent-blue)]"
+                      >
+                        {r.related.name}
+                      </Link>
+                    ) : (
+                      <span className="text-[#71717a]">Unknown customer</span>
+                    )}
+                    {r.relationshipType && <Pill tone="neutral">{r.relationshipType}</Pill>}
+                  </div>
+                  {r.related && (
+                    <div className="mt-1 text-[11.5px] text-[#71717a]">
+                      {r.related.contractCount}{" "}
+                      {r.related.contractCount === 1 ? "contract" : "contracts"}
+                      {r.related.liveLeadCount > 0 && ` · ${r.related.liveLeadCount} live`}
+                      {r.related.lifetimeValue > 0 && ` · ${gbpCompact(r.related.lifetimeValue)} lifetime`}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-3 flex items-center border-t border-[#f4f4f5] pt-2.5">
+                {r.related && (
+                  <Link
+                    href={`/customers/${r.related.id}`}
+                    className="text-[11.5px] font-semibold text-[var(--accent-blue)]"
+                  >
+                    Open record →
+                  </Link>
+                )}
+                <RelationshipRemove customerId={c.id} relationshipId={r.id} className="ml-auto" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

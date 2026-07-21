@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
+import { searchCustomersForLink } from "@/lib/data/customer-record";
 import type { Database } from "@/lib/supabase/types";
 
 type CustomerInsert = Database["public"]["Tables"]["customers"]["Insert"];
@@ -213,4 +214,96 @@ export async function deleteCustomerContact(
   if (error) return { error: error.message };
   revalidatePath(`/customers/${customerId}`);
   return {};
+}
+
+// --- Tenant option lists (the searchable "add new" dropdowns) ----------------
+/** Add (or reuse) a value in a tenant-editable option list. */
+export async function addTenantOption(
+  listKey: string,
+  label: string,
+): Promise<{ id?: string; label?: string; error?: string }> {
+  const clean = label.trim();
+  if (!clean) return { error: "Enter a name." };
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const existing = await db
+    .from("tenant_options")
+    .select("id, label")
+    .eq("list_key", listKey)
+    .eq("label", clean)
+    .limit(1);
+  if (existing.data?.[0]) {
+    revalidatePath("/customers", "layout");
+    return { id: existing.data[0].id, label: clean };
+  }
+  const ins = await db
+    .from("tenant_options")
+    .insert({ company_id: companyId, list_key: listKey, label: clean })
+    .select("id, label")
+    .single();
+  if (ins.error) return { error: ins.error.message };
+  revalidatePath("/customers", "layout");
+  return { id: ins.data.id, label: clean };
+}
+
+/** Remove a value from a tenant option list. */
+export async function deleteTenantOption(id: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("tenant_options").delete().eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
+// --- Customer relationships -------------------------------------------------
+/** Link this customer to another existing customer (bidirectional). */
+export async function addCustomerRelationship(
+  customerId: string,
+  relatedCustomerId: string,
+  relationshipType: string | null,
+  notes?: string | null,
+): Promise<{ error?: string }> {
+  if (!relatedCustomerId) return { error: "Choose a customer to link." };
+  if (relatedCustomerId === customerId) return { error: "A customer can't be linked to itself." };
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("customer_relationships").insert({
+    company_id: companyId,
+    customer_id: customerId,
+    related_customer_id: relatedCustomerId,
+    relationship_type: relationshipType || null,
+    notes: notes || null,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  revalidatePath(`/customers/${relatedCustomerId}`);
+  return {};
+}
+
+/** Remove a customer relationship. */
+export async function deleteCustomerRelationship(
+  customerId: string,
+  relationshipId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("customer_relationships")
+    .delete()
+    .eq("id", relationshipId);
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
+/** Search customers for the relationship picker (client-callable). */
+export async function searchCustomers(query: string, excludeId: string) {
+  return searchCustomersForLink(query, excludeId);
 }

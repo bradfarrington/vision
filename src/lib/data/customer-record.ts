@@ -51,6 +51,36 @@ export type CustomerNote = {
   created_at: string;
 };
 
+export type CustomerRelationship = {
+  id: string;
+  relationshipType: string | null;
+  notes: string | null;
+  related: {
+    id: string;
+    name: string;
+    customerNumber: number | null;
+    contractCount: number;
+    liveLeadCount: number;
+    lifetimeValue: number;
+  } | null;
+};
+
+export type TenantOption = { id: string; label: string };
+
+/** A tenant's editable option list (relationship types, etc.). */
+export async function getTenantOptions(listKey: string): Promise<TenantOption[]> {
+  const supabase = await createClient();
+  const db = supabase as unknown as { from(t: string): any };
+  const { data } = await db
+    .from("tenant_options")
+    .select("id, label")
+    .eq("list_key", listKey)
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("label");
+  return (data ?? []) as TenantOption[];
+}
+
 // Every column we display, typed by hand (superset of the generated type).
 export type CustomerFields = {
   id: string;
@@ -137,6 +167,7 @@ export type CustomerRecord = CustomerFields & {
   customFields: CustomFieldEntry[];
   documents: CustomerDoc[];
   customerNotes: CustomerNote[];
+  relationships: CustomerRelationship[];
 };
 
 const LEAD_FIELDS =
@@ -163,14 +194,51 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
 
   // Related lists — separate reads (avoids relying on freshly-added embed
   // relationships before the PostgREST schema cache reloads).
-  const [contactsRes, refsRes, defsRes, valsRes, docsRes, notesRes] = await Promise.all([
+  const [contactsRes, refsRes, defsRes, valsRes, docsRes, notesRes, relsRes] = await Promise.all([
     db.from("customer_contacts").select("id, name, email, phone, position_role, is_default, no_whatsapp").eq("customer_id", id).order("is_default", { ascending: false }),
     db.from("customer_account_references").select("id, reference, acc_name").eq("customer_id", id),
     db.from("custom_field_definitions").select("id, question, data_type, required, sort_order").eq("entity", "customer").eq("is_active", true).order("sort_order"),
     db.from("custom_field_values").select("definition_id, value, initials").eq("customer_id", id),
     db.from("documents").select("id, name, file_name, file_type, file_size, file_url, category, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
     db.from("lead_notes").select("id, content, created_at").eq("customer_id", id).is("lead_id", null).order("created_at", { ascending: false }),
+    db.from("customer_relationships").select("id, customer_id, related_customer_id, relationship_type, notes").or(`customer_id.eq.${id},related_customer_id.eq.${id}`).order("created_at"),
   ]);
+
+  // Relationships are bidirectional — one row is visible from both customers.
+  // The "other party" is whichever side isn't this customer.
+  const relRows = (relsRes.data ?? []) as { id: string; customer_id: string; related_customer_id: string; relationship_type: string | null; notes: string | null }[];
+  const otherOf = (r: { customer_id: string; related_customer_id: string }) =>
+    r.customer_id === id ? r.related_customer_id : r.customer_id;
+  const relatedById = new Map<string, any>();
+  if (relRows.length) {
+    const relatedIds = [...new Set(relRows.map(otherOf))];
+    const { data: relCustomers } = await db
+      .from("customers")
+      .select(`id, first_name, last_name, company_name, customer_type, customer_number, leads(status, gross_value), contracts(id)`)
+      .in("id", relatedIds);
+    for (const rc of relCustomers ?? []) relatedById.set(rc.id, rc);
+  }
+  const relationships: CustomerRelationship[] = relRows.map((r) => {
+    const rc = relatedById.get(otherOf(r));
+    const relLeads = (rc?.leads ?? []) as { status: string | null; gross_value: number | null }[];
+    return {
+      id: r.id,
+      relationshipType: r.relationship_type,
+      notes: r.notes,
+      related: rc
+        ? {
+            id: rc.id,
+            name: displayName(rc),
+            customerNumber: rc.customer_number ?? null,
+            contractCount: (rc.contracts ?? []).length,
+            liveLeadCount: relLeads.filter((l) => isLiveLead(l.status)).length,
+            lifetimeValue: relLeads
+              .filter((l) => l.status === "won")
+              .reduce((s, l) => s + Number(l.gross_value ?? 0), 0),
+          }
+        : null,
+    };
+  });
 
   const leads = ((c.leads ?? []) as CustomerLead[]).slice().sort(
     (a, b) => leadDate(b) - leadDate(a),
@@ -211,7 +279,36 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     customFields,
     documents: (docsRes.data ?? []) as CustomerDoc[],
     customerNotes: (notesRes.data ?? []) as CustomerNote[],
+    relationships,
   };
+}
+
+/** Lightweight customer search for the relationship picker. */
+export async function searchCustomersForLink(
+  query: string,
+  excludeId: string,
+): Promise<{ id: string; name: string; customerNumber: number | null; town: string | null }[]> {
+  const supabase = await createClient();
+  const db = supabase as unknown as { from(t: string): any };
+  let q = db
+    .from("customers")
+    .select("id, first_name, last_name, company_name, customer_type, customer_number, town")
+    .neq("id", excludeId)
+    .limit(10);
+  const term = query.trim();
+  if (term) {
+    const like = `%${term}%`;
+    q = q.or(`first_name.ilike.${like},last_name.ilike.${like},company_name.ilike.${like},town.ilike.${like},postcode.ilike.${like}`);
+  } else {
+    q = q.order("created_at", { ascending: false });
+  }
+  const { data } = await q;
+  return ((data ?? []) as any[]).map((c) => ({
+    id: c.id,
+    name: displayName(c),
+    customerNumber: c.customer_number ?? null,
+    town: c.town ?? null,
+  }));
 }
 
 function displayName(c: CustomerFields): string {
