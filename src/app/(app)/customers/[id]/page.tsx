@@ -427,9 +427,8 @@ function BillingTab({
   salesUsers: StaffOption[];
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <FinancialsPanel financials={c.financials} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:col-span-2">
       <Card>
         <CardTitle className="mb-2">Invoice address</CardTitle>
         <E c={c} label="Invoice name" field="invoice_name" value={c.invoice_name} />
@@ -467,6 +466,7 @@ function BillingTab({
         </Card>
       </div>
       </div>
+      <FinancialsPanel financials={c.financials} />
     </div>
   );
 }
@@ -496,7 +496,7 @@ function FinancialsPanel({ financials }: { financials: CustomerFinancials }) {
           No contracts yet — they appear here once a lead is converted.
         </p>
       ) : (
-        <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 lg:grid-cols-2">
+        <div className="mt-3 flex flex-col gap-4">
           <div>
             <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
               Outstanding · {outstanding.length}
