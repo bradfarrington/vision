@@ -291,6 +291,10 @@ uri = "pg-functions://postgres/public/custom_access_token_hook"
 [auth.hook.send_email]
 enabled = true
 uri = "http://127.0.0.1:54321/functions/v1/send-auth-email"
+# HTTP-based hooks are signed; GoTrue signs the payload with this secret and the
+# edge function verifies it (standardwebhooks) via SEND_EMAIL_HOOK_SECRET. Same
+# value must be set as a function secret. Format: "v1,whsec_<base64>".
+secrets = "env(SEND_EMAIL_HOOK_SECRET)"
 
 # The email hook is called by GoTrue without a user JWT.
 [functions.send-auth-email]

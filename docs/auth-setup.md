@@ -114,6 +114,35 @@ npm run dev
   pointing at the Supabase API instead of the app — set the `APP_URL` function
   secret (§3c) and redeploy.
 
+## Running the stack locally
+
+The cloud project configures the Send Email Hook in the dashboard (§3), but
+`supabase/config.toml` also declares it for local dev — and an HTTP hook must be
+signed, so the config requires a secret. The CLI resolves `env(...)` from your
+**shell environment**, so export it before any `supabase` command (`start`,
+`status`, `db reset`, `functions serve`) or config parsing fails with
+*"Missing required field … auth.hook.send_email.secrets"*:
+
+```bash
+# any well-formed value works locally; format is v1,whsec_<base64>, ≥32 chars
+export SEND_EMAIL_HOOK_SECRET="v1,whsec_$(openssl rand -base64 32)"
+npx supabase start
+```
+
+### Verify tenant isolation
+
+The RLS foundation ships with an isolation test. After the stack is up:
+
+```bash
+npx supabase db reset                       # applies migrations + loads seed.sql
+psql "$(npx supabase status -o env | grep DB_URL | cut -d= -f2- | tr -d '"')" \
+     -f supabase/tests/tenant_isolation.sql  # must print "ALL ISOLATION CHECKS PASSED."
+```
+
+It logs in as a BSW user and a Vision user (via `request.jwt.claims`) and proves
+neither can read or write the other's rows, even with an unscoped query. Any leak
+raises and the script exits non-zero.
+
 ## What's deferred (pre-launch)
 
 - Self-serve **free-trial** signup (creates company + owner, `plan='trial'`)
