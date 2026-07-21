@@ -15,6 +15,15 @@ import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
 import { Icon } from "./icon";
 import { btnPrimary, btnSecondary } from "./primitives";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 type Found = { id: string; name: string; customerNumber: number | null; town: string | null };
 
@@ -116,14 +125,22 @@ export function RelationshipAdder({
   customerId: string;
   typeOptions: TenantOption[];
 }) {
-  const [openForm, setOpenForm] = useState(false);
+  const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<Found | null>(null);
   const [type, setType] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
 
   const comboOptions = typeOptions.map((o) => ({ id: o.id, value: o.label, label: o.label }));
+
+  function reset() {
+    setPicked(null);
+    setType(null);
+    setNote("");
+    setError(null);
+  }
 
   function submit() {
     setError(null);
@@ -132,64 +149,84 @@ export function RelationshipAdder({
       return;
     }
     start(async () => {
-      const res = await addCustomerRelationship(customerId, picked.id, type);
+      const res = await addCustomerRelationship(customerId, picked.id, type, note || null);
       if (res?.error) {
         setError(res.error);
         return;
       }
-      setPicked(null);
-      setType(null);
-      setOpenForm(false);
+      reset();
+      setOpen(false);
       router.refresh();
     });
   }
 
-  if (!openForm) {
-    return (
-      <button type="button" onClick={() => setOpenForm(true)} className={btnSecondary}>
-        <Icon name="plus" size={13} strokeWidth={2.2} /> Add relationship
-      </button>
-    );
-  }
-
   return (
-    <div className="rounded-xl border border-[#e7e7ea] bg-white p-[18px] shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
-      <div className="mb-3 font-[family-name:var(--font-inter-tight)] text-[15px] font-bold text-[#0a0a0a]">
-        Link a customer
-      </div>
-      {error && (
-        <div className="mb-3 rounded-lg border border-[#f3c7c7] bg-[#fdecec] px-3 py-2 text-[12.5px] font-medium text-[#d64545]">
-          {error}
+    <Dialog
+      open={open}
+      onOpenChange={(o: boolean) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
+      <DialogTrigger className={btnSecondary}>
+        <Icon name="plus" size={13} strokeWidth={2.2} /> Add relationship
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-[family-name:var(--font-inter-tight)] text-[17px] font-bold">
+            Link a customer
+          </DialogTitle>
+          <DialogDescription>
+            Connect this customer to another record — family, a neighbour, a referrer — so
+            their own history is one click away.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && (
+          <div className="rounded-lg border border-[#f3c7c7] bg-[#fdecec] px-3 py-2 text-[12.5px] font-medium text-[#d64545]">
+            {error}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3.5">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-[#52525b]">Customer</span>
+            <CustomerPicker customerId={customerId} onPick={setPicked} picked={picked} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-[#52525b]">Relationship</span>
+            <Combo
+              options={comboOptions}
+              value={type}
+              onChange={setType}
+              placeholder="Select a relationship…"
+              searchPlaceholder="Search or add a type…"
+              addNounLabel="Add"
+              onAddNew={(label) => addTenantOption("relationship_type", label)}
+              onDelete={(id) => deleteTenantOption(id)}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-[#52525b]">Note (optional)</span>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g. referred us to the neighbours at no. 12"
+              className="w-full rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+            />
+          </label>
         </div>
-      )}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-[#52525b]">Customer</span>
-          <CustomerPicker customerId={customerId} onPick={setPicked} picked={picked} />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-[#52525b]">Relationship</span>
-          <Combo
-            options={comboOptions}
-            value={type}
-            onChange={setType}
-            placeholder="Select a relationship…"
-            searchPlaceholder="Search or add a type…"
-            addNounLabel="Add"
-            onAddNew={(label) => addTenantOption("relationship_type", label)}
-            onDelete={(id) => deleteTenantOption(id)}
-          />
-        </label>
-      </div>
-      <div className="mt-3 flex items-center gap-2.5">
-        <button type="button" onClick={submit} disabled={pending} className={btnPrimary}>
-          {pending ? "Linking…" : "Link customer"}
-        </button>
-        <button type="button" onClick={() => setOpenForm(false)} className={btnSecondary}>
-          Cancel
-        </button>
-      </div>
-    </div>
+
+        <DialogFooter>
+          <button type="button" onClick={() => setOpen(false)} className={btnSecondary}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={pending} className={btnPrimary}>
+            {pending ? "Linking…" : "Link customer"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
