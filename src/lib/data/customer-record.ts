@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isLiveLead, contractRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
 import type { CustomerLead, ContractSummary } from "./customers";
+import { DOCUMENT_SELECT, mapDocumentRow, type DocumentItem } from "./documents";
 
 // Full customer record for the tabbed detail page. Reads the customer row plus
 // its related lists (contacts, account references, custom fields, documents,
@@ -37,16 +38,9 @@ export type CustomFieldEntry = {
   initials: string | null;
 };
 
-export type CustomerDoc = {
-  id: string;
-  name: string;
-  file_name: string;
-  file_type: string | null;
-  file_size: number | null;
-  file_url: string;
-  category: string | null;
-  created_at: string;
-};
+// Documents share the reusable DocumentItem shape (see ./documents) so the same
+// panel/viewer render them here and on leads/contracts.
+export type CustomerDoc = DocumentItem;
 
 export type CustomerNote = {
   id: string;
@@ -283,7 +277,7 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     db.from("customer_account_references").select("id, reference, acc_name").eq("customer_id", id),
     db.from("custom_field_definitions").select("id, question, data_type, required, sort_order, list_key").eq("entity", "customer").eq("is_active", true).order("sort_order"),
     db.from("custom_field_values").select("definition_id, value, initials").eq("customer_id", id),
-    db.from("documents").select("id, name, file_name, file_type, file_size, file_url, category, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
+    db.from("documents").select(DOCUMENT_SELECT).eq("customer_id", id).order("created_at", { ascending: false }),
     db.from("lead_notes").select("id, content, created_at").eq("customer_id", id).is("lead_id", null).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
     db.from("customer_relationships").select("id, customer_id, related_customer_id, label_a, label_b, notes").or(`customer_id.eq.${id},related_customer_id.eq.${id}`).order("created_at"),
     db.from("lead_notes").select("id, content, created_at, users:created_by(first_name, last_name)").eq("customer_id", id).eq("category", "marketing").order("created_at", { ascending: false }),
@@ -420,7 +414,7 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     mainContact: contactList.find((ct) => ct.is_default) ?? contactList[0] ?? null,
     accountReferences: (refsRes.data ?? []) as AccountReference[],
     customFields,
-    documents: (docsRes.data ?? []) as CustomerDoc[],
+    documents: ((docsRes.data ?? []) as any[]).map(mapDocumentRow),
     customerNotes: (notesRes.data ?? []) as CustomerNote[],
     marketingNotes,
     relationships,

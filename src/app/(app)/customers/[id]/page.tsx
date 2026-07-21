@@ -32,6 +32,7 @@ import {
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
 import { MarketingNotes } from "@/components/crm/marketing-notes";
+import { DocumentsPanel } from "@/components/crm/documents-panel";
 import { CustomFieldValue } from "@/components/crm/custom-field-editor";
 import {
   RelationshipAdder,
@@ -55,7 +56,7 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups, salesUsers] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality", "consent_by", "preferred_contact_time", "heard_about_us"]),
+    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality", "consent_by", "preferred_contact_time", "heard_about_us", "document_category"]),
     getSalesStaff(),
   ]);
   const typeLabel = c.customer_type
@@ -119,7 +120,7 @@ export default async function CustomerDetailPage({
           { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
           { label: "Marketing & permissions", content: <MarketingTab c={c} lookups={lookups} /> },
           { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} lookups={lookups} /> },
-          { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} /> },
+          { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} categoryOptions={lookups.document_category} /> },
           { label: "Notes", count: c.customerNotes.length, content: <NotesTab c={c} /> },
         ]}
       />
@@ -597,24 +598,20 @@ function CustomTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   );
 }
 
-function DocumentsTab({ c }: { c: CustomerRecord }) {
-  if (c.documents.length === 0) return <Empty>No documents attached to this customer.</Empty>;
+function DocumentsTab({
+  c,
+  categoryOptions,
+}: {
+  c: CustomerRecord;
+  categoryOptions: { id: string; label: string }[];
+}) {
   return (
-    <Card className="max-w-3xl">
-      {c.documents.map((d, i) => (
-        <div
-          key={d.id}
-          className={`flex items-center gap-2.5 py-2.5 text-[12.5px] ${
-            i < c.documents.length - 1 ? "border-b border-[#f4f4f5]" : ""
-          }`}
-        >
-          <Icon name="file" size={15} strokeWidth={1.75} className="text-[var(--accent-blue)]" />
-          <span className="font-semibold text-[#0a0a0a]">{d.name}</span>
-          {d.category && <Pill tone="neutral">{d.category}</Pill>}
-          <span className="ml-auto text-[11px] text-[#a1a1aa]">{fileSize(d.file_size)}</span>
-        </div>
-      ))}
-    </Card>
+    <DocumentsPanel
+      ownerType="customer"
+      ownerId={c.id}
+      documents={c.documents}
+      categoryOptions={categoryOptions}
+    />
   );
 }
 
@@ -715,11 +712,4 @@ function longDate(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function fileSize(bytes: number | null): string {
-  if (!bytes) return "";
-  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
-  if (bytes >= 1000) return `${Math.round(bytes / 1000)} KB`;
-  return `${bytes} B`;
 }

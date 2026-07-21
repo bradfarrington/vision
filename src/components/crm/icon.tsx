@@ -24,7 +24,15 @@ export type IconName =
   | "pencil"
   | "star"
   | "map-pin"
-  | "user";
+  | "user"
+  | "upload"
+  | "download"
+  | "trash"
+  | "x"
+  | "printer"
+  | "maximize"
+  | "minimize"
+  | "minus";
 
 // Each entry: array of <path d> strings (default), or a render fn for icons
 // that need circles/rects.
@@ -54,6 +62,14 @@ const PATHS: Record<IconName, string[]> = {
     "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2",
     "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
   ],
+  upload: ["M12 16V4M7 9l5-5 5 5", "M4 20h16"],
+  download: ["M12 4v12M7 11l5 5 5-5", "M4 20h16"],
+  trash: ["M3 6h18", "M8 6V4h8v2", "M6 6l1 14h10l1-14", "M10 10v6M14 10v6"],
+  x: ["M6 6l12 12M18 6L6 18"],
+  printer: ["M6 9V3h12v6", "M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2", "M6 14h12v7H6z"],
+  maximize: ["M8 3H5a2 2 0 0 0-2 2v3", "M21 8V5a2 2 0 0 0-2-2h-3", "M3 16v3a2 2 0 0 0 2 2h3", "M16 21h3a2 2 0 0 0 2-2v-3"],
+  minimize: ["M8 3v3a2 2 0 0 1-2 2H3", "M21 8h-3a2 2 0 0 1-2-2V3", "M3 16h3a2 2 0 0 1 2 2v3", "M16 21v-3a2 2 0 0 1 2-2h3"],
+  minus: ["M5 12h14"],
 };
 
 type IconProps = {

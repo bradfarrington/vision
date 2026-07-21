@@ -112,6 +112,67 @@ all related lists in one round-trip.
   for all tenants (`20260721099200`), not per-tenant demo SQL.
 - **Financials** panel (Billing tab) computes contract balance from `finance_lines`.
 
+## Documents — reusable file store — built 2026-07-21
+
+Document upload/view is a **single entity-agnostic module**, built on the customer
+record but designed to drop into leads, contracts and anything else unchanged. Do NOT
+fork per-entity copies.
+
+- **One polymorphic table** — `public.documents` already carries a nullable FK per owner
+  kind (`customer_id`/`lead_id`/`contract_id`) + a `context` label. `src/lib/data/documents.ts`
+  is the single mapping layer: `OWNER_FK` maps `DocumentOwnerType` (`customer|lead|contract`)
+  → column, and every action/loader defers to it. To support a new owner kind: add the FK
+  column, extend `OWNER_FK`/`isDocumentOwnerType`, done.
+- **Storage = a private `documents` bucket, customer-centric per tenant.** Path is built by
+  `buildDocumentPath()`: `{company_id}/{customer_id}/{uuid}.{ext}` for a customer's own docs,
+  and lead/contract docs nest **under the owning customer** —
+  `{company_id}/{customer_id}/leads/{lead_id}/…` and `…/contracts/{contract_id}/…`. The path
+  (not a URL) is stored in `documents.file_url`; every doc row also stamps `customer_id` so it's
+  reachable from the customer record. Bucket + tenant-isolation RLS on `storage.objects` (first
+  path segment must equal `current_company_id()`) live in `20260721101000_documents_storage.sql`
+  — **apply BY HAND**. Deeper segments are organisational only.
+- **Signed URLs, never public.** View/download go through `getDocumentSignedUrl` (10-min
+  signed URL); nothing persists a public URL.
+- **Actions** (`src/app/(app)/documents/actions.ts`, `"use server"`): `uploadDocument(FormData)`
+  (multipart — the panel loops one file per call; `uploaded_by = auth.getUser().id`,
+  `company_id = getCompanyId()`; a lead/contract owner passes `customerId` for path nesting,
+  a customer owner uses its own id), `renameDocument`, `setDocumentCategory`, `deleteDocument`
+  (removes the object then the row), `getDocumentSignedUrl`, `addDocumentCategory` /
+  `deleteDocumentCategory`. Mutations `revalidatePath('/{ownerType}s/{ownerId}')`.
+- **Upload transport:** `serverActions.bodySizeLimit` is bumped to `27mb` in `next.config.ts`
+  (file cap is 25 MB; the extra headroom absorbs multipart overhead so a max-size file hits
+  our friendly check, not Next's cryptic one).
+- **Categories** are tenant-editable `tenant_options` under list_key `document_category`,
+  seeded for all tenants in `20260721101100_document_categories.sql` (**apply BY HAND**). The
+  list row edits category inline via the reusable `Combo`; the consumer passes `categoryOptions`
+  (fetched with `getTenantOptionLists([... , "document_category"])`).
+- **UI is a two-pane panel.** `DocumentsPanel` (`src/components/crm/documents-panel.tsx`):
+  **left (40%)** = a toolbar (Add document · View · Email _(not wired)_ · Print · Delete) over a
+  selectable list (inline rename, per-row category); **right (60%)** = an inline viewer of the
+  selected doc. Drag-drop works anywhere over the panel (overlay on drag). The panel **fills the
+  tab region's height** via the flex chain (`main` → page → `Tabs` content are all
+  `flex-1`/`min-h-0`), with the list scrolling internally — no fixed height, no magic offsets.
+  Added icon glyphs: `upload`, `download`, `trash`, `x`, `printer`, `maximize`, `minimize`,
+  `minus`.
+- **Viewer** (`document-viewer.tsx`): exports `InlineViewer` (right pane) and `FullscreenViewer`
+  (overlay, opened from the pane's maximize button); both share a `Stage` that renders images
+  `<img>` (CSS zoom), PDFs via `<iframe>`, text `<iframe>`, else a download card. Zoom (− / % / +,
+  25–400%) shows for images + PDFs only. Two PDF-specific gotchas baked in:
+  - **Native chrome hidden + real zoom.** The PDF `<iframe>` src uses `#toolbar=0&navpanes=0&zoom=N`
+    so only the page shows and zoom drives the **viewer's own** vector zoom (crisp small text) —
+    resizing the iframe box just re-fits the same page and doesn't magnify. Applying a new `#zoom`
+    needs a reload, so the iframe is **keyed by zoom pct** to remount. Chromium/Edge only (Firefox
+    pdf.js ignores these params).
+  - **Cross-origin focus-steal.** The PDF iframe is served from the Supabase storage domain, so
+    once focused it eats the first click on the surrounding UI. `DocumentsPanel` blurs the focused
+    iframe on `onMouseDownCapture`, and list rows select on `onMouseDown` (not click) — so
+    switching files is reliably single-click. Keep both if you touch this.
+  - Print: images open a print window; PDFs open in a new tab (the browser prints from there).
+- **Loaders** select the shared `DOCUMENT_SELECT` (incl. `uploader:uploaded_by(...)`) and map
+  with `mapDocumentRow` → `DocumentItem`. `getCustomerRecord` already does this;
+  `CustomerDoc` is now an alias of `DocumentItem`. A standalone `getDocuments(ownerType, ownerId)`
+  exists for owners that don't batch-load.
+
 ### Gotchas for future work
 - **Generated types are stale.** Migrations `20260721094000`–`099200` add columns/tables not yet
   in `src/lib/supabase/types.ts`, so data code uses a loose `const db = supabase as any` pattern and
@@ -125,6 +186,9 @@ all related lists in one round-trip.
   early hook-policy migration was applied manually, so db push conflicts). Migrations
   `094000`–`099200` were applied to the remote as of 2026-07-21; some (`097000`) were re-run as they
   gained rows. For new migrations: add the file, then apply the SQL manually.
+  **`20260721101000_documents_storage.sql` (documents bucket + storage RLS) and
+  `20260721101100_document_categories.sql` (category defaults) still need applying** —
+  document upload/view won't work until the storage one is run in the SQL editor.
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.
