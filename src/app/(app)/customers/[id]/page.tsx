@@ -49,7 +49,7 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source"]),
+    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role"]),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -102,7 +102,7 @@ export default async function CustomerDetailPage({
       <Tabs
         tabs={[
           { label: "Overview", content: <OverviewTab c={c} lookups={lookups} /> },
-          { label: "Contacts", count: c.contacts.length, content: <ContactsTab c={c} /> },
+          { label: "Contacts", count: c.contacts.length, content: <ContactsTab c={c} roleOptions={lookups.contact_role} /> },
           {
             label: "Relationships",
             count: c.relationships.length,
@@ -203,7 +203,13 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   );
 }
 
-function ContactsTab({ c }: { c: CustomerRecord }) {
+function ContactsTab({
+  c,
+  roleOptions,
+}: {
+  c: CustomerRecord;
+  roleOptions: { id: string; label: string }[];
+}) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center">
@@ -232,7 +238,7 @@ function ContactsTab({ c }: { c: CustomerRecord }) {
                 </div>
               </div>
               <div className="mt-3">
-                <CRow id={ct.id} label="Role" field="position_role" value={ct.position_role} />
+                <CRow id={ct.id} label="Role" field="position_role" value={ct.position_role} lookupOptions={roleOptions} listKey="contact_role" />
                 <CRow id={ct.id} label="Email" field="email" value={ct.email} />
                 <CRow id={ct.id} label="Phone" field="phone" value={ct.phone} last />
               </div>
@@ -251,17 +257,29 @@ function CRow({
   field,
   value,
   last,
+  lookupOptions,
+  listKey,
 }: {
   id: string;
   label: string;
   field: string;
   value: string | null;
   last?: boolean;
+  lookupOptions?: { id: string; label: string }[];
+  listKey?: string;
 }) {
   return (
     <div className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
       <span className="shrink-0 text-[#71717a]">{label}</span>
-      <EditableField id={id} field={field} value={value} action={updateContactField} />
+      <EditableField
+        id={id}
+        field={field}
+        value={value}
+        action={updateContactField}
+        type={listKey ? "lookup" : "text"}
+        lookupOptions={lookupOptions}
+        listKey={listKey}
+      />
     </div>
   );
 }

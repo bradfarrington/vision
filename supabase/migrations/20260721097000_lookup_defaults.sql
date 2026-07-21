@@ -38,6 +38,14 @@ cross join (values
   ('marketing_source', 'Facebook', 5), ('marketing_source', 'Google', 6),
   ('marketing_source', 'Repeat customer', 7), ('marketing_source', 'Leaflet drop', 8),
   ('marketing_source', 'Local paper', 9), ('marketing_source', 'Radio', 10),
-  ('marketing_source', 'Other', 11)
+  ('marketing_source', 'Other', 11),
+  -- Contact role (who a linked contact is to the account)
+  ('contact_role', 'Main contact', 1), ('contact_role', 'Homeowner', 2),
+  ('contact_role', 'Partner', 3), ('contact_role', 'Spouse', 4),
+  ('contact_role', 'Parent', 5), ('contact_role', 'Son', 6),
+  ('contact_role', 'Daughter', 7), ('contact_role', 'Tenant', 8),
+  ('contact_role', 'Landlord', 9), ('contact_role', 'Letting agent', 10),
+  ('contact_role', 'Site contact', 11), ('contact_role', 'Accounts / billing', 12),
+  ('contact_role', 'Project manager', 13), ('contact_role', 'Other', 14)
 ) as d(list_key, label, ord)
 on conflict (company_id, list_key, label) do nothing;
