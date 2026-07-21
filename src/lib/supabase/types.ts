@@ -1315,6 +1315,7 @@ export type Database = {
           entity: string
           id: number
           is_active: boolean | null
+          list_key: string | null
           options: string[] | null
           question: string
           required: boolean | null
@@ -1327,6 +1328,7 @@ export type Database = {
           entity?: string
           id?: number
           is_active?: boolean | null
+          list_key?: string | null
           options?: string[] | null
           question: string
           required?: boolean | null
@@ -1339,6 +1341,7 @@ export type Database = {
           entity?: string
           id?: number
           is_active?: boolean | null
+          list_key?: string | null
           options?: string[] | null
           question?: string
           required?: boolean | null
@@ -1481,6 +1484,7 @@ export type Database = {
           is_default: boolean | null
           name: string
           no_whatsapp: boolean | null
+          origin: string | null
           phone: string | null
           position_role: string | null
         }
@@ -1493,6 +1497,7 @@ export type Database = {
           is_default?: boolean | null
           name: string
           no_whatsapp?: boolean | null
+          origin?: string | null
           phone?: string | null
           position_role?: string | null
         }
@@ -1505,6 +1510,7 @@ export type Database = {
           is_default?: boolean | null
           name?: string
           no_whatsapp?: boolean | null
+          origin?: string | null
           phone?: string | null
           position_role?: string | null
         }
@@ -1519,6 +1525,64 @@ export type Database = {
           {
             foreignKeyName: "customer_contacts_customer_id_fkey"
             columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_relationships: {
+        Row: {
+          company_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          label_a: string | null
+          label_b: string | null
+          notes: string | null
+          related_customer_id: string
+          relationship_type: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          label_a?: string | null
+          label_b?: string | null
+          notes?: string | null
+          related_customer_id: string
+          relationship_type?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          label_a?: string | null
+          label_b?: string | null
+          notes?: string | null
+          related_customer_id?: string
+          relationship_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_relationships_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_relationships_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_relationships_related_customer_id_fkey"
+            columns: ["related_customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["id"]
@@ -2653,6 +2717,7 @@ export type Database = {
       }
       lead_notes: {
         Row: {
+          category: string | null
           company_id: string
           content: string
           created_at: string
@@ -2662,6 +2727,7 @@ export type Database = {
           lead_id: string | null
         }
         Insert: {
+          category?: string | null
           company_id: string
           content: string
           created_at?: string
@@ -2671,6 +2737,7 @@ export type Database = {
           lead_id?: string | null
         }
         Update: {
+          category?: string | null
           company_id?: string
           content?: string
           created_at?: string
@@ -3328,6 +3395,44 @@ export type Database = {
           },
         ]
       }
+      relationship_types: {
+        Row: {
+          company_id: string
+          created_at: string
+          forward_label: string
+          id: number
+          inverse_label: string
+          is_active: boolean | null
+          sort_order: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          forward_label: string
+          id?: number
+          inverse_label: string
+          is_active?: boolean | null
+          sort_order?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          forward_label?: string
+          id?: number
+          inverse_label?: string
+          is_active?: boolean | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relationship_types_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_members: {
         Row: {
           active: boolean | null
@@ -3635,6 +3740,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tenant_counters_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_options: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          label: string
+          list_key: string
+          sort_order: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          label: string
+          list_key: string
+          sort_order?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          label?: string
+          list_key?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_options_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
