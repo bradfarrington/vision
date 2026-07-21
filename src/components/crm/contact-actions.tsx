@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import {
   addCustomerContact,
@@ -12,15 +12,29 @@ import { btnSecondary } from "./primitives";
 
 export function AddContactButton({ customerId }: { customerId: string }) {
   const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={() => start(() => void addCustomerContact(customerId))}
-      className={btnSecondary}
-    >
-      <Icon name="plus" size={13} strokeWidth={2.2} /> {pending ? "Adding…" : "Add contact"}
-    </button>
+    <div className="flex items-center gap-2.5">
+      {error && (
+        <span className="max-w-[380px] truncate text-[11.5px] font-medium text-[#d64545]" title={error}>
+          {error}
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          start(async () => {
+            const res = await addCustomerContact(customerId);
+            if (res?.error) setError(res.error);
+          });
+        }}
+        className={btnSecondary}
+      >
+        <Icon name="plus" size={13} strokeWidth={2.2} /> {pending ? "Adding…" : "Add contact"}
+      </button>
+    </div>
   );
 }
 
@@ -34,26 +48,43 @@ export function ContactCardActions({
   isDefault: boolean;
 }) {
   const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const run = (fn: () => Promise<{ error?: string }>) => {
+    setError(null);
+    start(async () => {
+      const res = await fn();
+      if (res?.error) setError(res.error);
+    });
+  };
+
   return (
-    <div className="mt-3 flex items-center gap-3 border-t border-[#f4f4f5] pt-2.5">
-      {!isDefault && (
+    <div className="mt-3 border-t border-[#f4f4f5] pt-2.5">
+      <div className="flex items-center gap-3">
+        {!isDefault && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => setDefaultContact(customerId, contactId))}
+            className="text-[11.5px] font-semibold text-[var(--accent-blue)] disabled:opacity-50"
+          >
+            Set as default
+          </button>
+        )}
         <button
           type="button"
           disabled={pending}
-          onClick={() => start(() => void setDefaultContact(customerId, contactId))}
-          className="text-[11.5px] font-semibold text-[var(--accent-blue)] disabled:opacity-50"
+          onClick={() => run(() => deleteCustomerContact(customerId, contactId))}
+          className="ml-auto text-[11.5px] font-semibold text-[#d64545] disabled:opacity-50"
         >
-          Set as default
+          Remove
         </button>
+      </div>
+      {error && (
+        <p className="mt-1.5 text-[11px] text-[#d64545]" title={error}>
+          {error}
+        </p>
       )}
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => start(() => void deleteCustomerContact(customerId, contactId))}
-        className="ml-auto text-[11.5px] font-semibold text-[#d64545] disabled:opacity-50"
-      >
-        Remove
-      </button>
     </div>
   );
 }
