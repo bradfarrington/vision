@@ -494,6 +494,79 @@ export async function searchCustomers(query: string, excludeId: string) {
   return searchCustomersForLink(query, excludeId);
 }
 
+// --- Custom fields (Additional info) ----------------------------------------
+/** Set a customer's value for a custom field (upsert). */
+export async function setCustomFieldValue(
+  customerId: string,
+  definitionId: number,
+  value: string | null,
+): Promise<{ error?: string }> {
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  const clean = typeof value === "string" && value.trim() === "" ? null : value;
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const existing = (
+    await db
+      .from("custom_field_values")
+      .select("id")
+      .eq("customer_id", customerId)
+      .eq("definition_id", definitionId)
+      .limit(1)
+  ).data?.[0];
+  const { error } = existing
+    ? await db.from("custom_field_values").update({ value: clean }).eq("id", existing.id)
+    : await db
+        .from("custom_field_values")
+        .insert({ company_id: companyId, definition_id: definitionId, customer_id: customerId, value: clean });
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
+/** Add an option to a custom field's dropdown list (tenant-scoped). */
+export async function addCustomFieldOption(
+  definitionId: number,
+  label: string,
+): Promise<{ label?: string; error?: string }> {
+  const clean = label.trim();
+  if (!clean) return { error: "Enter a value." };
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const def = (await db.from("custom_field_definitions").select("options").eq("id", definitionId).single()).data;
+  const opts: string[] = Array.isArray(def?.options) ? def.options : [];
+  if (!opts.some((o) => o.toLowerCase() === clean.toLowerCase())) {
+    const { error } = await db
+      .from("custom_field_definitions")
+      .update({ options: [...opts, clean] })
+      .eq("id", definitionId);
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/customers", "layout");
+  return { label: clean };
+}
+
+/** Remove an option from a custom field's dropdown list. */
+export async function deleteCustomFieldOption(
+  definitionId: number,
+  label: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const def = (await db.from("custom_field_definitions").select("options").eq("id", definitionId).single()).data;
+  const opts: string[] = Array.isArray(def?.options) ? def.options : [];
+  const { error } = await db
+    .from("custom_field_definitions")
+    .update({ options: opts.filter((o) => o !== label) })
+    .eq("id", definitionId);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
 /** Add a stamped marketing note (thread) — records the author + date. */
 export async function addMarketingNote(
   customerId: string,

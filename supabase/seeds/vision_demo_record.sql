@@ -72,10 +72,12 @@ insert into public.customer_account_references (company_id, customer_id, referen
 -- ---- Custom fields (Additional info) ---------------------------------------
 delete from public.custom_field_values      where company_id = '00000000-0000-0000-0000-000000000001';
 delete from public.custom_field_definitions where company_id = '00000000-0000-0000-0000-000000000001';
-insert into public.custom_field_definitions (company_id, entity, question, data_type, required, sort_order) values
-  ('00000000-0000-0000-0000-000000000001', 'customer', 'Preferred contact time', 'text', false, 1),
-  ('00000000-0000-0000-0000-000000000001', 'customer', 'Gate / alarm code',      'text', false, 2),
-  ('00000000-0000-0000-0000-000000000001', 'customer', 'Heard about us via',     'text', false, 3);
+insert into public.custom_field_definitions (company_id, entity, question, data_type, options, required, sort_order) values
+  ('00000000-0000-0000-0000-000000000001', 'customer', 'Preferred contact time', 'select',
+     array['Morning', 'Afternoon', 'Evening', 'Anytime', 'Weekends only'], false, 1),
+  ('00000000-0000-0000-0000-000000000001', 'customer', 'Gate / alarm code',      'text', null, false, 2),
+  ('00000000-0000-0000-0000-000000000001', 'customer', 'Heard about us via',     'select',
+     array['Referral', 'Website', 'Facebook', 'Google', 'Recommendation', 'Repeat customer', 'Other'], false, 3);
 insert into public.custom_field_values (company_id, definition_id, customer_id, value, initials)
 select '00000000-0000-0000-0000-000000000001', d.id, '10000000-0000-0000-0000-000000000001', v.value, 'MC'
 from public.custom_field_definitions d

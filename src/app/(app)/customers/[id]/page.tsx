@@ -32,6 +32,7 @@ import {
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
 import { MarketingNotes } from "@/components/crm/marketing-notes";
+import { CustomFieldValue } from "@/components/crm/custom-field-editor";
 import {
   RelationshipAdder,
   RelationshipRemove,
@@ -578,9 +579,19 @@ function CustomTab({ c }: { c: CustomerRecord }) {
   return (
     <Card className="max-w-3xl">
       {c.customFields.map((f, i) => (
-        <Row key={f.definitionId} label={f.question} last={i === c.customFields.length - 1}>
-          {f.value ?? "—"}
-        </Row>
+        <div
+          key={f.definitionId}
+          className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${i === c.customFields.length - 1 ? "" : "border-b border-[#f4f4f5]"}`}
+        >
+          <span className="shrink-0 text-[#71717a]">{f.question}</span>
+          <CustomFieldValue
+            customerId={c.id}
+            definitionId={f.definitionId}
+            dataType={f.dataType}
+            value={f.value}
+            options={f.options}
+          />
+        </div>
       ))}
     </Card>
   );
