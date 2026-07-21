@@ -5,7 +5,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -82,7 +81,9 @@ export function Topbar({
             </svg>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="flex flex-col gap-0.5">
+            {/* Plain header — Base UI's GroupLabel (what DropdownMenuLabel maps
+                to) requires a Menu.Group parent and throws standalone. */}
+            <div className="flex flex-col gap-0.5 px-2 py-1.5">
               <span className="truncate text-sm font-semibold">{userName}</span>
               {userEmail ? (
                 <span className="truncate text-xs font-normal text-[#71717a]">
@@ -92,7 +93,7 @@ export function Topbar({
               <span className="mt-1 text-[11px] font-medium tracking-wide text-[#a1a1aa] uppercase">
                 {userRole.replace(/_/g, " ")}
               </span>
-            </DropdownMenuLabel>
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
