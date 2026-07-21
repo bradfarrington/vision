@@ -96,6 +96,12 @@ export async function saveCustomer(
       .single();
     if (error) return { error: error.message };
     customerId = inserted.id;
+    // Mirror the first person into a (default) linked contact.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await syncPersonContact(supabase as any, companyId, customerId, "primary", data.first_name, data.last_name, {
+      email: data.email,
+      phone: data.phone ?? data.mobile,
+    });
   }
 
   revalidatePath("/customers");
@@ -142,19 +148,99 @@ export async function updateCustomerField(
   const { error } = await db.from("customers").update({ [field]: normalised }).eq("id", id);
   if (error) return { error: error.message };
 
-  // Salutation is how we address the customer — keep it in sync with
-  // Title + surname whenever either changes (still manually overridable after).
-  if (field === "title" || field === "last_name") {
-    const { data } = await db.from("customers").select("title, last_name").eq("id", id).single();
+  // Keep salutation + mirrored contacts in sync when the name fields change.
+  const NAME_FIELDS = ["title", "first_name", "last_name", "first_name_2", "last_name_2"];
+  if (NAME_FIELDS.includes(field)) {
+    const { data } = await db
+      .from("customers")
+      .select("company_id, title, first_name, last_name, first_name_2, last_name_2, email, phone, mobile")
+      .eq("id", id)
+      .single();
     if (data) {
-      const salutation = [data.title, data.last_name].filter(Boolean).join(" ").trim() || null;
-      await db.from("customers").update({ salutation }).eq("id", id);
+      if (field === "title" || field === "last_name") {
+        const salutation = [data.title, data.last_name].filter(Boolean).join(" ").trim() || null;
+        await db.from("customers").update({ salutation }).eq("id", id);
+      }
+      if (field === "first_name" || field === "last_name") {
+        await syncPersonContact(db, data.company_id, id, "primary", data.first_name, data.last_name, {
+          email: data.email,
+          phone: data.phone ?? data.mobile,
+        });
+      }
+      if (field === "first_name_2" || field === "last_name_2") {
+        await syncPersonContact(db, data.company_id, id, "secondary", data.first_name_2, data.last_name_2);
+      }
     }
   }
 
   revalidatePath(`/customers/${id}`);
   revalidatePath("/customers");
   return {};
+}
+
+// --- Auto-mirror the customer's name fields into contacts -------------------
+// The primary/secondary person on the customer becomes a linked contact,
+// kept in sync by `origin`. The default contact drives the overview "Main" card.
+async function syncPersonContact(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  companyId: string,
+  customerId: string,
+  origin: "primary" | "secondary",
+  first: string | null,
+  last: string | null,
+  seed?: { email?: string | null; phone?: string | null },
+) {
+  const name = [first, last].filter(Boolean).join(" ").trim();
+  const existing = (
+    await db
+      .from("customer_contacts")
+      .select("id")
+      .eq("customer_id", customerId)
+      .eq("origin", origin)
+      .limit(1)
+  ).data?.[0];
+
+  // Secondary only exists when both names are present; primary always follows.
+  const wanted = origin === "secondary" ? !!(first && last) : !!name;
+  if (!wanted) {
+    if (existing && origin === "secondary") {
+      await db.from("customer_contacts").delete().eq("id", existing.id);
+    }
+    return;
+  }
+
+  if (existing) {
+    await db.from("customer_contacts").update({ name }).eq("id", existing.id);
+    return;
+  }
+
+  // Primary: adopt the existing default contact (avoids duplicating a contact
+  // that already stands for this person), otherwise create a new default one.
+  if (origin === "primary") {
+    const def = (
+      await db
+        .from("customer_contacts")
+        .select("id")
+        .eq("customer_id", customerId)
+        .eq("is_default", true)
+        .limit(1)
+    ).data?.[0];
+    if (def) {
+      await db.from("customer_contacts").update({ origin: "primary", name }).eq("id", def.id);
+      return;
+    }
+  }
+
+  await db.from("customer_contacts").insert({
+    company_id: companyId,
+    customer_id: customerId,
+    name,
+    origin,
+    is_default: origin === "primary",
+    email: seed?.email ?? null,
+    phone: seed?.phone ?? null,
+  });
 }
 
 // --- Linked contacts --------------------------------------------------------

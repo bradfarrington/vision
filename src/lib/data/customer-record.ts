@@ -215,6 +215,8 @@ export type CustomerRecord = CustomerFields & {
   contractCount: number;
   lifetimeValue: number;
   contacts: CustomerContact[];
+  /** The default contact (or first) — shown as the overview "Main" contact. */
+  mainContact: CustomerContact | null;
   accountReferences: AccountReference[];
   customFields: CustomFieldEntry[];
   documents: CustomerDoc[];
@@ -321,6 +323,8 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     initials: valueByDef.get(d.id)?.initials ?? null,
   }));
 
+  const contactList = (contactsRes.data ?? []) as CustomerContact[];
+
   return {
     ...(c as CustomerFields),
     displayName: displayName(c),
@@ -330,7 +334,8 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     liveLeadCount,
     contractCount: contracts.length,
     lifetimeValue,
-    contacts: (contactsRes.data ?? []) as CustomerContact[],
+    contacts: contactList,
+    mainContact: contactList.find((ct) => ct.is_default) ?? contactList[0] ?? null,
     accountReferences: (refsRes.data ?? []) as AccountReference[],
     customFields,
     documents: (docsRes.data ?? []) as CustomerDoc[],

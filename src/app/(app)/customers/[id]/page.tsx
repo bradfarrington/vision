@@ -143,11 +143,21 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           )}
         </Card>
         <Card>
-          <CardTitle className="mb-2">Key contact</CardTitle>
-          <E c={c} label="Mobile" field="mobile" value={c.mobile} />
-          <E c={c} label="Phone" field="phone" value={c.phone} />
-          <E c={c} label="Email" field="email" value={c.email} />
-          <E c={c} label="Home tel" field="home_telephone" value={c.home_telephone} last />
+          <CardTitle className="mb-2">Main</CardTitle>
+          {c.mainContact ? (
+            <>
+              <Row label="Name">{c.mainContact.name}</Row>
+              {c.mainContact.position_role && (
+                <Row label="Role">{c.mainContact.position_role}</Row>
+              )}
+              <CRow id={c.mainContact.id} label="Email" field="email" value={c.mainContact.email} />
+              <CRow id={c.mainContact.id} label="Phone" field="phone" value={c.mainContact.phone} last />
+            </>
+          ) : (
+            <p className="py-2 text-[12px] text-[#71717a]">
+              Add a first &amp; last name — the main contact appears here.
+            </p>
+          )}
         </Card>
         <Card>
           <CardTitle className="mb-2">Flags</CardTitle>
