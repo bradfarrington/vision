@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { addTenantOption, deleteTenantOption } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
+import { DatePicker } from "./date-picker";
 import { Pill } from "./primitives";
 
 export type EditableType =
@@ -118,6 +119,19 @@ export function EditableField({
     );
   }
 
+  // --- date: custom accent-themed picker -----------------------------------
+  if (type === "date") {
+    return (
+      <DatePicker
+        variant="text"
+        className={className}
+        value={(current as string) ?? null}
+        onChange={(v) => save(v)}
+        placeholder={placeholder}
+      />
+    );
+  }
+
   // --- boolean: a toggle pill, no edit mode --------------------------------
   if (type === "boolean") {
     const on = !!current;
@@ -180,9 +194,9 @@ export function EditableField({
     return (
       <input
         ref={inputRef as React.RefObject<HTMLInputElement>}
-        type={type === "number" ? "text" : type}
+        type="text"
         inputMode={type === "number" ? "decimal" : undefined}
-        defaultValue={type === "date" ? dateInput(current) : ((current as string | number) ?? "")}
+        defaultValue={(current as string | number) ?? ""}
         onBlur={(e) => save(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -233,10 +247,4 @@ function formatDisplay(
       : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
   return String(v);
-}
-
-function dateInput(v: string | number | boolean | null): string {
-  if (!v) return "";
-  const d = new Date(v as string);
-  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
