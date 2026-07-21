@@ -24,6 +24,26 @@ Dashboard → **Authentication → URL Configuration**:
 
 Keep `NEXT_PUBLIC_SITE_URL` in `.env.local` in sync with the Site URL.
 
+## 2b. Enable the Custom Access Token hook — REQUIRED for multi-tenancy
+
+Every tenant read is gated by RLS on `current_company_id()`, which reads
+`company_id` from the JWT's `app_metadata`. That claim is stamped by
+`public.custom_access_token_hook` (defined in migration `…090000`) — but on a
+**cloud** project the `[auth.hook.custom_access_token]` block in
+`supabase/config.toml` only applies to *local* dev. In the cloud you must switch
+it on by hand, or **every tenant table reads empty and the shell falls back to
+the "Vision" placeholder name** even though the user + data exist.
+
+Dashboard → **Authentication → Hooks** → **Custom Access Token**:
+- Enable it, type **Postgres**, schema `public`, function
+  **`custom_access_token_hook`**. Save.
+
+The claim is written **at token issuance**, so after enabling it (or after
+changing a user's `public.users.company_id`) the user must **sign out and sign
+back in** to get a token that carries the tenant. Symptom of a stale/missing
+claim: logged in fine, correct `users.company_id` in the DB, seed data present,
+but lists are empty.
+
 ## 3. Resend — send auth emails via the API (Send Email Hook)
 
 All auth emails are sent by the **`send-auth-email`** edge function through the
