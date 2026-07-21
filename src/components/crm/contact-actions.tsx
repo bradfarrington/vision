@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   addCustomerContact,
@@ -13,6 +14,7 @@ import { btnSecondary } from "./primitives";
 export function AddContactButton({ customerId }: { customerId: string }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   return (
     <div className="flex items-center gap-2.5">
       {error && (
@@ -28,6 +30,7 @@ export function AddContactButton({ customerId }: { customerId: string }) {
           start(async () => {
             const res = await addCustomerContact(customerId);
             if (res?.error) setError(res.error);
+            else router.refresh();
           });
         }}
         className={btnSecondary}
@@ -49,12 +52,14 @@ export function ContactCardActions({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const run = (fn: () => Promise<{ error?: string }>) => {
     setError(null);
     start(async () => {
       const res = await fn();
       if (res?.error) setError(res.error);
+      else router.refresh();
     });
   };
 

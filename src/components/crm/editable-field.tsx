@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { Pill } from "./primitives";
@@ -47,8 +48,11 @@ export function EditableField({
   const [override, setOverride] = useState<{ v: string | number | boolean | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
+  const router = useRouter();
 
-  const current = override ? override.v : value;
+  // Show the optimistic value until the server value catches up to it (no
+  // clearing effect needed — derived purely from props/state).
+  const current = override && override.v !== value ? override.v : value;
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -68,7 +72,9 @@ export function EditableField({
         setError(res.error);
         setOverride(null);
       } else {
-        setOverride(null);
+        // Server-action revalidation doesn't always re-render the client tree
+        // here, so force a refresh to pull the saved value.
+        router.refresh();
       }
     });
   }
