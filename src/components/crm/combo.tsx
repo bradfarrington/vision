@@ -35,6 +35,7 @@ export function Combo({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
@@ -62,8 +63,13 @@ export function Combo({
   function addNew() {
     const label = query.trim();
     if (!label || !onAddNew) return;
+    setError(null);
     start(async () => {
       const res = await onAddNew(label);
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
       if (res?.label) {
         onChange(res.label);
         router.refresh();
@@ -152,6 +158,11 @@ export function Combo({
               <div className="px-2.5 py-2 text-[12.5px] text-[#a1a1aa]">No matches</div>
             )}
           </div>
+          {error && (
+            <div className="border-t border-[#f4f4f5] px-2.5 py-2 text-[11.5px] font-medium text-[#d64545]">
+              {error}
+            </div>
+          )}
         </div>
       )}
     </div>
