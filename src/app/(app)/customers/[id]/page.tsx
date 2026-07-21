@@ -193,10 +193,7 @@ function OverviewTab({ c }: { c: CustomerRecord }) {
 function ContactsTab({ c }: { c: CustomerRecord }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span className="text-[12.5px] text-[#71717a]">
-          {c.contacts.length} {c.contacts.length === 1 ? "contact" : "contacts"} linked to this account
-        </span>
+      <div className="flex items-center">
         <div className="ml-auto">
           <AddContactButton customerId={c.id} />
         </div>
