@@ -8,6 +8,7 @@ import {
   type CustomerRecord,
   type RelationshipType,
 } from "@/lib/data/customer-record";
+import { getSalesUsers, type StaffOption } from "@/lib/data/users";
 import {
   updateCustomerField,
   updateContactField,
@@ -47,9 +48,10 @@ export default async function CustomerDetailPage({
   const c = await getCustomerRecord(id);
   if (!c) notFound();
 
-  const [relationshipTypes, lookups] = await Promise.all([
+  const [relationshipTypes, lookups, salesUsers] = await Promise.all([
     getRelationshipTypes(),
     getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality"]),
+    getSalesUsers(),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -109,7 +111,7 @@ export default async function CustomerDetailPage({
             content: <RelationshipsTab c={c} types={relationshipTypes} />,
           },
           { label: "Address & access", content: <AddressTab c={c} lookups={lookups} /> },
-          { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} /> },
+          { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
           { label: "Marketing & permissions", content: <MarketingTab c={c} lookups={lookups} /> },
           { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} /> },
           { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} /> },
@@ -412,7 +414,15 @@ function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   );
 }
 
-function BillingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
+function BillingTab({
+  c,
+  lookups,
+  salesUsers,
+}: {
+  c: CustomerRecord;
+  lookups: Lookups;
+  salesUsers: StaffOption[];
+}) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
@@ -434,7 +444,7 @@ function BillingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <E c={c} label="VAT after discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
           <E c={c} label="In accounts system" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
           <E c={c} label="Accounts reference" field="default_account_reference" value={c.default_account_reference} mono />
-          <E c={c} label="Sales manager" field="sales_manager" value={c.sales_manager} />
+          <E c={c} label="Sales manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} />
           <E c={c} label="VAT no." field="vat_no" value={c.vat_no} mono />
           <E c={c} label="CIS reg" field="cis_reg" value={c.cis_reg} mono last />
         </Card>
