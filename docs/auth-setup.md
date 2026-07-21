@@ -24,39 +24,38 @@ Dashboard → **Authentication → URL Configuration**:
 
 Keep `NEXT_PUBLIC_SITE_URL` in `.env.local` in sync with the Site URL.
 
-## 3. Resend — send auth emails via the API (Send Email Hook)
+## 3. Resend — send auth emails from support@getvision.uk
 
-All auth emails are sent by the **`send-auth-email`** edge function through the
-Resend **API**, from `support@getvision.uk`. Templates are Vision-branded in code
-(`supabase/functions/send-auth-email/index.ts`) — nothing to edit in the
-dashboard, and every link points at our `/auth/confirm` route.
+**In Resend:**
+1. Add the domain **getvision.uk**.
+2. Add the DNS records Resend shows (SPF/DKIM, and DMARC) at your domain
+   registrar. Wait for **Verified**.
+3. Create an **API key** (used as the SMTP password below).
 
-**a. In Resend:**
-1. Add + verify the domain **getvision.uk** — add the SPF/DKIM/DMARC DNS records
-   Resend shows, at your registrar. Wait for **Verified**.
-2. Create an **API key** (`re_…`).
+**In Supabase** → **Authentication → Emails → SMTP Settings** → enable custom SMTP:
 
-**b. Enable the hook** — Dashboard → **Authentication → Hooks → Send Email Hook**:
-- Enable it, type **HTTPS**, pointing at the deployed function
-  `https://<project-ref>.functions.supabase.co/send-auth-email`.
-- Copy the **hook secret** it generates (`v1,whsec_…`).
+| Field | Value |
+|---|---|
+| Host | `smtp.resend.com` |
+| Port | `465` |
+| Username | `resend` |
+| Password | *(your Resend API key)* |
+| Sender email | `support@getvision.uk` |
+| Sender name | `Vision` |
 
-**c. Set secrets + deploy the function.** Put both values in
-`supabase/functions/.env` (gitignored):
+> Until custom SMTP is on, Supabase's shared dev mailer works but is
+> rate-limited (a few/hour) and generic. Fine for testing, not for real users.
 
-```ini
-RESEND_API_KEY="re_xxxxxxxx"
-SEND_EMAIL_HOOK_SECRET="v1,whsec_xxxxxxxx"
+## 4. Point the reset email at our handler
+
+Dashboard → **Authentication → Emails → Templates → Reset Password**. Set the
+link to use the token-hash format our `/auth/confirm` route expects:
+
+```
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset/update
 ```
 
-```bash
-npx supabase secrets set --env-file supabase/functions/.env
-npx supabase functions deploy send-auth-email --no-verify-jwt
-```
-
-> Local dev: `config.toml` already enables this hook against the local functions
-> runtime — run `npx supabase functions serve` and put the same two values in a
-> local `.env` so emails send while developing.
+(Optionally re-brand the template copy to Vision.)
 
 ## 5. Create two test users (one per tenant)
 
@@ -67,14 +66,27 @@ We don't self-provision yet, so create test logins by hand.
 - `owner@vision.test` — pick a password
 - `owner@bsw.test` — pick a password
 
-**b. Link each to a company + role.** Copy each new user's UUID from the Users
-list, then run in the SQL Editor (company UUIDs are from `seed.sql`):
+**b. Link each to a company + role.** This resolves each user's ID *by email*
+automatically (no UUID copy-pasting) — edit the emails + company IDs and run in
+the SQL Editor. Get company IDs from `select id, slug from public.companies;`.
 
 ```sql
-insert into public.users (id, company_id, email, first_name, last_name, role) values
-  ('<vision-user-uuid>', '00000000-0000-0000-0000-000000000001', 'owner@vision.test', 'Vision', 'Owner', 'company_admin'),
-  ('<bsw-user-uuid>',    '00000000-0000-0000-0000-000000000002', 'owner@bsw.test',    'BSW',    'Owner', 'company_admin');
+insert into public.users (id, company_id, email, first_name, last_name, role)
+select u.id, c.company_id, u.email, c.first_name, c.last_name, 'company_admin'
+from auth.users u
+join (values
+  ('owner@vision.test', '<vision-company-id>'::uuid, 'Vision', 'Owner'),
+  ('owner@bsw.test',    '<bsw-company-id>'::uuid,    'BSW',    'Owner')
+) as c(email, company_id, first_name, last_name) on c.email = u.email
+on conflict (id) do update
+  set company_id = excluded.company_id,
+      first_name = excluded.first_name,
+      last_name  = excluded.last_name,
+      role       = excluded.role;
 ```
+
+If it reports **0 rows**, the auth user for that email doesn't exist yet — create
+it in step (a) first. `on conflict` makes the query safe to re-run.
 
 The access-token hook reads `public.users.company_id`, so **this row must exist**
 before the JWT will carry a tenant. (No row → the user is signed in but sees
@@ -91,23 +103,6 @@ npm run dev
   RLS-scoped read. Sign out, sign in as `owner@bsw.test` → shows BSW instead.
 - **Forgot password?** → enter the email → the reset link (from Resend) lands on
   `/reset/update` to set a new password.
-
-## Deploying to Vercel (production)
-
-The Next.js CRM deploys to **Vercel**. The `send-auth-email` function stays on
-**Supabase** (Auth must be able to call it) — two hosting homes, by design.
-
-When you deploy, point everything at the real domain or reset links will email a
-broken `localhost` URL:
-
-1. **Vercel → Environment Variables:** add `NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and set `NEXT_PUBLIC_SITE_URL` to the
-   production URL (not localhost).
-2. **Supabase → Auth → URL Configuration → Site URL:** set to the production URL.
-3. **Redirect allow-list:** add `https://<prod-domain>/**`.
-
-(Tenant *websites* built in the app deploy to their own per-tenant Vercel projects
-via the Vercel API — separate from this CRM deployment. See AGENTS.md.)
 
 ## What's deferred (pre-launch)
 
