@@ -23,3 +23,17 @@ where not exists (
   select 1 from public.custom_field_definitions d
   where d.company_id = c.id and d.entity = 'customer' and d.question = v.question
 );
+
+-- Backfill any pre-existing standard fields (created before list_key existed)
+-- so they render as the tenant-editable dropdown too.
+update public.custom_field_definitions
+set list_key = 'preferred_contact_time', data_type = 'select'
+where entity = 'customer' and question = 'Preferred contact time';
+
+update public.custom_field_definitions
+set list_key = 'heard_about_us', data_type = 'select'
+where entity = 'customer' and question = 'Heard about us via';
+
+update public.custom_field_definitions
+set data_type = 'text'
+where entity = 'customer' and question = 'Gate / alarm code';
