@@ -52,9 +52,9 @@ export default async function CustomerDetailPage({
               {typeLabel}
             </span>
             {c.customer_number != null && <RefChip>{custNo(c.customer_number)}</RefChip>}
-            {c.bad_payer && <Pill tone="danger">Bad payer</Pill>}
+            {c.bad_payer && <Pill tone="danger">Payment risk</Pill>}
             {c.do_not_contact && <Pill tone="danger">Do not contact</Pill>}
-            {c.customer_moved_away && <Pill tone="amber">Moved away</Pill>}
+            {c.customer_moved_away && <Pill tone="amber">Gone away</Pill>}
           </div>
           <div className="mt-0.5 text-[12.5px] text-[#71717a]">
             Customer since {longDate(c.created_at)}
@@ -72,7 +72,7 @@ export default async function CustomerDetailPage({
 
       {c.flash_note && (
         <div className="rounded-lg border border-[#f6e0b8] bg-[#fdf2dc] px-3.5 py-2.5 text-[12.5px] font-medium text-[#b86e00]">
-          <span className="font-bold">Flash note: </span>
+          <span className="font-bold">Alert note: </span>
           {c.flash_note}
         </div>
       )}
@@ -81,10 +81,10 @@ export default async function CustomerDetailPage({
         tabs={[
           { label: "Overview", content: <OverviewTab c={c} /> },
           { label: "Contacts", count: c.contacts.length, content: <ContactsTab c={c} /> },
-          { label: "Address & directions", content: <AddressTab c={c} /> },
+          { label: "Address & access", content: <AddressTab c={c} /> },
           { label: "Billing & account", content: <BillingTab c={c} /> },
-          { label: "Marketing & consent", content: <MarketingTab c={c} /> },
-          { label: "Custom info", count: c.customFields.length, content: <CustomTab c={c} /> },
+          { label: "Marketing & permissions", content: <MarketingTab c={c} /> },
+          { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} /> },
           { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} /> },
           { label: "Notes", count: c.customerNotes.length, content: <NotesTab c={c} /> },
         ]}
@@ -128,9 +128,9 @@ function OverviewTab({ c }: { c: CustomerRecord }) {
         <Card>
           <CardTitle className="mb-2">Flags</CardTitle>
           <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
-          <E c={c} label="Bad payer" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-          <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
-          <E c={c} label="Flash note" field="flash_note" value={c.flash_note} type="textarea" last />
+          <E c={c} label="Payment risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
+          <E c={c} label="Gone away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+          <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
         </Card>
       </div>
 
@@ -218,15 +218,15 @@ function AddressTab({ c }: { c: CustomerRecord }) {
           <E c={c} label="Mobile 1" field="mobile" value={c.mobile} />
           <E c={c} label="Mobile 2" field="mobile_2" value={c.mobile_2} />
           <E c={c} label="Fax / alt" field="fax_alt_no" value={c.fax_alt_no} />
-          <E c={c} label="No WhatsApp" field="no_whatsapp" value={c.no_whatsapp} type="boolean" last />
+          <E c={c} label="WhatsApp opt-out" field="no_whatsapp" value={c.no_whatsapp} type="boolean" last />
         </Card>
         <Card>
           <div className="mb-2 flex items-center justify-between">
-            <CardTitle>Directions</CardTitle>
-            <EditableField id={c.id} field="directions" value={c.directions} action={updateCustomerField} type="textarea" placeholder="Add directions…" className="text-[12px] font-semibold text-[var(--accent-blue)]" />
+            <CardTitle>Access notes</CardTitle>
+            <EditableField id={c.id} field="directions" value={c.directions} action={updateCustomerField} type="textarea" placeholder="Add access notes…" className="text-[12px] font-semibold text-[var(--accent-blue)]" />
           </div>
           <p className="text-[12.5px] leading-[1.6] text-[#3f3f46]">
-            {c.directions ?? "No directions recorded."}
+            {c.directions ?? "No access notes recorded."}
           </p>
           {(c.postcode || c.what_3_words) && <IllustrativeMap className="mt-3" />}
         </Card>
@@ -252,19 +252,19 @@ function BillingTab({ c }: { c: CustomerRecord }) {
         <Card>
           <CardTitle className="mb-2">Account settings</CardTitle>
           <E c={c} label="Payment terms" field="payment_terms" value={c.payment_terms} />
-          <E c={c} label="Settlement disc. terms" field="settlement_disc_terms" value={c.settlement_disc_terms} />
-          <E c={c} label="Settlement disc. %" field="settlement_disc_pct" value={c.settlement_disc_pct} type="number" />
-          <E c={c} label="VAT on reduced amount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
-          <E c={c} label="Created in accounts pkg" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
-          <E c={c} label="Default account ref" field="default_account_reference" value={c.default_account_reference} mono />
+          <E c={c} label="Early-payment terms" field="settlement_disc_terms" value={c.settlement_disc_terms} />
+          <E c={c} label="Early-payment %" field="settlement_disc_pct" value={c.settlement_disc_pct} type="number" />
+          <E c={c} label="VAT after discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
+          <E c={c} label="In accounts system" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
+          <E c={c} label="Accounts reference" field="default_account_reference" value={c.default_account_reference} mono />
           <E c={c} label="Sales manager" field="sales_manager" value={c.sales_manager} />
           <E c={c} label="VAT no." field="vat_no" value={c.vat_no} mono />
           <E c={c} label="CIS reg" field="cis_reg" value={c.cis_reg} mono last />
         </Card>
         <Card>
-          <CardTitle className="mb-2">Account references</CardTitle>
+          <CardTitle className="mb-2">Ledger accounts</CardTitle>
           {c.accountReferences.length === 0 ? (
-            <p className="py-1 text-[12px] text-[#71717a]">No account references.</p>
+            <p className="py-1 text-[12px] text-[#71717a]">No ledger accounts.</p>
           ) : (
             c.accountReferences.map((r, i) => (
               <Row key={r.id} label={r.reference ?? "—"} mono last={i === c.accountReferences.length - 1}>
@@ -296,10 +296,10 @@ function MarketingTab({ c }: { c: CustomerRecord }) {
       </Card>
       <Card>
         <CardTitle className="mb-2">Marketing</CardTitle>
-        <E c={c} label="Marketing code" field="marketing_code" value={c.marketing_code} />
-        <E c={c} label="Opt-in date" field="opt_in_date" value={c.opt_in_date} type="date" />
-        <E c={c} label="Opted in by" field="opted_in_by" value={c.opted_in_by} />
-        <E c={c} label="Opt-in document" field="opt_in_document" value={c.opt_in_document} last />
+        <E c={c} label="Marketing source" field="marketing_code" value={c.marketing_code} />
+        <E c={c} label="Consent date" field="opt_in_date" value={c.opt_in_date} type="date" />
+        <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} />
+        <E c={c} label="Consent document" field="opt_in_document" value={c.opt_in_document} last />
         <div className="mt-3">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[12px] font-medium text-[#52525b]">Marketing notes</span>
