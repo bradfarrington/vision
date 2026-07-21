@@ -551,7 +551,7 @@ function ContractRow({ l, showBalance }: { l: ContractLine; showBalance?: boolea
 
 function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <Card>
         <CardTitle className="mb-1">Marketing consent</CardTitle>
         <p className="mb-1 text-[11.5px] text-[#a1a1aa]">Blank = not asked · click to set Yes / No</p>
