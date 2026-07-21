@@ -54,7 +54,10 @@ export async function saveCustomer(
   const id = formData.get("id");
   const data = collect(formData);
 
-  const isCommercial = data.customer_type === "commercial";
+  // Salutation defaults to Title + surname (how we address them).
+  data.salutation = [data.title, data.last_name].filter(Boolean).join(" ").trim() || null;
+
+  const isCommercial = (data.customer_type ?? "").toLowerCase() === "commercial";
   if (!data.first_name || !data.last_name) {
     return { error: "First and last name are required." };
   }
@@ -134,16 +137,20 @@ export async function updateCustomerField(
   const normalised = typeof value === "string" && value.trim() === "" ? null : value;
 
   const supabase = await createClient();
-  // Loosely typed: the expansion columns aren't in the generated types yet.
-  const { error } = await (supabase as unknown as {
-    from(t: string): {
-      update(v: Record<string, unknown>): { eq(c: string, v: string): Promise<{ error: { message: string } | null }> };
-    };
-  })
-    .from("customers")
-    .update({ [field]: normalised })
-    .eq("id", id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const { error } = await db.from("customers").update({ [field]: normalised }).eq("id", id);
   if (error) return { error: error.message };
+
+  // Salutation is how we address the customer — keep it in sync with
+  // Title + surname whenever either changes (still manually overridable after).
+  if (field === "title" || field === "last_name") {
+    const { data } = await db.from("customers").select("title, last_name").eq("id", id).single();
+    if (data) {
+      const salutation = [data.title, data.last_name].filter(Boolean).join(" ").trim() || null;
+      await db.from("customers").update({ salutation }).eq("id", id);
+    }
+  }
 
   revalidatePath(`/customers/${id}`);
   revalidatePath("/customers");
