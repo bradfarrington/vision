@@ -49,7 +49,7 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role"]),
+    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality"]),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -108,7 +108,7 @@ export default async function CustomerDetailPage({
             count: c.relationships.length,
             content: <RelationshipsTab c={c} types={relationshipTypes} />,
           },
-          { label: "Address & access", content: <AddressTab c={c} /> },
+          { label: "Address & access", content: <AddressTab c={c} lookups={lookups} /> },
           { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} /> },
           { label: "Marketing & permissions", content: <MarketingTab c={c} lookups={lookups} /> },
           { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} /> },
@@ -372,7 +372,7 @@ function RelationshipsTab({
   );
 }
 
-function AddressTab({ c }: { c: CustomerRecord }) {
+function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
@@ -380,7 +380,7 @@ function AddressTab({ c }: { c: CustomerRecord }) {
         <E c={c} label="House name" field="house_name" value={c.house_name} />
         <E c={c} label="House number" field="house_number" value={c.house_number} />
         <E c={c} label="Street" field="street" value={c.street} />
-        <E c={c} label="Locality" field="locality" value={c.locality} />
+        <E c={c} label="Locality" field="locality" value={c.locality} type="lookup" listKey="locality" lookupOptions={lookups.locality} />
         <E c={c} label="Town" field="town" value={c.town} />
         <E c={c} label="County" field="county" value={c.county} />
         <E c={c} label="Postcode" field="postcode" value={c.postcode} mono />
