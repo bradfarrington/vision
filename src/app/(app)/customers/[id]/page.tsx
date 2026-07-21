@@ -54,7 +54,7 @@ export default async function CustomerDetailPage({
             {c.customer_number != null && <RefChip>{custNo(c.customer_number)}</RefChip>}
             {c.bad_payer && <Pill tone="danger">Payment risk</Pill>}
             {c.do_not_contact && <Pill tone="danger">Do not contact</Pill>}
-            {c.customer_moved_away && <Pill tone="amber">Gone away</Pill>}
+            {c.customer_moved_away && <Pill tone="amber">Moved away</Pill>}
           </div>
           <div className="mt-0.5 text-[12.5px] text-[#71717a]">
             Customer since {longDate(c.created_at)}
@@ -129,7 +129,7 @@ function OverviewTab({ c }: { c: CustomerRecord }) {
           <CardTitle className="mb-2">Flags</CardTitle>
           <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
           <E c={c} label="Payment risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-          <E c={c} label="Gone away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+          <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
           <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
         </Card>
       </div>
