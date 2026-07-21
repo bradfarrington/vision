@@ -49,7 +49,7 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "property_type", "payment_terms", "settlement_terms", "marketing_source"]),
+    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source"]),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -137,8 +137,7 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <E c={c} label="Last name" field="last_name" value={c.last_name} />
           <E c={c} label="2nd first name" field="first_name_2" value={c.first_name_2} />
           <E c={c} label="2nd last name" field="last_name_2" value={c.last_name_2} />
-          <E c={c} label="Salutation" field="salutation" value={c.salutation} />
-          <E c={c} label="Property type" field="property_type" value={c.property_type} type="lookup" listKey="property_type" lookupOptions={lookups.property_type} last={!isCommercial(c.customer_type)} />
+          <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
           {isCommercial(c.customer_type) && (
             <E c={c} label="Company" field="company_name" value={c.company_name} last />
           )}
