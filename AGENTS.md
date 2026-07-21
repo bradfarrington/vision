@@ -74,3 +74,59 @@ Any field that should be a controlled pick-list (title, property type, payment t
 - **Additions are per-tenant.** "Add new" from the dropdown writes to that tenant's list only, so one tenant's custom values never leak into another's.
 - **UI:** the reusable searchable `Combo` (`src/components/crm/combo.tsx`) — search + inline "Add new" + remove, accent-themed. Wire it inline via `EditableField type="lookup"` (`listKey` + `lookupOptions`), backed by `addTenantOption` / `deleteTenantOption`. Fetch several lists at once with `getTenantOptionLists([...])`.
 - The stored value on the record stays the **label text** (no FK), so legacy/free-text values still display even if not in the list.
+
+## Customer record & inline editing — built 2026-07-21
+
+The customer detail (`src/app/(app)/customers/[id]/page.tsx`) is a **tabbed record**
+(Overview · Contacts · Relationships · Address & access · Billing & account ·
+Marketing & permissions · Additional info · Documents · Notes), read from
+**`getCustomerRecord()`** (`src/lib/data/customer-record.ts`) — the customer plus
+all related lists in one round-trip.
+
+- **Everything edits inline** (no separate edit screen for day-to-day). `EditableField`
+  (`src/components/crm/editable-field.tsx`) is the workhorse: `type` ∈
+  `text | textarea | number | date | select | boolean | tristate | lookup`. It saves via a
+  per-entity field action with a **strict column allowlist** (`updateCustomerField`,
+  `updateLeadField`, `updateContactField`, `updateRelationshipField`, `setCustomFieldValue`).
+  After a save it calls **`router.refresh()`** — server-action revalidation alone did NOT
+  re-render the client tabs.
+- **Reusable inputs** (accent-themed, plain-text-until-click):
+  - `Combo` (`combo.tsx`) — searchable dropdown + inline "Add new" + remove. Backed by
+    `tenant_options` (via `listKey`) OR a custom `onAddNew`/`onDelete` (staff, custom-field lists).
+  - `DatePicker` (`date-picker.tsx`) — custom calendar; header drills day→month→year.
+    Replaces the native date input everywhere (`EditableField type="date"`).
+  - `tristate` — blank / Yes / No (used for marketing consent, which is null by default).
+- **Lookups** follow the "Lookup dropdowns" decision above (`tenant_options`, seeded for all
+  tenants in `20260721097000`, per-tenant add). **Staff pickers** (Sales manager; later
+  Salesperson) come from `staff_members` filtered by role via `getSalesStaff()` /
+  `addSalesStaff()` — NOT auth `users`.
+- **Contacts mirror the name fields**: first/last → a default `customer_contacts` row
+  (`origin='primary'`), 2nd name → `origin='secondary'`, kept in sync; the **default contact
+  drives the overview "Main" card**. **Salutation auto-derives** from Title + surname.
+- **Relationships are directional**: `relationship_types` are forward/inverse pairs; each
+  `customer_relationships` row stores per-side wording (`label_a`/`label_b`) and is bidirectional
+  (one row, shown from both customers).
+- **Notes threads** reuse `lead_notes` with a `category` (`marketing` vs general).
+- **Custom fields** (`custom_field_definitions`/`custom_field_values`): dropdown fields set a
+  `list_key` → `tenant_options`; free-text fields don't. Standard fields are migration-seeded
+  for all tenants (`20260721099200`), not per-tenant demo SQL.
+- **Financials** panel (Billing tab) computes contract balance from `finance_lines`.
+
+### Gotchas for future work
+- **Generated types are stale.** Migrations `20260721094000`–`099200` add columns/tables not yet
+  in `src/lib/supabase/types.ts`, so data code uses a loose `const db = supabase as any` pattern and
+  actions cast insert/update payloads. **Run
+  `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`** to restore real typing
+  and remove the casts.
+- **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
+  JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
+  client-supplied tenant id.
+- **Schema is applied BY HAND in the Supabase SQL editor**, in order — not `supabase db push` (an
+  early hook-policy migration was applied manually, so db push conflicts). Migrations
+  `094000`–`099200` were applied to the remote as of 2026-07-21; some (`097000`) were re-run as they
+  gained rows. For new migrations: add the file, then apply the SQL manually.
+- **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
+  `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
+  the JWT carries no `company_id` and every tenant read is empty.
+- **New Customer / New Lead forms still use plain inputs** — not yet brought in line with the inline
+  lookups/date-picker. Lead detail fields (source, product type, salesperson) not yet lookup-ified.
