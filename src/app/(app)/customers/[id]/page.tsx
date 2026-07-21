@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getCustomerRecord, type CustomerRecord } from "@/lib/data/customer-record";
-import { updateCustomerField } from "@/app/(app)/customers/actions";
+import { updateCustomerField, updateContactField } from "@/app/(app)/customers/actions";
 import { gbp } from "@/lib/format";
 import { isLiveLead } from "@/lib/leads";
 import {
@@ -16,6 +16,7 @@ import {
   btnSecondary,
 } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
+import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { Tabs } from "@/components/crm/tabs";
@@ -170,27 +171,67 @@ function OverviewTab({ c }: { c: CustomerRecord }) {
 }
 
 function ContactsTab({ c }: { c: CustomerRecord }) {
-  if (c.contacts.length === 0) return <Empty>No additional contacts on this account.</Empty>;
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {c.contacts.map((ct) => (
-        <Card key={ct.id}>
-          <div className="flex items-center gap-2.5">
-            <Avatar name={ct.name} size={34} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="truncate font-semibold text-[#0a0a0a]">{ct.name}</span>
-                {ct.is_default && <Pill tone="success">Default</Pill>}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[12.5px] text-[#71717a]">
+          {c.contacts.length} {c.contacts.length === 1 ? "contact" : "contacts"} linked to this account
+        </span>
+        <div className="ml-auto">
+          <AddContactButton customerId={c.id} />
+        </div>
+      </div>
+      {c.contacts.length === 0 ? (
+        <Empty>No linked contacts yet — add one above.</Empty>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {c.contacts.map((ct) => (
+            <Card key={ct.id}>
+              <div className="flex items-center gap-2.5">
+                <Avatar name={ct.name || "?"} size={34} />
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <EditableField
+                    id={ct.id}
+                    field="name"
+                    value={ct.name}
+                    action={updateContactField}
+                    placeholder="Name"
+                    className="!text-left font-semibold text-[#0a0a0a]"
+                  />
+                  {ct.is_default && <Pill tone="success">Default</Pill>}
+                </div>
               </div>
-              {ct.position_role && <div className="text-[11.5px] text-[#71717a]">{ct.position_role}</div>}
-            </div>
-          </div>
-          <div className="mt-3">
-            <Row label="Email">{ct.email ?? "—"}</Row>
-            <Row label="Phone" last>{ct.phone ?? "—"}</Row>
-          </div>
-        </Card>
-      ))}
+              <div className="mt-3">
+                <CRow id={ct.id} label="Role" field="position_role" value={ct.position_role} />
+                <CRow id={ct.id} label="Email" field="email" value={ct.email} />
+                <CRow id={ct.id} label="Phone" field="phone" value={ct.phone} last />
+              </div>
+              <ContactCardActions customerId={c.id} contactId={ct.id} isDefault={!!ct.is_default} />
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CRow({
+  id,
+  label,
+  field,
+  value,
+  last,
+}: {
+  id: string;
+  label: string;
+  field: string;
+  value: string | null;
+  last?: boolean;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
+      <span className="shrink-0 text-[#71717a]">{label}</span>
+      <EditableField id={id} field={field} value={value} action={updateContactField} />
     </div>
   );
 }

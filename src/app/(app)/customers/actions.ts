@@ -148,3 +148,69 @@ export async function updateCustomerField(
   revalidatePath("/customers");
   return {};
 }
+
+// --- Linked contacts --------------------------------------------------------
+// customer_contacts isn't in the generated types yet, so these use a cast.
+// Re-run `supabase gen types` to restore typing.
+const EDITABLE_CONTACT_FIELDS = new Set(["name", "email", "phone", "position_role", "no_whatsapp"]);
+
+/** Add a blank linked contact to a customer (then edited inline). */
+export async function addCustomerContact(customerId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("customer_contacts")
+    .insert({ company_id: companyId, customer_id: customerId, name: "New contact" });
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
+/** Inline-edit a single field on a linked contact. */
+export async function updateContactField(
+  contactId: string,
+  field: string,
+  value: string | number | boolean | null,
+): Promise<{ error?: string }> {
+  if (!EDITABLE_CONTACT_FIELDS.has(field)) return { error: `Field "${field}" is not editable.` };
+  const normalised = typeof value === "string" && value.trim() === "" ? null : value;
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("customer_contacts")
+    .update({ [field]: normalised })
+    .eq("id", contactId);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
+/** Make one contact the default (clears the flag on the others). */
+export async function setDefaultContact(
+  customerId: string,
+  contactId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  await db.from("customer_contacts").update({ is_default: false }).eq("customer_id", customerId);
+  const { error } = await db.from("customer_contacts").update({ is_default: true }).eq("id", contactId);
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
+/** Remove a linked contact. */
+export async function deleteCustomerContact(
+  customerId: string,
+  contactId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("customer_contacts").delete().eq("id", contactId);
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
