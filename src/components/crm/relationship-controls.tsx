@@ -52,13 +52,17 @@ function RelationshipTypeSelect({
   onChange,
   className,
   variant = "input",
+  nameSuffix,
 }: {
   types: RelationshipType[];
   value: string | null;
   onChange: (thisSide: string, otherSide: string) => void;
   className?: string;
   variant?: "input" | "pill";
+  /** Appended to the shown value, e.g. "Parent of" + "Margaret". */
+  nameSuffix?: string;
 }) {
+  const display = value ? `${value}${nameSuffix ? ` ${nameSuffix}` : ""}` : null;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
@@ -118,7 +122,7 @@ function RelationshipTypeSelect({
           onClick={() => setOpen((o) => !o)}
           className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-[12px] font-semibold text-[var(--accent-active)] transition-[filter] hover:brightness-95"
         >
-          {value ?? "Set type"}
+          {display ?? "Set type"}
           <Icon name="chevron-down" size={11} />
         </button>
       ) : (
@@ -127,7 +131,7 @@ function RelationshipTypeSelect({
           onClick={() => setOpen((o) => !o)}
           className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
         >
-          <span className={cn("flex-1 truncate", !value && "text-[#a1a1aa]")}>{value ?? "Set type…"}</span>
+          <span className={cn("flex-1 truncate", !value && "text-[#a1a1aa]")}>{display ?? "Set type…"}</span>
           <Icon name="chevron-down" size={13} className="text-[#71717a]" />
         </button>
       )}
@@ -452,6 +456,7 @@ export function RelationshipTypeEditor({
   types,
   className,
   variant = "input",
+  nameSuffix,
 }: {
   relationshipId: string;
   viewerIsA: boolean;
@@ -459,12 +464,14 @@ export function RelationshipTypeEditor({
   types: RelationshipType[];
   className?: string;
   variant?: "input" | "pill";
+  nameSuffix?: string;
 }) {
   const [, start] = useTransition();
   const router = useRouter();
   return (
     <RelationshipTypeSelect
       variant={variant}
+      nameSuffix={nameSuffix}
       className={className}
       types={types}
       value={value}

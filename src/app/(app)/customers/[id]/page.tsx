@@ -310,6 +310,7 @@ function RelationshipsTab({
                       viewerIsA={r.viewerIsA}
                       value={r.label}
                       types={types}
+                      nameSuffix={c.first_name}
                     />
                   </div>
                   {r.related && (r.related.contractCount > 0 || r.related.liveLeadCount > 0 || r.related.lifetimeValue > 0) && (
