@@ -285,6 +285,17 @@ max_frequency = "5s"
 enabled = true
 uri = "pg-functions://postgres/public/custom_access_token_hook"
 
+# Send all auth emails through our Resend-backed edge function (send-auth-email).
+# Local uri points at the local functions runtime; in the cloud project this hook
+# is configured in the dashboard to point at the deployed function URL.
+[auth.hook.send_email]
+enabled = true
+uri = "http://127.0.0.1:54321/functions/v1/send-auth-email"
+
+# The email hook is called by GoTrue without a user JWT.
+[functions.send-auth-email]
+verify_jwt = false
+
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
 enabled = false

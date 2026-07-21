@@ -20,11 +20,9 @@ export default async function Home() {
     .eq("id", user.id)
     .single();
 
-  // Note: entitlement columns (plan, seat_limit…) appear here after the
-  // 090300 migration is pushed and types are regenerated.
   const { data: company } = await supabase
     .from("companies")
-    .select("name, slug")
+    .select("name, slug, plan")
     .maybeSingle();
 
   return (
@@ -60,7 +58,7 @@ export default async function Home() {
           <div className="flex justify-between">
             <dt className="text-[var(--text-muted)]">Company (via RLS)</dt>
             <dd className="font-medium text-foreground">
-              {company?.name ?? "—"}
+              {company ? `${company.name} · ${company.plan}` : "—"}
             </dd>
           </div>
         </dl>

@@ -24,38 +24,39 @@ Dashboard → **Authentication → URL Configuration**:
 
 Keep `NEXT_PUBLIC_SITE_URL` in `.env.local` in sync with the Site URL.
 
-## 3. Resend — send auth emails from support@getvision.uk
+## 3. Resend — send auth emails via the API (Send Email Hook)
 
-**In Resend:**
-1. Add the domain **getvision.uk**.
-2. Add the DNS records Resend shows (SPF/DKIM, and DMARC) at your domain
-   registrar. Wait for **Verified**.
-3. Create an **API key** (used as the SMTP password below).
+All auth emails are sent by the **`send-auth-email`** edge function through the
+Resend **API**, from `support@getvision.uk`. Templates are Vision-branded in code
+(`supabase/functions/send-auth-email/index.ts`) — nothing to edit in the
+dashboard, and every link points at our `/auth/confirm` route.
 
-**In Supabase** → **Authentication → Emails → SMTP Settings** → enable custom SMTP:
+**a. In Resend:**
+1. Add + verify the domain **getvision.uk** — add the SPF/DKIM/DMARC DNS records
+   Resend shows, at your registrar. Wait for **Verified**.
+2. Create an **API key** (`re_…`).
 
-| Field | Value |
-|---|---|
-| Host | `smtp.resend.com` |
-| Port | `465` |
-| Username | `resend` |
-| Password | *(your Resend API key)* |
-| Sender email | `support@getvision.uk` |
-| Sender name | `Vision` |
+**b. Enable the hook** — Dashboard → **Authentication → Hooks → Send Email Hook**:
+- Enable it, type **HTTPS**, pointing at the deployed function
+  `https://<project-ref>.functions.supabase.co/send-auth-email`.
+- Copy the **hook secret** it generates (`v1,whsec_…`).
 
-> Until custom SMTP is on, Supabase's shared dev mailer works but is
-> rate-limited (a few/hour) and generic. Fine for testing, not for real users.
+**c. Set secrets + deploy the function.** Put both values in
+`supabase/functions/.env` (gitignored):
 
-## 4. Point the reset email at our handler
-
-Dashboard → **Authentication → Emails → Templates → Reset Password**. Set the
-link to use the token-hash format our `/auth/confirm` route expects:
-
-```
-{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset/update
+```ini
+RESEND_API_KEY="re_xxxxxxxx"
+SEND_EMAIL_HOOK_SECRET="v1,whsec_xxxxxxxx"
 ```
 
-(Optionally re-brand the template copy to Vision.)
+```bash
+npx supabase secrets set --env-file supabase/functions/.env
+npx supabase functions deploy send-auth-email --no-verify-jwt
+```
+
+> Local dev: `config.toml` already enables this hook against the local functions
+> runtime — run `npx supabase functions serve` and put the same two values in a
+> local `.env` so emails send while developing.
 
 ## 5. Create two test users (one per tenant)
 

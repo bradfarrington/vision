@@ -583,7 +583,13 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          plan: string
+          seat_limit: number
           slug: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string
+          trial_ends_at: string | null
         }
         Insert: {
           active?: boolean
@@ -593,7 +599,13 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          plan?: string
+          seat_limit?: number
           slug: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
+          trial_ends_at?: string | null
         }
         Update: {
           active?: boolean
@@ -603,7 +615,13 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          plan?: string
+          seat_limit?: number
           slug?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
+          trial_ends_at?: string | null
         }
         Relationships: []
       }
@@ -3352,6 +3370,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      company_seats_used: { Args: never; Returns: number }
       current_company_id: { Args: never; Returns: string }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       is_platform_admin: { Args: never; Returns: boolean }
