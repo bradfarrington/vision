@@ -13,7 +13,7 @@ import {
   updateContactField,
   updateRelationshipField,
 } from "@/app/(app)/customers/actions";
-import { gbp } from "@/lib/format";
+import { gbp, isCommercial } from "@/lib/format";
 import { isLiveLead } from "@/lib/leads";
 import {
   Avatar,
@@ -49,9 +49,11 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["title", "property_type", "payment_terms", "settlement_terms", "marketing_source"]),
+    getTenantOptionLists(["customer_type", "title", "property_type", "payment_terms", "settlement_terms", "marketing_source"]),
   ]);
-  const typeLabel = c.customer_type === "commercial" ? "Commercial" : "Residential";
+  const typeLabel = c.customer_type
+    ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
+    : "Residential";
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden px-[26px] py-[22px]">
@@ -118,11 +120,6 @@ export default async function CustomerDetailPage({
   );
 }
 
-const TYPE_OPTS = [
-  { value: "residential", label: "Residential" },
-  { value: "commercial", label: "Commercial" },
-];
-
 type Lookups = Record<string, { id: string; label: string }[]>;
 
 // --- Tabs -------------------------------------------------------------------
@@ -134,15 +131,15 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <Card>
           <CardTitle className="mb-2">Identity</CardTitle>
           <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
-          <E c={c} label="Type" field="customer_type" value={c.customer_type} type="select" options={TYPE_OPTS} />
+          <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
           <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
           <E c={c} label="First name" field="first_name" value={c.first_name} />
           <E c={c} label="Last name" field="last_name" value={c.last_name} />
           <E c={c} label="2nd first name" field="first_name_2" value={c.first_name_2} />
           <E c={c} label="2nd last name" field="last_name_2" value={c.last_name_2} />
           <E c={c} label="Salutation" field="salutation" value={c.salutation} />
-          <E c={c} label="Property type" field="property_type" value={c.property_type} type="lookup" listKey="property_type" lookupOptions={lookups.property_type} last={c.customer_type !== "commercial"} />
-          {c.customer_type === "commercial" && (
+          <E c={c} label="Property type" field="property_type" value={c.property_type} type="lookup" listKey="property_type" lookupOptions={lookups.property_type} last={!isCommercial(c.customer_type)} />
+          {isCommercial(c.customer_type) && (
             <E c={c} label="Company" field="company_name" value={c.company_name} last />
           )}
         </Card>

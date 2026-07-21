@@ -98,11 +98,13 @@ export function EditableField({
   if (type === "lookup") {
     return (
       <Combo
-        className={cn("w-[190px]", className)}
+        variant="text"
+        mono={mono}
+        className={className}
         options={(lookupOptions ?? []).map((o) => ({ id: o.id, value: o.label, label: o.label }))}
         value={(current as string) ?? null}
         onChange={(v) => save(v)}
-        placeholder={placeholder === "—" ? "Select…" : placeholder}
+        placeholder={placeholder}
         searchPlaceholder="Search or add…"
         onAddNew={listKey ? (label) => addTenantOption(listKey, label) : undefined}
         onDelete={listKey ? (id) => deleteTenantOption(id) : undefined}

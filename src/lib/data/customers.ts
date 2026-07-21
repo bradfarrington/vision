@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { isLiveLead } from "@/lib/leads";
+import { isCommercial } from "@/lib/format";
 
 export const CUSTOMERS_PAGE_SIZE = 9;
 
@@ -134,7 +135,7 @@ export async function getCustomerOptions(): Promise<CustomerOption[]> {
   return (data ?? []).map((c) => ({
     id: c.id,
     name:
-      c.customer_type === "commercial" && c.company_name
+      isCommercial(c.customer_type) && c.company_name
         ? c.company_name
         : [c.first_name, c.last_name].filter(Boolean).join(" ").trim() ||
           c.company_name ||
@@ -251,7 +252,7 @@ function toCustomerRow(c: RawCustomer): CustomerRow {
   // Residential customers are always shown by their person name — a company name
   // is only a commercial concept and must never surface for a residential row.
   const displayName =
-    c.customer_type === "commercial"
+    isCommercial(c.customer_type)
       ? c.company_name || personName || "Unnamed customer"
       : personName || "Unnamed customer";
 

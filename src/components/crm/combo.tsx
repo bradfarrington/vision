@@ -22,6 +22,8 @@ export function Combo({
   onAddNew,
   onDelete,
   className,
+  variant = "input",
+  mono,
 }: {
   options: ComboOption[];
   value: string | null;
@@ -32,6 +34,9 @@ export function Combo({
   onAddNew?: (label: string) => Promise<{ label?: string; error?: string }>;
   onDelete?: (id: string) => Promise<{ error?: string }>;
   className?: string;
+  /** "input" = bordered box; "text" = plain value that reveals the menu on click. */
+  variant?: "input" | "text";
+  mono?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -52,7 +57,7 @@ export function Combo({
   const q = query.trim().toLowerCase();
   const filtered = options.filter((o) => o.label.toLowerCase().includes(q));
   const exact = options.some((o) => o.label.toLowerCase() === q);
-  const selected = options.find((o) => o.value === value);
+  const selected = options.find((o) => o.value.toLowerCase() === (value ?? "").toLowerCase());
 
   function choose(v: string) {
     onChange(v);
@@ -79,21 +84,40 @@ export function Combo({
     });
   }
 
+  const shown = selected?.label ?? value;
+
   return (
-    <div ref={ref} className={cn("relative", className)}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] text-[#0a0a0a] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
-      >
-        <span className={cn("flex-1 truncate", !selected && !value && "text-[#a1a1aa]")}>
-          {selected?.label ?? value ?? placeholder}
-        </span>
-        <Icon name="chevron-down" size={13} className="text-[#71717a]" />
-      </button>
+    <div ref={ref} className={cn("relative", variant === "text" && "inline-block", className)}>
+      {variant === "text" ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className={cn(
+            "group -mx-1 inline-flex items-center gap-1 rounded px-1 text-right text-[12.5px] font-medium text-[#3f3f46] transition-colors hover:bg-[var(--accent-tint)]",
+            mono && "font-mono",
+          )}
+        >
+          <span className={cn(!shown && "text-[#a1a1aa]")}>{shown ?? placeholder}</span>
+          <Icon name="chevron-down" size={11} className="text-[#a1a1aa] opacity-0 group-hover:opacity-100" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] text-[#0a0a0a] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+        >
+          <span className={cn("flex-1 truncate", !shown && "text-[#a1a1aa]")}>{shown ?? placeholder}</span>
+          <Icon name="chevron-down" size={13} className="text-[#71717a]" />
+        </button>
+      )}
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-[#e7e7ea] bg-white shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]">
+        <div
+          className={cn(
+            "absolute z-50 mt-1 overflow-hidden rounded-lg border border-[#e7e7ea] bg-white shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]",
+            variant === "text" ? "right-0 w-56" : "w-full",
+          )}
+        >
           <div className="border-b border-[#f4f4f5] p-2">
             <input
               autoFocus

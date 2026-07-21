@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { isLiveLead, leadRef } from "@/lib/leads";
+import { isCommercial } from "@/lib/format";
 
 export const LEADS_PAGE_SIZE = 12;
 
@@ -73,7 +74,7 @@ type RawLead = {
 function toLeadRow(l: RawLead): LeadRow {
   const c = l.customers;
   const customerName = c
-    ? c.customer_type === "commercial" && c.company_name
+    ? isCommercial(c.customer_type) && c.company_name
       ? c.company_name
       : [c.first_name, c.last_name].filter(Boolean).join(" ").trim() ||
         c.company_name ||
@@ -273,7 +274,7 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
   const l = data as any;
   const c = l.customers;
   const customerName = c
-    ? c.customer_type === "commercial" && c.company_name
+    ? isCommercial(c.customer_type) && c.company_name
       ? c.company_name
       : [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || c.company_name || "Unknown"
     : "Unknown";

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "@/lib/supabase/server";
 import { isLiveLead } from "@/lib/leads";
+import { isCommercial } from "@/lib/format";
 import type { CustomerLead, ContractSummary } from "./customers";
 
 // Full customer record for the tabbed detail page. Reads the customer row plus
@@ -368,7 +369,7 @@ export async function searchCustomersForLink(
 
 function displayName(c: CustomerFields): string {
   const person = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
-  return c.customer_type === "commercial"
+  return isCommercial(c.customer_type)
     ? c.company_name || person || "Unnamed customer"
     : person || "Unnamed customer";
 }

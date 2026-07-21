@@ -80,6 +80,15 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+/**
+ * True when a customer_type counts as commercial. Case-insensitive so a
+ * tenant-added type value (e.g. "Commercial") still drives the commercial
+ * behaviour, while any other custom type behaves as residential.
+ */
+export function isCommercial(type: string | null | undefined): boolean {
+  return (type ?? "").toLowerCase() === "commercial";
+}
+
 function toNumber(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = typeof value === "number" ? value : Number(value);

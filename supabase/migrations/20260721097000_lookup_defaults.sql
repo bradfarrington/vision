@@ -13,6 +13,8 @@ insert into public.tenant_options (company_id, list_key, label, sort_order)
 select c.id, d.list_key, d.label, d.ord
 from public.companies c
 cross join (values
+  -- Customer type
+  ('customer_type', 'Residential', 1), ('customer_type', 'Commercial', 2),
   -- Title
   ('title', 'Mr', 1), ('title', 'Mrs', 2), ('title', 'Miss', 3), ('title', 'Ms', 4),
   ('title', 'Mx', 5), ('title', 'Dr', 6), ('title', 'Prof', 7), ('title', 'Rev', 8),
