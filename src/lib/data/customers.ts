@@ -248,10 +248,12 @@ type RawCustomer = {
 
 function toCustomerRow(c: RawCustomer): CustomerRow {
   const personName = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
+  // Residential customers are always shown by their person name — a company name
+  // is only a commercial concept and must never surface for a residential row.
   const displayName =
-    c.customer_type === "commercial" && c.company_name
-      ? c.company_name
-      : personName || c.company_name || "Unnamed customer";
+    c.customer_type === "commercial"
+      ? c.company_name || personName || "Unnamed customer"
+      : personName || "Unnamed customer";
 
   const leads = (c.leads ?? [])
     .slice()
