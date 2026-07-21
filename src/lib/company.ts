@@ -61,6 +61,20 @@ export async function getSession(): Promise<Session | null> {
   };
 }
 
+/**
+ * The caller's tenant id, read from the JWT app_metadata (stamped by the
+ * custom access-token hook). Inserts must set `company_id` explicitly so the
+ * RLS WITH CHECK passes; the value is never taken from request input.
+ */
+export async function getCompanyId(): Promise<string | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const companyId = user?.app_metadata?.company_id;
+  return typeof companyId === "string" ? companyId : null;
+}
+
 /** Initials for the avatar chip — from name, falling back to email. */
 export function userInitials(user: SessionUser): string {
   const first = user.first_name?.trim()?.[0] ?? "";

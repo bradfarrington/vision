@@ -1,0 +1,152 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+
+import { createClient } from "@/lib/supabase/server";
+import { getCompanyId } from "@/lib/company";
+import { LEAD_STAGES } from "@/lib/leads";
+import type { Database } from "@/lib/supabase/types";
+
+type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
+
+export type LeadFormState = { error?: string };
+
+const TEXT_FIELDS = [
+  "customer_id",
+  "source",
+  "sub_source",
+  "product_type",
+  "product_interest_1",
+  "product_interest_2",
+  "salesman",
+  "salesperson_type",
+  "status",
+  "priority",
+  "notes",
+] as const;
+
+/** Create a lead. Reference number comes from the tenant counter (RPC). */
+export async function createLead(
+  _prev: LeadFormState,
+  formData: FormData,
+): Promise<LeadFormState> {
+  const get = (k: string) => {
+    const v = formData.get(k);
+    const s = typeof v === "string" ? v.trim() : "";
+    return s === "" ? null : s;
+  };
+
+  const customerId = get("customer_id");
+  if (!customerId) return { error: "Choose the customer this lead is for." };
+
+  const data: Record<string, unknown> = {};
+  for (const f of TEXT_FIELDS) data[f] = get(f);
+
+  const grossRaw = get("gross_value");
+  if (grossRaw != null) {
+    const n = Number(grossRaw.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(n)) data.gross_value = n;
+  }
+  const followUp = get("follow_up_date");
+  if (followUp) data.follow_up_date = followUp;
+
+  data.status ??= "new";
+  data.priority ??= "medium";
+  data.lead_date = new Date().toISOString();
+
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session. Please sign in again." };
+
+  // Per-tenant human reference (atomic, derives tenant from the JWT).
+  const { data: leadNumber, error: refError } = await supabase.rpc("next_reference", {
+    p_name: "lead",
+  });
+  if (refError) return { error: refError.message };
+
+  const { data: inserted, error } = await supabase
+    .from("leads")
+    .insert({
+      ...data,
+      company_id: companyId,
+      lead_number: Number(leadNumber),
+    } as LeadInsert)
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  revalidatePath("/leads");
+  if (customerId) revalidatePath(`/customers/${customerId}`);
+  redirect(`/leads/${inserted.id}`);
+}
+
+/** Move a lead to a new pipeline stage. Called from the lead detail header. */
+export async function setLeadStage(leadId: string, status: string): Promise<void> {
+  const valid = LEAD_STAGES.some((s) => s.key === status);
+  if (!valid) return;
+
+  const supabase = await createClient();
+  const patch: Record<string, unknown> = { status };
+  // Record the outcome + date when a lead closes.
+  if (status === "won") {
+    patch.result = "won";
+    patch.result_date = new Date().toISOString();
+  } else if (status === "lost") {
+    patch.result = "lost";
+    patch.result_date = new Date().toISOString();
+  } else {
+    patch.result = "alive";
+    patch.result_date = null;
+  }
+  if (status === "quoted") patch.quote_date = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("leads")
+    .update(patch as Database["public"]["Tables"]["leads"]["Update"])
+    .eq("id", leadId);
+  if (error) throw new Error(`setLeadStage: ${error.message}`);
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
+}
+
+/** Add a note to a lead's timeline. */
+export async function addLeadNote(leadId: string, content: string): Promise<void> {
+  const text = content.trim();
+  if (!text) return;
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from("lead_notes").insert({
+    company_id: companyId,
+    lead_id: leadId,
+    content: text,
+    created_by: user?.id ?? null,
+  } as Database["public"]["Tables"]["lead_notes"]["Insert"]);
+  if (error) throw new Error(`addLeadNote: ${error.message}`);
+  revalidatePath(`/leads/${leadId}`);
+}
+
+/** Toggle a checklist item between complete and pending. */
+export async function toggleChecklistItem(
+  itemId: number,
+  leadId: string,
+  done: boolean,
+): Promise<void> {
+  const supabase = await createClient();
+  const patch = done
+    ? { status: "completed", completed_at: new Date().toISOString() }
+    : { status: "pending", completed_at: null };
+  const { error } = await supabase
+    .from("lead_checklist_items")
+    .update(patch as Database["public"]["Tables"]["lead_checklist_items"]["Update"])
+    .eq("id", itemId);
+  if (error) throw new Error(`toggleChecklistItem: ${error.message}`);
+  revalidatePath(`/leads/${leadId}`);
+}
