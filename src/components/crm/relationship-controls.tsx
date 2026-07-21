@@ -9,6 +9,7 @@ import {
   deleteCustomerRelationship,
   deleteTenantOption,
   searchCustomers,
+  updateRelationshipField,
 } from "@/app/(app)/customers/actions";
 import type { TenantOption } from "@/lib/data/customer-record";
 import { cn } from "@/lib/utils";
@@ -227,6 +228,44 @@ export function RelationshipAdder({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// The relationship type as an inline-editable dropdown (persists on change,
+// and supports adding new types on the fly).
+export function RelationshipTypeCombo({
+  relationshipId,
+  value,
+  typeOptions,
+  className,
+}: {
+  relationshipId: string;
+  value: string | null;
+  typeOptions: TenantOption[];
+  className?: string;
+}) {
+  const [val, setVal] = useState<string | null>(value);
+  const [, start] = useTransition();
+  const router = useRouter();
+  const options = typeOptions.map((o) => ({ id: o.id, value: o.label, label: o.label }));
+
+  return (
+    <Combo
+      className={className}
+      options={options}
+      value={val}
+      onChange={(v) => {
+        setVal(v);
+        start(async () => {
+          await updateRelationshipField(relationshipId, "relationship_type", v);
+          router.refresh();
+        });
+      }}
+      placeholder="Set type…"
+      searchPlaceholder="Search or add a type…"
+      onAddNew={(label) => addTenantOption("relationship_type", label)}
+      onDelete={(id) => deleteTenantOption(id)}
+    />
   );
 }
 

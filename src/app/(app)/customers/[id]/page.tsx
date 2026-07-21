@@ -7,7 +7,11 @@ import {
   type CustomerRecord,
   type TenantOption,
 } from "@/lib/data/customer-record";
-import { updateCustomerField, updateContactField } from "@/app/(app)/customers/actions";
+import {
+  updateCustomerField,
+  updateContactField,
+  updateRelationshipField,
+} from "@/app/(app)/customers/actions";
 import { gbp, gbpCompact } from "@/lib/format";
 import { isLiveLead } from "@/lib/leads";
 import {
@@ -22,7 +26,11 @@ import {
 } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
-import { RelationshipAdder, RelationshipRemove } from "@/components/crm/relationship-controls";
+import {
+  RelationshipAdder,
+  RelationshipRemove,
+  RelationshipTypeCombo,
+} from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { Tabs } from "@/components/crm/tabs";
@@ -278,27 +286,49 @@ function RelationshipsTab({
               <div className="flex items-start gap-2.5">
                 <Avatar name={r.related?.name ?? "?"} size={34} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {r.related ? (
-                      <Link
-                        href={`/customers/${r.related.id}`}
-                        className="truncate font-semibold text-[#0a0a0a] hover:text-[var(--accent-blue)]"
-                      >
-                        {r.related.name}
-                      </Link>
-                    ) : (
-                      <span className="text-[#71717a]">Unknown customer</span>
-                    )}
-                    {r.relationshipType && <Pill tone="neutral">{r.relationshipType}</Pill>}
-                  </div>
+                  {r.related ? (
+                    <Link
+                      href={`/customers/${r.related.id}`}
+                      className="block truncate font-semibold text-[#0a0a0a] hover:text-[var(--accent-blue)]"
+                    >
+                      {r.related.name}
+                    </Link>
+                  ) : (
+                    <span className="text-[#71717a]">Unknown customer</span>
+                  )}
                   {r.related && (
-                    <div className="mt-1 text-[11.5px] text-[#71717a]">
+                    <div className="mt-0.5 text-[11.5px] text-[#71717a]">
                       {r.related.contractCount}{" "}
                       {r.related.contractCount === 1 ? "contract" : "contracts"}
                       {r.related.liveLeadCount > 0 && ` · ${r.related.liveLeadCount} live`}
                       {r.related.lifetimeValue > 0 && ` · ${gbpCompact(r.related.lifetimeValue)} lifetime`}
                     </div>
                   )}
+                </div>
+              </div>
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="shrink-0 text-[11.5px] text-[#71717a]">Relationship</span>
+                  <RelationshipTypeCombo
+                    relationshipId={r.id}
+                    value={r.relationshipType}
+                    typeOptions={typeOptions}
+                    className="w-[170px]"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11.5px] text-[#71717a]">Note</span>
+                  <div className="mt-0.5">
+                    <EditableField
+                      id={r.id}
+                      field="notes"
+                      value={r.notes}
+                      action={updateRelationshipField}
+                      type="textarea"
+                      placeholder="Add a note…"
+                      className="!block w-full !text-left text-[12px]"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="mt-3 flex items-center border-t border-[#f4f4f5] pt-2.5">

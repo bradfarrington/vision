@@ -303,6 +303,27 @@ export async function deleteCustomerRelationship(
   return {};
 }
 
+const EDITABLE_RELATIONSHIP_FIELDS = new Set(["relationship_type", "notes"]);
+
+/** Inline-edit a relationship's type or note. */
+export async function updateRelationshipField(
+  id: string,
+  field: string,
+  value: string | number | boolean | null,
+): Promise<{ error?: string }> {
+  if (!EDITABLE_RELATIONSHIP_FIELDS.has(field)) return { error: `Field "${field}" is not editable.` };
+  const normalised = typeof value === "string" && value.trim() === "" ? null : value;
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("customer_relationships")
+    .update({ [field]: normalised })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
 /** Search customers for the relationship picker (client-callable). */
 export async function searchCustomers(query: string, excludeId: string) {
   return searchCustomersForLink(query, excludeId);
