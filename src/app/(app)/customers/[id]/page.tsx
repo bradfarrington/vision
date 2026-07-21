@@ -552,17 +552,12 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
-        <CardTitle className="mb-2">Consent</CardTitle>
-        <div className="grid grid-cols-2 gap-x-4">
-          <E c={c} label="No postal mktg" field="no_postal_marketing" value={c.no_postal_marketing} type="boolean" danger />
-          <E c={c} label="No email mktg" field="no_email_marketing" value={c.no_email_marketing} type="boolean" danger />
-          <E c={c} label="No SMS mktg" field="no_sms_marketing" value={c.no_sms_marketing} type="boolean" danger />
-          <E c={c} label="No phone mktg" field="no_telephone_marketing" value={c.no_telephone_marketing} type="boolean" danger />
-          <E c={c} label="Phone opt-in" field="phone_opt_in" value={c.phone_opt_in} type="boolean" />
-          <E c={c} label="Letter opt-in" field="letter_opt_in" value={c.letter_opt_in} type="boolean" />
-          <E c={c} label="Email opt-in" field="email_opt_in" value={c.email_opt_in} type="boolean" />
-          <E c={c} label="SMS opt-in" field="sms_opt_in" value={c.sms_opt_in} type="boolean" last />
-        </div>
+        <CardTitle className="mb-1">Marketing consent</CardTitle>
+        <p className="mb-1 text-[11.5px] text-[#a1a1aa]">Yes = consented on that channel</p>
+        <E c={c} label="Email" field="email_opt_in" value={c.email_opt_in} type="boolean" />
+        <E c={c} label="SMS" field="sms_opt_in" value={c.sms_opt_in} type="boolean" />
+        <E c={c} label="Phone" field="phone_opt_in" value={c.phone_opt_in} type="boolean" />
+        <E c={c} label="Post" field="letter_opt_in" value={c.letter_opt_in} type="boolean" last />
       </Card>
       <Card>
         <CardTitle className="mb-2">Marketing</CardTitle>
