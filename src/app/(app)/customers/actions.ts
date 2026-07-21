@@ -525,48 +525,6 @@ export async function setCustomFieldValue(
   return {};
 }
 
-/** Add an option to a custom field's dropdown list (tenant-scoped). */
-export async function addCustomFieldOption(
-  definitionId: number,
-  label: string,
-): Promise<{ label?: string; error?: string }> {
-  const clean = label.trim();
-  if (!clean) return { error: "Enter a value." };
-  const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
-  const def = (await db.from("custom_field_definitions").select("options").eq("id", definitionId).single()).data;
-  const opts: string[] = Array.isArray(def?.options) ? def.options : [];
-  if (!opts.some((o) => o.toLowerCase() === clean.toLowerCase())) {
-    const { error } = await db
-      .from("custom_field_definitions")
-      .update({ options: [...opts, clean] })
-      .eq("id", definitionId);
-    if (error) return { error: error.message };
-  }
-  revalidatePath("/customers", "layout");
-  return { label: clean };
-}
-
-/** Remove an option from a custom field's dropdown list. */
-export async function deleteCustomFieldOption(
-  definitionId: number,
-  label: string,
-): Promise<{ error?: string }> {
-  const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
-  const def = (await db.from("custom_field_definitions").select("options").eq("id", definitionId).single()).data;
-  const opts: string[] = Array.isArray(def?.options) ? def.options : [];
-  const { error } = await db
-    .from("custom_field_definitions")
-    .update({ options: opts.filter((o) => o !== label) })
-    .eq("id", definitionId);
-  if (error) return { error: error.message };
-  revalidatePath("/customers", "layout");
-  return {};
-}
-
 /** Add a stamped marketing note (thread) — records the author + date. */
 export async function addMarketingNote(
   customerId: string,

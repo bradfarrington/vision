@@ -4,32 +4,30 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
-  addCustomFieldOption,
-  deleteCustomFieldOption,
+  addTenantOption,
+  deleteTenantOption,
   setCustomFieldValue,
 } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
 
-// A custom field's value editor. Select-type fields (with options) render the
-// tenant-editable dropdown (search + add-new); everything else is inline text.
+// A custom field's value editor. Dropdown fields (list_key set) render the same
+// tenant_options dropdown as everywhere else; others are inline free text.
 export function CustomFieldValue({
   customerId,
   definitionId,
-  dataType,
+  listKey,
   value,
   options,
 }: {
   customerId: string;
   definitionId: number;
-  dataType: string;
+  listKey: string | null;
   value: string | null;
-  options: string[];
+  options: { id: string; label: string }[];
 }) {
   const [, start] = useTransition();
   const router = useRouter();
-
-  const isLookup = dataType === "select" || options.length > 0;
 
   function persist(v: string | null) {
     start(async () => {
@@ -38,17 +36,17 @@ export function CustomFieldValue({
     });
   }
 
-  if (isLookup) {
+  if (listKey) {
     return (
       <Combo
         variant="text"
-        options={options.map((o) => ({ id: o, value: o, label: o }))}
+        options={options.map((o) => ({ id: o.id, value: o.label, label: o.label }))}
         value={value}
         onChange={(v) => persist(v)}
         placeholder="—"
         searchPlaceholder="Search or add…"
-        onAddNew={(label) => addCustomFieldOption(definitionId, label)}
-        onDelete={(id) => deleteCustomFieldOption(definitionId, id)}
+        onAddNew={(label) => addTenantOption(listKey, label)}
+        onDelete={(id) => deleteTenantOption(id)}
       />
     );
   }

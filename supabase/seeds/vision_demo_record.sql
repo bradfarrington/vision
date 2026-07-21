@@ -69,22 +69,16 @@ insert into public.customer_account_references (company_id, customer_id, referen
   ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'ELLIS001', 'Ellison — Windows 2024'),
   ('00000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'ELLIS002', 'Ellison — Front door 2026');
 
--- ---- Custom fields (Additional info) ---------------------------------------
-delete from public.custom_field_values      where company_id = '00000000-0000-0000-0000-000000000001';
-delete from public.custom_field_definitions where company_id = '00000000-0000-0000-0000-000000000001';
-insert into public.custom_field_definitions (company_id, entity, question, data_type, options, required, sort_order) values
-  ('00000000-0000-0000-0000-000000000001', 'customer', 'Preferred contact time', 'select',
-     array['Morning', 'Afternoon', 'Evening', 'Anytime', 'Weekends only'], false, 1),
-  ('00000000-0000-0000-0000-000000000001', 'customer', 'Gate / alarm code',      'text', null, false, 2),
-  ('00000000-0000-0000-0000-000000000001', 'customer', 'Heard about us via',     'select',
-     array['Referral', 'Website', 'Facebook', 'Google', 'Recommendation', 'Repeat customer', 'Other'], false, 3);
+-- ---- Custom field VALUES for Margaret (the fields themselves are seeded for
+-- ---- every tenant by migration 20260721099200) -----------------------------
+delete from public.custom_field_values where company_id = '00000000-0000-0000-0000-000000000001';
 insert into public.custom_field_values (company_id, definition_id, customer_id, value, initials)
 select '00000000-0000-0000-0000-000000000001', d.id, '10000000-0000-0000-0000-000000000001', v.value, 'MC'
 from public.custom_field_definitions d
 join (values
-  ('Preferred contact time', 'Afternoons, after 1pm'),
+  ('Preferred contact time', 'Afternoon'),
   ('Gate / alarm code',      'Side gate latch — no code'),
-  ('Heard about us via',     'Neighbour referral')
+  ('Heard about us via',     'Referral')
 ) as v(question, value) on v.question = d.question
 where d.company_id = '00000000-0000-0000-0000-000000000001';
 

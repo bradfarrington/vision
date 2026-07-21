@@ -55,7 +55,7 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups, salesUsers] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality", "consent_by"]),
+    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality", "consent_by", "preferred_contact_time", "heard_about_us"]),
     getSalesStaff(),
   ]);
   const typeLabel = c.customer_type
@@ -118,7 +118,7 @@ export default async function CustomerDetailPage({
           { label: "Address & access", content: <AddressTab c={c} lookups={lookups} /> },
           { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
           { label: "Marketing & permissions", content: <MarketingTab c={c} lookups={lookups} /> },
-          { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} /> },
+          { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} lookups={lookups} /> },
           { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} /> },
           { label: "Notes", count: c.customerNotes.length, content: <NotesTab c={c} /> },
         ]}
@@ -573,7 +573,7 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   );
 }
 
-function CustomTab({ c }: { c: CustomerRecord }) {
+function CustomTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   if (c.customFields.length === 0)
     return <Empty>No custom fields defined. Add them in settings to capture bespoke info here.</Empty>;
   return (
@@ -587,9 +587,9 @@ function CustomTab({ c }: { c: CustomerRecord }) {
           <CustomFieldValue
             customerId={c.id}
             definitionId={f.definitionId}
-            dataType={f.dataType}
+            listKey={f.listKey}
             value={f.value}
-            options={f.options}
+            options={f.listKey ? (lookups[f.listKey] ?? []) : []}
           />
         </div>
       ))}

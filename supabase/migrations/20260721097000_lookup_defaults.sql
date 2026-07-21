@@ -51,6 +51,14 @@ cross join (values
   ('consent_by', 'Web form', 1), ('consent_by', 'Phone call', 2),
   ('consent_by', 'In person', 3), ('consent_by', 'Email', 4),
   ('consent_by', 'Signed form', 5), ('consent_by', 'Verbal', 6),
-  ('consent_by', 'Imported', 7)
+  ('consent_by', 'Imported', 7),
+  -- Additional-info dropdowns
+  ('preferred_contact_time', 'Morning', 1), ('preferred_contact_time', 'Afternoon', 2),
+  ('preferred_contact_time', 'Evening', 3), ('preferred_contact_time', 'Anytime', 4),
+  ('preferred_contact_time', 'Weekends only', 5),
+  ('heard_about_us', 'Referral', 1), ('heard_about_us', 'Website', 2),
+  ('heard_about_us', 'Facebook', 3), ('heard_about_us', 'Google', 4),
+  ('heard_about_us', 'Recommendation', 5), ('heard_about_us', 'Repeat customer', 6),
+  ('heard_about_us', 'Other', 7)
 ) as d(list_key, label, ord)
 on conflict (company_id, list_key, label) do nothing;

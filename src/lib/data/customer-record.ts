@@ -31,7 +31,8 @@ export type CustomFieldEntry = {
   question: string;
   dataType: string;
   required: boolean;
-  options: string[];
+  /** tenant_options list_key when this field is a dropdown; null for free text. */
+  listKey: string | null;
   value: string | null;
   initials: string | null;
 };
@@ -280,7 +281,7 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
   const [contactsRes, refsRes, defsRes, valsRes, docsRes, notesRes, relsRes, mktgNotesRes] = await Promise.all([
     db.from("customer_contacts").select("id, name, email, phone, position_role, is_default, no_whatsapp").eq("customer_id", id).order("is_default", { ascending: false }),
     db.from("customer_account_references").select("id, reference, acc_name").eq("customer_id", id),
-    db.from("custom_field_definitions").select("id, question, data_type, required, sort_order, options").eq("entity", "customer").eq("is_active", true).order("sort_order"),
+    db.from("custom_field_definitions").select("id, question, data_type, required, sort_order, list_key").eq("entity", "customer").eq("is_active", true).order("sort_order"),
     db.from("custom_field_values").select("definition_id, value, initials").eq("customer_id", id),
     db.from("documents").select("id, name, file_name, file_type, file_size, file_url, category, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
     db.from("lead_notes").select("id, content, created_at").eq("customer_id", id).is("lead_id", null).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
@@ -351,13 +352,13 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     valueByDef.set(v.definition_id, v);
   }
   const customFields: CustomFieldEntry[] = (
-    (defsRes.data ?? []) as { id: number; question: string; data_type: string; required: boolean | null; options: string[] | null }[]
+    (defsRes.data ?? []) as { id: number; question: string; data_type: string; required: boolean | null; list_key: string | null }[]
   ).map((d) => ({
     definitionId: d.id,
     question: d.question,
     dataType: d.data_type,
     required: !!d.required,
-    options: Array.isArray(d.options) ? d.options : [],
+    listKey: d.list_key ?? null,
     value: valueByDef.get(d.id)?.value ?? null,
     initials: valueByDef.get(d.id)?.initials ?? null,
   }));
