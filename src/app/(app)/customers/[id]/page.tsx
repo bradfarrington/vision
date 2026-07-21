@@ -31,6 +31,7 @@ import {
 } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
+import { MarketingNotes } from "@/components/crm/marketing-notes";
 import {
   RelationshipAdder,
   RelationshipRemove,
@@ -565,13 +566,7 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <E c={c} label="Consent date" field="opt_in_date" value={c.opt_in_date} type="date" />
         <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} type="lookup" listKey="consent_by" lookupOptions={lookups.consent_by} />
         <E c={c} label="Consent document" field="opt_in_document" value={c.opt_in_document} last />
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[12px] font-medium text-[#52525b]">Marketing notes</span>
-            <EditableField id={c.id} field="marketing_notes" value={c.marketing_notes} action={updateCustomerField} type="textarea" placeholder="Edit…" className="text-[12px] font-semibold text-[var(--accent-blue)]" />
-          </div>
-          <p className="text-[12.5px] leading-[1.6] text-[#3f3f46]">{c.marketing_notes ?? "—"}</p>
-        </div>
+        <MarketingNotes customerId={c.id} notes={c.marketingNotes} />
       </Card>
     </div>
   );

@@ -52,6 +52,13 @@ export type CustomerNote = {
   created_at: string;
 };
 
+export type MarketingNote = {
+  id: string;
+  content: string;
+  created_at: string;
+  author: string | null;
+};
+
 export type CustomerRelationship = {
   id: string;
   /** How the relationship reads from the customer being viewed. */
@@ -240,6 +247,7 @@ export type CustomerRecord = CustomerFields & {
   customFields: CustomFieldEntry[];
   documents: CustomerDoc[];
   customerNotes: CustomerNote[];
+  marketingNotes: MarketingNote[];
   relationships: CustomerRelationship[];
   financials: CustomerFinancials;
 };
@@ -268,15 +276,24 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
 
   // Related lists — separate reads (avoids relying on freshly-added embed
   // relationships before the PostgREST schema cache reloads).
-  const [contactsRes, refsRes, defsRes, valsRes, docsRes, notesRes, relsRes] = await Promise.all([
+  const [contactsRes, refsRes, defsRes, valsRes, docsRes, notesRes, relsRes, mktgNotesRes] = await Promise.all([
     db.from("customer_contacts").select("id, name, email, phone, position_role, is_default, no_whatsapp").eq("customer_id", id).order("is_default", { ascending: false }),
     db.from("customer_account_references").select("id, reference, acc_name").eq("customer_id", id),
     db.from("custom_field_definitions").select("id, question, data_type, required, sort_order").eq("entity", "customer").eq("is_active", true).order("sort_order"),
     db.from("custom_field_values").select("definition_id, value, initials").eq("customer_id", id),
     db.from("documents").select("id, name, file_name, file_type, file_size, file_url, category, created_at").eq("customer_id", id).order("created_at", { ascending: false }),
-    db.from("lead_notes").select("id, content, created_at").eq("customer_id", id).is("lead_id", null).order("created_at", { ascending: false }),
+    db.from("lead_notes").select("id, content, created_at").eq("customer_id", id).is("lead_id", null).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
     db.from("customer_relationships").select("id, customer_id, related_customer_id, label_a, label_b, notes").or(`customer_id.eq.${id},related_customer_id.eq.${id}`).order("created_at"),
+    db.from("lead_notes").select("id, content, created_at, users:created_by(first_name, last_name)").eq("customer_id", id).eq("category", "marketing").order("created_at", { ascending: false }),
   ]);
+  const marketingNotes: MarketingNote[] = ((mktgNotesRes.data ?? []) as any[]).map((n) => ({
+    id: n.id,
+    content: n.content,
+    created_at: n.created_at,
+    author: n.users
+      ? [n.users.first_name, n.users.last_name].filter(Boolean).join(" ").trim() || null
+      : null,
+  }));
 
   // Relationships are bidirectional — one row is visible from both customers,
   // worded per side (label_a = customer_id's side, label_b = related's side).
@@ -402,6 +419,7 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     customFields,
     documents: (docsRes.data ?? []) as CustomerDoc[],
     customerNotes: (notesRes.data ?? []) as CustomerNote[],
+    marketingNotes,
     relationships,
     financials,
   };

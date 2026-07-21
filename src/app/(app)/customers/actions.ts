@@ -494,6 +494,45 @@ export async function searchCustomers(query: string, excludeId: string) {
   return searchCustomersForLink(query, excludeId);
 }
 
+/** Add a stamped marketing note (thread) — records the author + date. */
+export async function addMarketingNote(
+  customerId: string,
+  content: string,
+): Promise<{ error?: string }> {
+  const text = content.trim();
+  if (!text) return { error: "Enter a note." };
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("lead_notes").insert({
+    company_id: companyId,
+    customer_id: customerId,
+    content: text,
+    category: "marketing",
+    created_by: user?.id ?? null,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
+/** Delete a marketing note. */
+export async function deleteMarketingNote(
+  customerId: string,
+  noteId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("lead_notes").delete().eq("id", noteId);
+  if (error) return { error: error.message };
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
 /** Add a sales staff member from the Sales manager dropdown. */
 export async function addSalesStaff(name: string): Promise<{ label?: string; error?: string }> {
   const clean = name.trim();
