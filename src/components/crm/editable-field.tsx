@@ -34,6 +34,10 @@ type Props = {
   lookupOptions?: { id: string; label: string }[];
   /** tenant_options list_key for add-new / delete (type="lookup"). */
   listKey?: string;
+  /** Override the lookup add-new handler (e.g. create a staff member). */
+  onAddNew?: (label: string) => Promise<{ label?: string; error?: string }>;
+  /** Override the lookup option-delete handler. */
+  onDeleteOption?: (id: string) => Promise<{ error?: string }>;
   placeholder?: string;
   mono?: boolean;
   /** Show boolean as a red pill when true (e.g. Do-not-contact). */
@@ -53,6 +57,8 @@ export function EditableField({
   options,
   lookupOptions,
   listKey,
+  onAddNew,
+  onDeleteOption,
   placeholder = "—",
   mono,
   booleanDanger,
@@ -106,8 +112,8 @@ export function EditableField({
         onChange={(v) => save(v)}
         placeholder={placeholder}
         searchPlaceholder="Search or add…"
-        onAddNew={listKey ? (label) => addTenantOption(listKey, label) : undefined}
-        onDelete={listKey ? (id) => deleteTenantOption(id) : undefined}
+        onAddNew={onAddNew ?? (listKey ? (label) => addTenantOption(listKey, label) : undefined)}
+        onDelete={onDeleteOption ?? (listKey ? (id) => deleteTenantOption(id) : undefined)}
       />
     );
   }

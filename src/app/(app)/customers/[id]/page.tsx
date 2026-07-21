@@ -8,11 +8,12 @@ import {
   type CustomerRecord,
   type RelationshipType,
 } from "@/lib/data/customer-record";
-import { getSalesUsers, type StaffOption } from "@/lib/data/users";
+import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
 import {
   updateCustomerField,
   updateContactField,
   updateRelationshipField,
+  addSalesStaff,
 } from "@/app/(app)/customers/actions";
 import { gbp, isCommercial } from "@/lib/format";
 import { isLiveLead } from "@/lib/leads";
@@ -51,7 +52,7 @@ export default async function CustomerDetailPage({
   const [relationshipTypes, lookups, salesUsers] = await Promise.all([
     getRelationshipTypes(),
     getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality"]),
-    getSalesUsers(),
+    getSalesStaff(),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -444,7 +445,7 @@ function BillingTab({
           <E c={c} label="VAT after discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
           <E c={c} label="In accounts system" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
           <E c={c} label="Accounts reference" field="default_account_reference" value={c.default_account_reference} mono />
-          <E c={c} label="Sales manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} />
+          <E c={c} label="Sales manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} onAddNew={addSalesStaff} />
           <E c={c} label="VAT no." field="vat_no" value={c.vat_no} mono />
           <E c={c} label="CIS reg" field="cis_reg" value={c.cis_reg} mono last />
         </Card>
@@ -558,6 +559,7 @@ function E({
   options,
   lookupOptions,
   listKey,
+  onAddNew,
   mono,
   danger,
   last,
@@ -570,6 +572,7 @@ function E({
   options?: { value: string; label: string }[];
   lookupOptions?: { id: string; label: string }[];
   listKey?: string;
+  onAddNew?: (label: string) => Promise<{ label?: string; error?: string }>;
   mono?: boolean;
   danger?: boolean;
   last?: boolean;
@@ -586,6 +589,7 @@ function E({
         options={options}
         lookupOptions={lookupOptions}
         listKey={listKey}
+        onAddNew={onAddNew}
         mono={mono}
         booleanDanger={danger}
       />

@@ -493,3 +493,29 @@ export async function updateRelationshipField(
 export async function searchCustomers(query: string, excludeId: string) {
   return searchCustomersForLink(query, excludeId);
 }
+
+/** Add a sales staff member from the Sales manager dropdown. */
+export async function addSalesStaff(name: string): Promise<{ label?: string; error?: string }> {
+  const clean = name.trim();
+  if (!clean) return { error: "Enter a name." };
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+
+  const parts = clean.split(/\s+/);
+  const first = parts[0];
+  const last = parts.slice(1).join(" ");
+
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("staff_members").insert({
+    company_id: companyId,
+    first_name: first,
+    last_name: last,
+    role: "sales",
+    roles: ["sales"],
+    active: true,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return { label: clean };
+}
