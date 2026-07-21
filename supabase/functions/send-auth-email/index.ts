@@ -12,6 +12,11 @@ const hookSecret = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") as string).replace(
   "v1,whsec_",
   "",
 );
+// Base URL of the CRM app (where /auth/confirm lives). Set as a function secret:
+//   local  -> http://localhost:3000
+//   prod   -> your deployed Vercel URL
+// We use this rather than the hook's site_url, which points at the Supabase API.
+const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
 
 const FROM = "Vision <support@getvision.uk>";
 const ACCENT = "#2f7de1";
@@ -30,14 +35,24 @@ type EmailData = {
   token_hash_new: string;
 };
 
+function appBase(d: EmailData) {
+  if (APP_URL) return APP_URL;
+  // Fallbacks if APP_URL isn't set: the origin of redirect_to (which the app
+  // supplies), then the hook's site_url as a last resort.
+  try {
+    return new URL(d.redirect_to).origin;
+  } catch {
+    return (d.site_url ?? "").replace(/\/$/, "");
+  }
+}
+
 function confirmUrl(d: EmailData, next: string) {
-  const base = (d.site_url ?? "").replace(/\/$/, "");
   const params = new URLSearchParams({
     token_hash: d.token_hash,
     type: d.email_action_type,
     next,
   });
-  return `${base}/auth/confirm?${params.toString()}`;
+  return `${appBase(d)}/auth/confirm?${params.toString()}`;
 }
 
 function content(d: EmailData) {
