@@ -118,32 +118,34 @@
 }
 
 /* ============================================================
-   Vision platform theme — maps shadcn tokens to the Vision design
-   system (design_handoff_vision_crm/_ds .../tokens). Declared after
-   the shadcn defaults so these win. Tenant accent is applied later
-   per-tenant via --accent at the app root; the platform base is
-   Vision blue. Semantic colours are platform-fixed.
+   Vision platform theme — maps shadcn tokens to the DESIGNED SCREENS
+   (design_handoff_vision_crm/Vision CRM Screens.dc.html), which are the
+   source of truth. The screens use a zinc neutral ramp (#e7e7ea / #a1a1aa
+   / #f4f4f5 / #18181b) rather than the _ds token files' cooler graphite —
+   we follow the screens. Declared after the shadcn defaults so these win.
+   Tenant accent is applied per-tenant via --accent-blue at the app root;
+   the platform base is Vision blue. Semantic colours are platform-fixed.
    ============================================================ */
 :root {
   --background: #ffffff;
-  --foreground: #101418; /* vs-ink */
+  --foreground: #18181b; /* zinc-900 — dark text/marks in the screens */
   --card: #ffffff;
-  --card-foreground: #101418;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #101418;
+  --popover-foreground: #18181b;
 
   /* Primary = Vision accent blue (tenant overrides this later) */
   --primary: #2f7de1;
   --primary-foreground: #ffffff;
 
-  --muted: #f7f9fb;            /* vs-neutral-50 */
-  --muted-foreground: #7a8696; /* vs-neutral-500 */
+  --muted: #f4f4f5;            /* zinc-100 — subtle fills / wells */
+  --muted-foreground: #71717a; /* zinc-500 — muted text */
 
-  --border: #e2e7ee;  /* hairline */
-  --input: #e2e7ee;
+  --border: #e7e7ea;  /* zinc-200 — hairlines */
+  --input: #e7e7ea;
   --ring: #2f7de1;    /* accent focus ring */
 
-  --destructive: #d64545; /* vs-danger */
+  --destructive: #d64545; /* danger */
 
   --radius: 0.5rem; /* 8px controls; cards use rounded-xl (12px) */
 
@@ -152,13 +154,21 @@
   --accent-hover: #2568c2;
   --accent-active: #1f56a3;
   --accent-tint: #eaf2fd;
-  --canvas: #f7f9fb;
-  --hairline: #e2e7ee;
-  --text-body: #3a4453;
-  --text-muted: #7a8696;
-  --success: #1f9d63;
+  --canvas: #f4f4f5;        /* zinc-100 — app canvas behind the panel */
+  --hairline: #e7e7ea;      /* zinc-200 */
+  --text-body: #3f3f46;     /* zinc-700 — body copy */
+  --text-muted: #71717a;    /* zinc-500 */
+  --text-subtle: #a1a1aa;   /* zinc-400 — placeholders / de-emphasised */
+  --success: #1a7f3e;
+  --success-tint: #e7f4ec;
   --warning: #c77d1a;
+  --warning-tint: #fbf1df;
   --danger: #d64545;
+  --danger-tint: #fdecec;
+
+  /* Zinc ramp values referenced directly by components */
+  --border-default: #d4d4d8;  /* zinc-300 */
+  --surface-hover: #fafafa;   /* zinc-50 */
 }
 
 @layer base {

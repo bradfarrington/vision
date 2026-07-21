@@ -29,7 +29,7 @@ export async function signIn(
     return { error: "Those details don't match. Check and try again." };
   }
 
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function requestReset(
@@ -75,7 +75,7 @@ export async function updatePassword(
     return { error: error.message };
   }
 
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function signOut() {

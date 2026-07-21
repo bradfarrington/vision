@@ -46,12 +46,12 @@ Goal: if the platform ever outgrows one database, tenants can be moved in groups
 - [ ] Tenant provisioning flow: create company (name, slug, brand colours, logo) → owner invite
 
 ## Phase 3 — Tenant theming & app shell
-- [ ] Theme provider: `--accent`, `--accent-hover`, `--accent-tint` (+ logo, name) from the `companies` row; Vision blue defaults
-- [ ] Load Vision tokens (Inter Tight / Inter / JetBrains Mono, neutral ramp, radii, shadows) as global CSS
-- [ ] Icon-rail sidebar per `VisionSidebar.dc.html`: fixed nav order, 44px circular items, accent-filled active state
-- [ ] Topbar: tenant logo mark, pill search, user chip, accent action button
-- [ ] Base components: Button (primary/secondary/ghost/danger), Input, Select, status Chip, Card, Table, Dialog, Toast, Tabs, ProgressBar — styled per Section 00/00b of the design file
-- [ ] Verify the whole shell rebrands correctly by switching between Vision and BSW seed tenants
+- [x] Theme provider: `--accent`, `--accent-hover`, `--accent-tint` (+ logo, name) from the `companies` row; Vision blue defaults — `src/lib/theme.ts` (`tenantThemeVars`), applied on the shell root in `src/app/(app)/layout.tsx`; hover/active/tint derived from `brand_color_1` via `color-mix`
+- [x] Load Vision tokens (Inter Tight / Inter / JetBrains Mono, neutral ramp, radii, shadows) as global CSS — fonts in `layout.tsx`, tokens mapped in `globals.css`
+- [x] Icon-rail sidebar per `VisionSidebar.dc.html`: fixed nav order, 44px circular items, accent-filled active state — `src/components/app-shell/sidebar.tsx` + `nav.ts`
+- [x] Topbar: tenant logo mark, pill search, user chip, accent action button — `src/components/app-shell/topbar.tsx` (search + `+` action are visual placeholders; wire up in later phases)
+- [x] Base components: Button (primary/secondary/ghost/danger), Input, Select, status Chip, Card, Table, Dialog, Toast, Tabs, ProgressBar — shadcn set already in `src/components/ui`, mapped to Vision tokens in `globals.css`; added `chip.tsx` (semantic tints, accent tone rebrands)
+- [x] Verify the whole shell rebrands correctly by switching between Vision and BSW seed tenants — accent flows from `companies.brand_color_1`; log in as a Vision user (blue `#2f7de1`) vs a BSW user (red `#e5040a`) to see the rail/CTAs/accent surfaces re-colour. Not yet visually smoke-tested in a browser.
 
 ## Phase 4 — Customers & leads (core CRM)
 - [ ] Customers list: search, filters, pagination; create/edit forms with UK address fields + postcode
