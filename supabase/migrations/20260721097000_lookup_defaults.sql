@@ -46,6 +46,11 @@ cross join (values
   ('contact_role', 'Daughter', 7), ('contact_role', 'Tenant', 8),
   ('contact_role', 'Landlord', 9), ('contact_role', 'Letting agent', 10),
   ('contact_role', 'Site contact', 11), ('contact_role', 'Accounts / billing', 12),
-  ('contact_role', 'Project manager', 13), ('contact_role', 'Other', 14)
+  ('contact_role', 'Project manager', 13), ('contact_role', 'Other', 14),
+  -- Consent captured by (how marketing consent was obtained)
+  ('consent_by', 'Web form', 1), ('consent_by', 'Phone call', 2),
+  ('consent_by', 'In person', 3), ('consent_by', 'Email', 4),
+  ('consent_by', 'Signed form', 5), ('consent_by', 'Verbal', 6),
+  ('consent_by', 'Imported', 7)
 ) as d(list_key, label, ord)
 on conflict (company_id, list_key, label) do nothing;

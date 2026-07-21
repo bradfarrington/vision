@@ -53,7 +53,7 @@ export default async function CustomerDetailPage({
 
   const [relationshipTypes, lookups, salesUsers] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality"]),
+    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality", "consent_by"]),
     getSalesStaff(),
   ]);
   const typeLabel = c.customer_type
@@ -563,7 +563,7 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <CardTitle className="mb-2">Marketing</CardTitle>
         <E c={c} label="Referral source" field="marketing_code" value={c.marketing_code} type="lookup" listKey="marketing_source" lookupOptions={lookups.marketing_source} />
         <E c={c} label="Consent date" field="opt_in_date" value={c.opt_in_date} type="date" />
-        <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} />
+        <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} type="lookup" listKey="consent_by" lookupOptions={lookups.consent_by} />
         <E c={c} label="Consent document" field="opt_in_document" value={c.opt_in_document} last />
         <div className="mt-3">
           <div className="mb-1 flex items-center justify-between">
