@@ -103,6 +103,17 @@ npm run dev
 - **Forgot password?** → enter the email → the reset link (from Resend) lands on
   `/reset/update` to set a new password.
 
+### Troubleshooting
+
+- **`email rate limit exceeded`** (server log, no email sent, nothing in the
+  function logs): Supabase Auth throttled the request *before* calling the hook.
+  Raise it at **Authentication → Rate Limits → "Rate limit for sending emails"**
+  (safe now that sends go through your own Resend). There's also a ~60s cooldown
+  per address.
+- **Link shows `{"message":"No API key found in request"}`**: the email link is
+  pointing at the Supabase API instead of the app — set the `APP_URL` function
+  secret (§3c) and redeploy.
+
 ## What's deferred (pre-launch)
 
 - Self-serve **free-trial** signup (creates company + owner, `plan='trial'`)
