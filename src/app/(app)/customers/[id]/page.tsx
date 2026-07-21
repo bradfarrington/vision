@@ -265,11 +265,7 @@ function RelationshipsTab({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span className="text-[12.5px] text-[#71717a]">
-          {c.relationships.length} related{" "}
-          {c.relationships.length === 1 ? "customer" : "customers"}
-        </span>
+      <div className="flex items-center">
         <div className="ml-auto">
           <RelationshipAdder customerId={c.id} types={types} />
         </div>
