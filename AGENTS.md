@@ -246,11 +246,8 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **Every digest is capped and every cap has a destination.** Notes / documents / contracts / leads
   show the latest `DIGEST_ROWS` (3), linked customers `LINKED_ROWS` (2) — a card must not grow with
   the data or the tab starts scrolling. Anything capped MUST offer the jump to the tab holding the
-  full list, which is why the **Leads & Contracts tab** exists: it is where the designed
-  `LeadCard`/`ContractCard` live now that the overview only summarises them. That tab is **two
-  columns — leads left, contracts right**, contracts ordered to follow their leads. A contract no
-  longer sits under its lead behind a connector elbow, so `ContractCard` takes `fromLead` and names
-  the originating reference ("from L-2431") instead. Loaders sort newest
+  full list, which is why the **Leads & Contracts tab** exists: it is where the full
+  lists live now that the overview only summarises them. See § Lists & columns for its shape. Loaders sort newest
   first (leads by `lead_date`, contracts by `contract_date`, documents/notes by `created_at`) so
   "the latest three" is true at the source, not re-sorted per card.
 - **ONE contact card, not two.** The main contact and the customer's own numbers live on different
@@ -279,6 +276,33 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **No new queries.** Everything renders from what `getCustomerRecord()` already loads; a summary
   card must never add a round-trip. If a future card needs data the record doesn't carry, add it to
   that loader (behind `selectWithFallback`), not to the component.
+
+## Lists & columns — decided 2026-07-22
+
+- **The customer record's tabs are short labels in Title Case**: Overview · Leads & Contracts ·
+  Contacts · Relationships · Address · Account · Marketing · Additional Info · Documents · Notes.
+  Jump targets (`TabLink`/`TabJump` `to=`) are matched case-insensitively but still by label, so a
+  rename means updating them — grep `to="` before renaming a tab.
+- **The Leads & Contracts tab is two STACKED TABLES, not cards and not sub-tabs.** Leads first,
+  then contracts, each with the /leads list's frame (heading + count, uppercase column row, grid
+  rows). Contracts sort to follow their leads' order and name the originating lead in a "From lead"
+  column; one whose lead is missing or belongs to another customer sorts last and renders as a
+  plain row, not a link that goes nowhere.
+  - *Rows beat cards here* — a card can't line values, stages and dates up with each other, and the
+    meta that made the designed `LeadCard` two lines tall costs no height in a column. The designed
+    horizontal cards (`components/crm/lead-card.tsx`) were **deleted** when this landed; the design
+    screens still show them, and that divergence is deliberate.
+  - *Sub-tabs were considered and rejected.* The record is already ten tabs deep, a customer has a
+    handful of each, and nesting would mean overview jumps landing on whichever sub-tab was last
+    active. Both lists stay visible.
+- **Customisable columns belong to the LIST SCREENS first** (`/leads`, `/customers`), which today
+  hardcode a `GRID` template string. When built: a column registry per entity (key, label, width,
+  renderer, sortable) + a saved preference, and this tab then reuses that component with a customer
+  filter and a narrower default column set. Do NOT build a bespoke column picker inside the customer
+  record — that builds it twice.
+- **A saved column layout is PER USER, per list** (not per tenant): a salesperson and a fitter want
+  different columns, and one admin's preference must not become everyone's. A tenant-level default
+  with user override can layer on later; the storage should assume user-scoped from the start.
 
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 

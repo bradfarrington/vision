@@ -33,6 +33,7 @@ import {
   Icon,
   Pill,
   RefChip,
+  StageBadge,
   btnPrimary,
   btnSecondary,
 } from "@/components/crm/primitives";
@@ -52,7 +53,6 @@ import {
   RelationshipTypeEditor,
 } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
-import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { FitRows } from "@/components/crm/fit-rows";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
 
@@ -144,9 +144,9 @@ export default async function CustomerDetailPage({
             count: c.relationships.length,
             content: <RelationshipsTab c={c} types={relationshipTypes} />,
           },
-          { label: "Address & Access", content: <AddressTab c={c} lookups={lookups} /> },
-          { label: "Billing & Account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
-          { label: "Marketing & Permissions", content: <MarketingTab c={c} lookups={lookups} /> },
+          { label: "Address", content: <AddressTab c={c} lookups={lookups} /> },
+          { label: "Account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
+          { label: "Marketing", content: <MarketingTab c={c} lookups={lookups} /> },
           { label: "Additional Info", count: c.customFields.length, content: <CustomTab c={c} lookups={lookups} /> },
           { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} categoryOptions={lookups.document_category} /> },
           { label: "Notes", count: c.customerNotes.length, content: <NotesTab c={c} /> },
@@ -253,8 +253,8 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
     // Tiles size to their content rather than stretching across the viewport —
     // a money figure in a full-width card reads as mostly empty space.
     <div className="flex flex-wrap gap-3">
-      <Stat label="Lifetime Value" value={gbp(lifetimeValue)} tone="success" to="Billing & Account" />
-      <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Billing & Account" />
+      <Stat label="Lifetime Value" value={gbp(lifetimeValue)} tone="success" to="Account" />
+      <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Account" />
       <Stat
         label="Live Leads"
         value={String(liveLeads)}
@@ -381,7 +381,7 @@ function ContactCard({ c }: { c: CustomerRecord }) {
     <Card className={OV_LIST_CARD}>
       <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Contact</CardTitle>
-        <TabLink to="Address & Access" className="ml-auto">
+        <TabLink to="Address" className="ml-auto">
           Edit →
         </TabLink>
       </div>
@@ -418,7 +418,7 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
     .join(", ");
   const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
   return (
-    <SummaryCard title="Address" to="Address & Access" linkLabel="Edit →" fit>
+    <SummaryCard title="Address" to="Address" linkLabel="Edit →" fit>
       {lines.length === 0 && !c.postcode ? (
         <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
       ) : (
@@ -455,7 +455,7 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
     { label: "Post", value: c.letter_opt_in },
   ];
   return (
-    <SummaryCard title="Marketing consent" to="Marketing & Permissions" linkLabel="Edit →">
+    <SummaryCard title="Marketing consent" to="Marketing" linkLabel="Edit →">
       <div className="flex flex-wrap gap-1.5">
         {channels.map((ch) => (
           <ConsentChip key={ch.label} label={ch.label} value={ch.value} />
@@ -529,7 +529,7 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
 }
 
 // --- Column 4: the work itself ----------------------------------------------
-// Compact stacks rather than the full-width LeadCard/ContractCard — a column is
+// Compact stacks rather than the Leads & Contracts tab's tables — a column is
 // ~310px, so a row carries only reference, what it is and how much, on one line.
 // Stage, dates and everything else are one click away on the lead itself.
 
@@ -660,15 +660,24 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
 }
 
 /**
- * Every lead and contract in full, using the designed cards, in two columns —
- * leads left, contracts right. The overview shows only the latest few of each;
- * this is where "View all →" lands, and the only place the rich cards live.
+ * Every lead and contract in full, as two stacked tables — the customer-scoped
+ * twin of the /leads list, minus the columns the record already answers (the
+ * customer). The overview shows only the latest few of each; this is where
+ * "View all →" lands.
+ *
+ * Rows, not cards: a card can't line values, dates and stages up with each
+ * other, and the meta that made the card two lines tall costs nothing in a
+ * column. Column choice is fixed here for now — customisable columns belong to
+ * the list screens first, and this tab should reuse that component when it lands
+ * (see AGENTS.md § Lists & columns).
  */
+const LEAD_GRID = "grid-cols-[2.4fr_1.2fr_1fr_1.2fr_1.4fr_28px]";
+const CONTRACT_GRID = "grid-cols-[2.4fr_1.2fr_1fr_1.2fr_1fr_28px]";
+
 function LeadsContractsTab({ c }: { c: CustomerRecord }) {
-  // Two columns — every lead on the left, every contract on the right. The
-  // contracts keep the leads' ordering (each lead's contracts, then any whose
-  // lead is missing or belongs elsewhere), so the two columns read in step; a
-  // contract born of a lead names it, since the two are no longer adjacent.
+  // Contracts follow their leads' order, so the two tables read in step; one
+  // whose lead is missing or lives on another customer sorts to the bottom
+  // rather than vanishing off the record.
   const leadOrder = new Map(c.leads.map((l, i) => [l.id, i]));
   const leadRefById = new Map(c.leads.map((l) => [l.id, leadRef(l.lead_number)]));
   const contracts = [...c.contracts].sort(
@@ -678,11 +687,14 @@ function LeadsContractsTab({ c }: { c: CustomerRecord }) {
   );
 
   return (
-    <div className="grid max-w-[1320px] grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <div className="flex flex-col gap-3">
-        <ColumnHead title="Leads" count={c.leads.length} />
-        {c.leads.length === 0 ? (
-          <Empty>
+    <div className="flex max-w-[1320px] flex-col gap-4">
+      <ListTable
+        title="Leads"
+        count={c.leads.length}
+        grid={LEAD_GRID}
+        columns={["Lead", "Stage", "Value", "Source", "Received · follow-up"]}
+        empty={
+          <>
             No leads yet.{" "}
             <Link
               href={`/leads/new?customer=${c.id}`}
@@ -690,36 +702,147 @@ function LeadsContractsTab({ c }: { c: CustomerRecord }) {
             >
               Create the first →
             </Link>
-          </Empty>
-        ) : (
-          c.leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
-        )}
-      </div>
+          </>
+        }
+        action={
+          c.leads.length > 0 ? (
+            <Link
+              href={`/leads/new?customer=${c.id}`}
+              className="text-[11.5px] font-semibold text-[var(--accent-blue)] hover:underline"
+            >
+              + New lead
+            </Link>
+          ) : null
+        }
+      >
+        {c.leads.map((l) => (
+          <Link
+            key={l.id}
+            href={`/leads/${l.id}`}
+            className={`grid ${LEAD_GRID} items-center border-b border-[#f4f4f5] px-4 py-[11px] text-[13px] transition-colors last:border-b-0 hover:bg-[#fafafa] ${
+              l.status === "lost" ? "opacity-75" : ""
+            }`}
+          >
+            <span className="flex min-w-0 items-center gap-2.5">
+              <RefChip>{leadRef(l.lead_number)}</RefChip>
+              <span className="min-w-0 truncate font-semibold text-[#0a0a0a]">
+                {l.product_type ?? l.product_interest_1 ?? "Lead"}
+              </span>
+            </span>
+            <span>
+              <StageBadge status={l.status} />
+            </span>
+            <span className="font-semibold text-[#0a0a0a]">
+              {gbp(l.gross_value ?? l.estimated_value)}
+            </span>
+            <span className="truncate text-[#3f3f46]">
+              {l.sub_source ? `${l.source} / ${l.sub_source}` : l.source ?? "—"}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[#3f3f46]">{longDate(l.lead_date)}</span>
+              {l.follow_up_date && isLiveLead(l.status) && (
+                <span className="block truncate text-[11.5px] font-semibold text-[#b86e00]">
+                  follow-up {longDate(l.follow_up_date)}
+                </span>
+              )}
+            </span>
+            <span className="text-center text-[#a1a1aa]">›</span>
+          </Link>
+        ))}
+      </ListTable>
 
-      <div className="flex flex-col gap-3">
-        <ColumnHead title="Contracts" count={contracts.length} />
-        {contracts.length === 0 ? (
-          <Empty>No contracts yet — they appear here once a lead is won.</Empty>
-        ) : (
-          contracts.map((k) => (
-            <ContractCard
+      <ListTable
+        title="Contracts"
+        count={contracts.length}
+        grid={CONTRACT_GRID}
+        columns={["Contract", "Status", "Value", "Signed", "From lead"]}
+        empty={<>No contracts yet — they appear here once a lead is won.</>}
+      >
+        {contracts.map((k) => {
+          const cells = (
+            <>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
+                <span className="min-w-0 truncate font-semibold text-[#0a0a0a]">
+                  {k.contract_type ?? "Contract"}
+                </span>
+              </span>
+              <span>
+                <Pill tone="amber">{k.status ?? "In progress"}</Pill>
+              </span>
+              <span className="font-semibold text-[#0a0a0a]">{gbp(k.gross_value)}</span>
+              <span className="truncate text-[#3f3f46]">{longDate(k.contract_date)}</span>
+              <span className="truncate text-[#71717a]">
+                {(k.lead_id && leadRefById.get(k.lead_id)) ?? "—"}
+              </span>
+              <span className="text-center text-[#a1a1aa]">{k.lead_id ? "›" : ""}</span>
+            </>
+          );
+          const rowCls = `grid ${CONTRACT_GRID} items-center border-b border-[#f4f4f5] px-4 py-[11px] text-[13px] last:border-b-0`;
+          // A contract with no lead of ours has nowhere to go — it stays a plain
+          // row rather than a link that lies about being clickable.
+          return k.lead_id && leadRefById.has(k.lead_id) ? (
+            <Link
               key={k.id}
-              contract={k}
-              fromLead={k.lead_id ? leadRefById.get(k.lead_id) : undefined}
-            />
-          ))
-        )}
-      </div>
+              href={`/leads/${k.lead_id}`}
+              className={`${rowCls} transition-colors hover:bg-[#fafafa]`}
+            >
+              {cells}
+            </Link>
+          ) : (
+            <div key={k.id} className={rowCls}>
+              {cells}
+            </div>
+          );
+        })}
+      </ListTable>
     </div>
   );
 }
 
-function ColumnHead({ title, count }: { title: string; count: number }) {
+/** The /leads list's table frame: heading, uppercase column row, rows, empty. */
+function ListTable({
+  title,
+  count,
+  grid,
+  columns,
+  empty,
+  action,
+  children,
+}: {
+  title: string;
+  count: number;
+  grid: string;
+  columns: string[];
+  empty: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-2">
-      <CardTitle>{title}</CardTitle>
-      {count > 0 && <span className="text-[11.5px] text-[#71717a]">{count}</span>}
-    </div>
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <CardTitle>{title}</CardTitle>
+        {count > 0 && <span className="text-[11.5px] text-[#71717a]">{count}</span>}
+        {action && <span className="ml-auto">{action}</span>}
+      </div>
+      <div className="overflow-hidden rounded-xl border border-[#e7e7ea] bg-white">
+        {count === 0 ? (
+          <p className="px-4 py-6 text-center text-[12.5px] text-[#71717a]">{empty}</p>
+        ) : (
+          <>
+            <div
+              className={`grid ${grid} items-center border-b border-[#e7e7ea] bg-[#fafafa] px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]`}
+            >
+              {columns.map((h) => (
+                <span key={h}>{h}</span>
+              ))}
+              <span />
+            </div>
+            {children}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1240,7 +1363,8 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-function longDate(value: string): string {
+function longDate(value: string | null | undefined): string {
+  if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
