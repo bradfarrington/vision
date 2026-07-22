@@ -246,8 +246,11 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **Every digest is capped and every cap has a destination.** Notes / documents / contracts / leads
   show the latest `DIGEST_ROWS` (3), linked customers `LINKED_ROWS` (2) — a card must not grow with
   the data or the tab starts scrolling. Anything capped MUST offer the jump to the tab holding the
-  full list, which is why the **Leads & contracts tab** exists: it is where the designed full-width
-  `LeadCard`/`ContractCard` live now that the overview only summarises them. Loaders sort newest
+  full list, which is why the **Leads & Contracts tab** exists: it is where the designed
+  `LeadCard`/`ContractCard` live now that the overview only summarises them. That tab is **two
+  columns — leads left, contracts right**, contracts ordered to follow their leads. A contract no
+  longer sits under its lead behind a connector elbow, so `ContractCard` takes `fromLead` and names
+  the originating reference ("from L-2431") instead. Loaders sort newest
   first (leads by `lead_date`, contracts by `contract_date`, documents/notes by `created_at`) so
   "the latest three" is true at the source, not re-sorted per card.
 - **ONE contact card, not two.** The main contact and the customer's own numbers live on different

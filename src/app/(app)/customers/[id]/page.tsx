@@ -660,43 +660,65 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
 }
 
 /**
- * Every lead and contract in full, using the designed cards. The overview shows
- * only the latest few of each; this is where "View all →" lands, and it is the
- * only place the rich LeadCard/ContractCard fit (they need the full width).
+ * Every lead and contract in full, using the designed cards, in two columns —
+ * leads left, contracts right. The overview shows only the latest few of each;
+ * this is where "View all →" lands, and the only place the rich cards live.
  */
 function LeadsContractsTab({ c }: { c: CustomerRecord }) {
-  if (c.leads.length === 0 && c.contracts.length === 0)
-    return (
-      <Empty>
-        No leads yet.{" "}
-        <Link
-          href={`/leads/new?customer=${c.id}`}
-          className="font-semibold text-[var(--accent-blue)]"
-        >
-          Create the first lead →
-        </Link>
-      </Empty>
-    );
-  // A contract belongs under the lead it came from; one with no lead — or a lead
-  // that isn't on this customer — still has to show, or it vanishes from the record.
-  const leadIds = new Set(c.leads.map((l) => l.id));
+  // Two columns — every lead on the left, every contract on the right. The
+  // contracts keep the leads' ordering (each lead's contracts, then any whose
+  // lead is missing or belongs elsewhere), so the two columns read in step; a
+  // contract born of a lead names it, since the two are no longer adjacent.
+  const leadOrder = new Map(c.leads.map((l, i) => [l.id, i]));
+  const leadRefById = new Map(c.leads.map((l) => [l.id, leadRef(l.lead_number)]));
+  const contracts = [...c.contracts].sort(
+    (a, b) =>
+      (leadOrder.get(a.lead_id ?? "") ?? Number.MAX_SAFE_INTEGER) -
+      (leadOrder.get(b.lead_id ?? "") ?? Number.MAX_SAFE_INTEGER),
+  );
+
   return (
-    <div className="flex max-w-[1320px] flex-col gap-3">
-      {c.leads.map((lead) => (
-        <div key={lead.id} className="flex flex-col gap-3">
-          <LeadCard lead={lead} />
-          {c.contracts
-            .filter((k) => k.lead_id === lead.id)
-            .map((k) => (
-              <ContractCard key={k.id} contract={k} />
-            ))}
-        </div>
-      ))}
-      {c.contracts
-        .filter((k) => !k.lead_id || !leadIds.has(k.lead_id))
-        .map((k) => (
-          <ContractCard key={k.id} contract={k} />
-        ))}
+    <div className="grid max-w-[1320px] grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <div className="flex flex-col gap-3">
+        <ColumnHead title="Leads" count={c.leads.length} />
+        {c.leads.length === 0 ? (
+          <Empty>
+            No leads yet.{" "}
+            <Link
+              href={`/leads/new?customer=${c.id}`}
+              className="font-semibold text-[var(--accent-blue)]"
+            >
+              Create the first →
+            </Link>
+          </Empty>
+        ) : (
+          c.leads.map((lead) => <LeadCard key={lead.id} lead={lead} />)
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <ColumnHead title="Contracts" count={contracts.length} />
+        {contracts.length === 0 ? (
+          <Empty>No contracts yet — they appear here once a lead is won.</Empty>
+        ) : (
+          contracts.map((k) => (
+            <ContractCard
+              key={k.id}
+              contract={k}
+              fromLead={k.lead_id ? leadRefById.get(k.lead_id) : undefined}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ColumnHead({ title, count }: { title: string; count: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <CardTitle>{title}</CardTitle>
+      {count > 0 && <span className="text-[11.5px] text-[#71717a]">{count}</span>}
     </div>
   );
 }

@@ -52,30 +52,38 @@ export function LeadCard({ lead }: { lead: CustomerLead }) {
   );
 }
 
-export function ContractCard({ contract }: { contract: ContractSummary }) {
+// `fromLead` is the originating lead's reference (L-2431). The card used to sit
+// nested under that lead behind a connector elbow; now that leads and contracts
+// stand in their own columns, the line of descent has to be stated in words.
+export function ContractCard({
+  contract,
+  fromLead,
+}: {
+  contract: ContractSummary;
+  fromLead?: string;
+}) {
+  const meta = [
+    contract.contract_date && `Signed ${dateLong(contract.contract_date)}`,
+    fromLead && `from ${fromLead}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="ml-[22px] flex items-stretch">
-      {/* Connector elbow tying the contract to its originating lead. */}
-      <div className="mb-11 w-[26px] shrink-0 rounded-bl-[10px] border-b-2 border-l-2 border-[#e4e4e7]" />
-      <div className="mt-2 flex-1 rounded-xl border border-[#e7e7ea] bg-white px-[18px] py-4 shadow-[0_4px_12px_rgba(10,10,10,0.06)]">
-        <div className="flex items-center gap-3.5">
-          <RefChip inverted>{contractRef(contract.contract_number)}</RefChip>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13.5px] font-semibold text-[#0a0a0a]">
-              {contract.contract_type ?? "Contract"}
-            </div>
-            {contract.contract_date && (
-              <div className="mt-0.5 truncate text-[11.5px] text-[#71717a]">
-                Signed {dateLong(contract.contract_date)}
-              </div>
-            )}
+    <div className="rounded-xl border border-[#e7e7ea] bg-white px-[18px] py-4 shadow-[0_4px_12px_rgba(10,10,10,0.06)]">
+      <div className="flex items-center gap-3.5">
+        <RefChip inverted>{contractRef(contract.contract_number)}</RefChip>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13.5px] font-semibold text-[#0a0a0a]">
+            {contract.contract_type ?? "Contract"}
           </div>
-          <div className="shrink-0 text-right text-[14px] font-bold text-[#0a0a0a]">
-            {gbp(contract.gross_value)}
-          </div>
-          <Pill tone="amber">{contract.status ?? "In progress"}</Pill>
-          <span className="shrink-0 text-[#a1a1aa]">›</span>
+          {meta && <div className="mt-0.5 truncate text-[11.5px] text-[#71717a]">{meta}</div>}
         </div>
+        <div className="shrink-0 text-right text-[14px] font-bold text-[#0a0a0a]">
+          {gbp(contract.gross_value)}
+        </div>
+        <Pill tone="amber">{contract.status ?? "In progress"}</Pill>
+        <span className="shrink-0 text-[#a1a1aa]">›</span>
       </div>
     </div>
   );
