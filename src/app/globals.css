@@ -4,6 +4,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Device tiers — phone ≤767 · tablet 768–1366 · desktop ≥1367.
+ *
+ * The tablet ceiling is 1366 ON PURPOSE: it catches every iPad orientation
+ * including the 12.9" Pro in landscape (1366 wide). Tailwind's own `xl` (1280)
+ * and `2xl` (1536) straddle that boundary, so a 1366-wide iPad would otherwise
+ * pick up desktop-only layouts. Use `desktop:` for anything that must NOT reach
+ * a tablet — a 4-column grid, a hover-only affordance.
+ *
+ * Tailwind's md (768) is the phone/tablet line, and lg (1024) is a useful step
+ * inside the tablet band (2 → 3 columns). Never more than 3 columns on tablet.
+ */
+@theme {
+  --breakpoint-desktop: 1367px;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

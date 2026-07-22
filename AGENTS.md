@@ -148,6 +148,27 @@ if (!ok) return;
 - Multi-field/interactive dialogs (e.g. "New additional-info field") stay bespoke `Dialog`
   compositions from `components/ui/dialog` — `useDialogs` is for confirm/acknowledge only.
 
+## Responsive tiers — decided 2026-07-22
+
+Follow the `responsive-breakpoints` skill for EVERY screen we build, not as a pass at the end.
+Tiers: **phone ≤767 · tablet 768–1366 · desktop ≥1367.**
+
+- **`desktop:` is a project breakpoint** (`--breakpoint-desktop: 1367px` in `globals.css`). Tailwind's
+  `xl` (1280) and `2xl` (1536) straddle the tablet ceiling, so a 1366-wide iPad Pro in landscape
+  would pick up desktop-only layouts. **Anything that must not reach a tablet — a 4-column grid, a
+  hover-only affordance — uses `desktop:`, never `xl:`.** `md:` is the phone/tablet line and `lg:`
+  (1024) is a useful step inside the tablet band.
+- **Never more than 3 columns on tablet.** The customer overview is the worked example:
+  `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 desktop:grid-cols-4`. It was `md:2 xl:4`, which put a
+  1062-wide laptop on the 2-column layout and stacked four cards into a column that then clipped.
+- **1366×768 is a real, common laptop and is TABLET tier.** Test at 820 and 1366 (iPad
+  portrait/landscape) and at ≥1367, not just on the machine you're building on.
+- **The phone tier is not supported and that is deliberate** — `ScreenTooSmall`
+  (`components/app-shell/screen-too-small.tsx`) replaces the shell below 768px. The CRM is dense desk
+  software (nine-card records, two-pane viewers); a phone build would be a second product. Tenant
+  websites from the AI builder ARE mobile-first — don't confuse the two. The gate is pure CSS
+  (`md:hidden` / `hidden md:flex`) so it is correct server-side with no flash or viewport JS.
+
 ## App frame & scrolling — decided 2026-07-22
 
 **The document never scrolls — in either axis.** `html` and `body` are `h-full overflow-hidden`

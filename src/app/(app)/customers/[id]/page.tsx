@@ -179,7 +179,7 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           nature (Identity is ten rows, Contact is two) — a row-aligned grid
           stretches every card in a row to the tallest, which is where the dead
           space came from. Each column packs its own cards instead. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-2 lg:grid-cols-3 desktop:grid-cols-4">
         <div className="flex min-h-0 flex-col gap-3">
           <Card className={OV_CARD}>
             <CardTitle className="mb-1.5">Identity</CardTitle>

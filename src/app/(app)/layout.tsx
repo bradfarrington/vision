@@ -9,6 +9,7 @@ import {
 } from "@/lib/company";
 import { tenantThemeVars } from "@/lib/theme";
 import { DialogsProvider } from "@/components/crm/dialogs";
+import { ScreenTooSmall } from "@/components/app-shell/screen-too-small";
 
 // Authenticated app shell: grey canvas, ~62px topbar, 76px icon rail and a
 // white rounded content panel — matching the dashboard frame in the design
@@ -31,20 +32,26 @@ export default async function AppLayout({
       style={tenantThemeVars(company)}
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f4f4f5]"
     >
+      {/* Phone tier gets the "too small" screen instead of the shell — see the
+          component for why the CRM is tablet-and-up. CSS-only so it is correct
+          on the server, with no flash and no viewport JS. */}
+      <ScreenTooSmall />
       <DialogsProvider>
-        <Topbar
-          companyName={company?.name ?? "Vision"}
-          logoUrl={company?.logo_url ?? null}
-          userName={userDisplayName(user)}
-          userEmail={user.email}
-          userRole={user.role}
-          userInitials={userInitials(user)}
-        />
-        <div className="flex min-h-0 min-w-0 flex-1 items-stretch overflow-hidden">
-          <Sidebar />
-          <main className="mr-4 mb-4 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
-            {children}
-          </main>
+        <div className="hidden h-full min-h-0 flex-1 flex-col overflow-hidden md:flex">
+          <Topbar
+            companyName={company?.name ?? "Vision"}
+            logoUrl={company?.logo_url ?? null}
+            userName={userDisplayName(user)}
+            userEmail={user.email}
+            userRole={user.role}
+            userInitials={userInitials(user)}
+          />
+          <div className="flex min-h-0 min-w-0 flex-1 items-stretch overflow-hidden">
+            <Sidebar />
+            <main className="mr-4 mb-4 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
+              {children}
+            </main>
+          </div>
         </div>
       </DialogsProvider>
     </div>
