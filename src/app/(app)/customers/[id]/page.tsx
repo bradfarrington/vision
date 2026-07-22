@@ -134,7 +134,7 @@ export default async function CustomerDetailPage({
         tabs={[
           { label: "Overview", content: <OverviewTab c={c} lookups={lookups} /> },
           {
-            label: "Leads & contracts",
+            label: "Leads & Contracts",
             count: c.leads.length,
             content: <LeadsContractsTab c={c} />,
           },
@@ -144,10 +144,10 @@ export default async function CustomerDetailPage({
             count: c.relationships.length,
             content: <RelationshipsTab c={c} types={relationshipTypes} />,
           },
-          { label: "Address & access", content: <AddressTab c={c} lookups={lookups} /> },
-          { label: "Billing & account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
-          { label: "Marketing & permissions", content: <MarketingTab c={c} lookups={lookups} /> },
-          { label: "Additional info", count: c.customFields.length, content: <CustomTab c={c} lookups={lookups} /> },
+          { label: "Address & Access", content: <AddressTab c={c} lookups={lookups} /> },
+          { label: "Billing & Account", content: <BillingTab c={c} lookups={lookups} salesUsers={salesUsers} /> },
+          { label: "Marketing & Permissions", content: <MarketingTab c={c} lookups={lookups} /> },
+          { label: "Additional Info", count: c.customFields.length, content: <CustomTab c={c} lookups={lookups} /> },
           { label: "Documents", count: c.documents.length, content: <DocumentsTab c={c} categoryOptions={lookups.document_category} /> },
           { label: "Notes", count: c.customerNotes.length, content: <NotesTab c={c} /> },
         ]}
@@ -253,8 +253,8 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
     // Tiles size to their content rather than stretching across the viewport —
     // a money figure in a full-width card reads as mostly empty space.
     <div className="flex flex-wrap gap-3">
-      <Stat label="Lifetime Value" value={gbp(lifetimeValue)} tone="success" to="Billing & account" />
-      <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Billing & account" />
+      <Stat label="Lifetime Value" value={gbp(lifetimeValue)} tone="success" to="Billing & Account" />
+      <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Billing & Account" />
       <Stat
         label="Live Leads"
         value={String(liveLeads)}
@@ -381,7 +381,7 @@ function ContactCard({ c }: { c: CustomerRecord }) {
     <Card className={OV_LIST_CARD}>
       <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Contact</CardTitle>
-        <TabLink to="Address & access" className="ml-auto">
+        <TabLink to="Address & Access" className="ml-auto">
           Edit →
         </TabLink>
       </div>
@@ -418,7 +418,7 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
     .join(", ");
   const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
   return (
-    <SummaryCard title="Address" to="Address & access" linkLabel="Edit →" fit>
+    <SummaryCard title="Address" to="Address & Access" linkLabel="Edit →" fit>
       {lines.length === 0 && !c.postcode ? (
         <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
       ) : (
@@ -455,7 +455,7 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
     { label: "Post", value: c.letter_opt_in },
   ];
   return (
-    <SummaryCard title="Marketing consent" to="Marketing & permissions" linkLabel="Edit →">
+    <SummaryCard title="Marketing consent" to="Marketing & Permissions" linkLabel="Edit →">
       <div className="flex flex-wrap gap-1.5">
         {channels.map((ch) => (
           <ConsentChip key={ch.label} label={ch.label} value={ch.value} />
@@ -541,7 +541,7 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
         <CardTitle>Contracts</CardTitle>
         {c.contracts.length > 0 && (
           <span className="ml-auto text-[11.5px] text-[#71717a]">
-            <TabLink to="Leads & contracts">View all →</TabLink>
+            <TabLink to="Leads & Contracts">View all →</TabLink>
           </span>
         )}
       </div>
@@ -589,7 +589,7 @@ function LeadsCard({ c }: { c: CustomerRecord }) {
         <CardTitle>Leads</CardTitle>
         {c.leads.length > 0 && (
           <span className="ml-auto text-[11.5px] text-[#71717a]">
-            <TabLink to="Leads & contracts">View all →</TabLink>
+            <TabLink to="Leads & Contracts">View all →</TabLink>
           </span>
         )}
       </div>

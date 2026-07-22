@@ -199,7 +199,9 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **Jumping between tabs goes through `TabNavContext`** (`src/components/crm/tabs.tsx`). Panels are
   server-rendered `content`, so they can't touch the `active` state; `TabLink` (a text link) and
   `TabJump` (a clickable row/region) are the two small client buttons that call `goTo("Notes")`.
-  Targets are matched by **exact tab label**, so renaming a tab means updating its jump targets.
+  Targets are matched by tab label, **case-insensitively** — every target is hand-written at its
+  call site, so a case slip would otherwise be a silently dead button. Renaming a tab still means
+  updating its jump targets. **Tab labels are Title Case** ("Leads & Contracts").
   Tab state is deliberately NOT in the URL — no navigation, no scroll reset on jump.
 - **The overview is a BENTO of four independent column stacks**, not a row-aligned grid, capped at
   `max-w-[1320px]` (`md:grid-cols-2 xl:grid-cols-4`, each column a `flex flex-col gap-4`):

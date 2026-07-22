@@ -35,8 +35,14 @@ export function Tabs({ tabs }: { tabs: TabDef[] }) {
   const labelKey = tabs.map((t) => t.label).join(SEP);
   const nav = useMemo<TabNav>(
     () => ({
+      // Matched case-insensitively: a jump target is written out by hand at every
+      // call site, so "Leads & contracts" vs "Leads & Contracts" would otherwise
+      // be a silent no-op button rather than an error.
       goTo: (label: string) => {
-        const i = labelKey.split(SEP).indexOf(label);
+        const want = label.toLowerCase();
+        const i = labelKey
+          .split(SEP)
+          .findIndex((l) => l.toLowerCase() === want);
         if (i >= 0) setActive(i);
       },
     }),
