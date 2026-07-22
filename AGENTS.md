@@ -256,6 +256,11 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   into its edge.
 - **Consent chips show three states, not two** — blank = never asked, which is materially different
   from a recorded "No". Same rule as the `tristate` editor.
+- **The Flags card is tristate too** (Do Not Contact · Payment Risk · Moved Away) — blank / Yes / No,
+  `EditableField type="tristate"` with `danger` so Yes is a red pill. Their columns shipped
+  `default false`, which made every customer read as an explicit "No" from birth; `20260722094000`
+  drops the defaults and nulls the untouched `false` rows. **Any new customer flag defaults to null,
+  never false** — "nobody has assessed this" is a real state and must stay distinguishable.
 - **Colour carries meaning, and it lives in the figures and chips — never in card headers.** Stat
   tiles get a 3px coloured rule down the leading edge plus a coloured figure (**lifetime value green
   `#1a7f3e`, outstanding red `#d64545`**, live leads = tenant accent, contracts neutral) from the

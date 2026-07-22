@@ -196,9 +196,11 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           </Card>
           <Card className={OV_CARD}>
             <CardTitle className="mb-1.5">Flags</CardTitle>
-            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
-            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+            {/* Tristate, not boolean: blank = never asked/assessed, which is
+                materially different from a recorded No (same rule as consent). */}
+            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="tristate" danger />
+            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="tristate" danger />
+            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="tristate" danger />
             <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
           </Card>
         </div>

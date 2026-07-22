@@ -42,7 +42,7 @@ type Props = {
   onDeleteOption?: (id: string) => Promise<{ error?: string }>;
   placeholder?: string;
   mono?: boolean;
-  /** Show boolean as a red pill when true (e.g. Do-not-contact). */
+  /** Show a true boolean/tristate as a red pill (e.g. Do-not-contact). */
   booleanDanger?: boolean;
   className?: string;
 };
@@ -146,7 +146,7 @@ export function EditableField({
         title="Click to cycle blank / Yes / No"
       >
         {v === true ? (
-          <Pill tone="success">Yes</Pill>
+          <Pill tone={booleanDanger ? "danger" : "success"}>Yes</Pill>
         ) : v === false ? (
           <Pill tone="neutral">No</Pill>
         ) : (
