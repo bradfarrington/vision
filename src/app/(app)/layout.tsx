@@ -32,12 +32,12 @@ export default async function AppLayout({
       style={tenantThemeVars(company)}
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f4f4f5]"
     >
-      {/* Phone tier gets the "too small" screen instead of the shell — see the
-          component for why the CRM is tablet-and-up. CSS-only so it is correct
-          on the server, with no flash and no viewport JS. */}
+      {/* Under 1280px the app is replaced by the "too small" screen — see the
+          component for why the CRM is desktop-only for now. CSS-only so it is
+          correct on the server, with no flash and no viewport JS. */}
       <ScreenTooSmall />
       <DialogsProvider>
-        <div className="hidden h-full min-h-0 flex-1 flex-col overflow-hidden md:flex">
+        <div className="hidden h-full min-h-0 flex-1 flex-col overflow-hidden xl:flex">
           <Topbar
             companyName={company?.name ?? "Vision"}
             logoUrl={company?.logo_url ?? null}

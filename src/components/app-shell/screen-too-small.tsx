@@ -1,21 +1,25 @@
 import Image from "next/image";
 
 /**
- * Phone tier (<768px) is not a supported size for the CRM.
+ * Below 1280px the CRM shows this instead of the app — phones AND tablets.
  *
- * This is a deliberate product decision, not a gap: the CRM is a dense
- * multi-column record system — a customer record is nine cards and ten tabs, a
- * documents screen is a two-pane viewer. Shrinking that to 390px would mean
- * designing and maintaining a second product. Tenant WEBSITES (the AI builder,
- * later) are mobile-first; the CRM behind them is desk software.
+ * **Deliberately blunt for now.** The screens are built to the desktop layout
+ * (the customer overview is a four-column bento); a tablet tier would mean
+ * genuine layout work per screen, and doing it half-heartedly is what produced
+ * a two-column stack that clipped. Blocking is honest until that work is done —
+ * revisit when there is a reason to support tablets properly, and pick the
+ * threshold from the layouts rather than from the device tiers.
  *
- * The gate is pure CSS (`md:hidden` here, `hidden md:flex` on the shell), so it
+ * Tenant WEBSITES from the AI builder ARE mobile-first. Different product,
+ * different rules — don't apply this decision to them.
+ *
+ * The gate is pure CSS (`xl:hidden` here, `hidden xl:flex` on the shell), so it
  * renders correctly server-side with no flash, no viewport JS and no hydration
- * mismatch. If a phone view is ever wanted, it starts here.
+ * mismatch.
  */
 export function ScreenTooSmall() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-5 bg-[var(--canvas)] px-8 text-center md:hidden">
+    <div className="flex h-full flex-col items-center justify-center gap-5 bg-[var(--canvas)] px-8 text-center xl:hidden">
       <Image
         src="/vision-lockup.png"
         alt="Vision by Digital Craft"
@@ -29,11 +33,11 @@ export function ScreenTooSmall() {
           This screen is too small
         </h1>
         <p className="mt-2 text-[13px] leading-[1.6] text-[#71717a]">
-          Vision needs a tablet or computer. Open it again on a wider screen and
-          you&rsquo;ll pick up right where you left off.
+          Vision needs a computer. Open it again on a wider screen and you&rsquo;ll
+          pick up right where you left off.
         </p>
       </div>
-      <p className="text-[11.5px] text-[#a1a1aa]">Minimum width 768px</p>
+      <p className="text-[11.5px] text-[#a1a1aa]">Minimum width 1280px</p>
     </div>
   );
 }

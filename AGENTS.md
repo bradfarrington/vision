@@ -148,26 +148,25 @@ if (!ok) return;
 - Multi-field/interactive dialogs (e.g. "New additional-info field") stay bespoke `Dialog`
   compositions from `components/ui/dialog` — `useDialogs` is for confirm/acknowledge only.
 
-## Responsive tiers — decided 2026-07-22
+## Screen size — decided 2026-07-22
 
-Follow the `responsive-breakpoints` skill for EVERY screen we build, not as a pass at the end.
-Tiers: **phone ≤767 · tablet 768–1366 · desktop ≥1367.**
+**The CRM is desktop-only for now, and that is a deliberate holding position.** Below **1280px** the
+app is replaced by `ScreenTooSmall` (`components/app-shell/screen-too-small.tsx`) — phones and
+tablets both. The gate is pure CSS (`xl:hidden` on the message, `hidden xl:flex` on the shell) so it
+is correct server-side with no flash and no viewport JS.
 
-- **`desktop:` is a project breakpoint** (`--breakpoint-desktop: 1367px` in `globals.css`). Tailwind's
-  `xl` (1280) and `2xl` (1536) straddle the tablet ceiling, so a 1366-wide iPad Pro in landscape
-  would pick up desktop-only layouts. **Anything that must not reach a tablet — a 4-column grid, a
-  hover-only affordance — uses `desktop:`, never `xl:`.** `md:` is the phone/tablet line and `lg:`
-  (1024) is a useful step inside the tablet band.
-- **Never more than 3 columns on tablet.** The customer overview is the worked example:
-  `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 desktop:grid-cols-4`. It was `md:2 xl:4`, which put a
-  1062-wide laptop on the 2-column layout and stacked four cards into a column that then clipped.
-- **1366×768 is a real, common laptop and is TABLET tier.** Test at 820 and 1366 (iPad
-  portrait/landscape) and at ≥1367, not just on the machine you're building on.
-- **The phone tier is not supported and that is deliberate** — `ScreenTooSmall`
-  (`components/app-shell/screen-too-small.tsx`) replaces the shell below 768px. The CRM is dense desk
-  software (nine-card records, two-pane viewers); a phone build would be a second product. Tenant
-  websites from the AI builder ARE mobile-first — don't confuse the two. The gate is pure CSS
-  (`md:hidden` / `hidden md:flex`) so it is correct server-side with no flash or viewport JS.
+- **Why blunt rather than responsive:** every screen is built to the desktop layout (the customer
+  overview is a four-column bento). A tablet tier is real per-screen layout work, and doing it
+  half-heartedly is exactly what went wrong — dropping to a 2-column stack put four cards in one
+  column and clipped them, which was worse than not supporting the size at all.
+- **When we do support smaller screens**, use the `responsive-breakpoints` skill: phone ≤767 ·
+  tablet 768–1366 · desktop ≥1367, never more than 3 columns on tablet, and test at 820 / 1366 /
+  ≥1367. `--breakpoint-desktop: 1367px` is already defined in `globals.css` (the `desktop:` variant)
+  because Tailwind's `xl` (1280) and `2xl` (1536) straddle the tablet ceiling — a 1366-wide iPad Pro
+  in landscape would otherwise pick up desktop-only layouts. Pick the threshold from what the
+  LAYOUTS need, then move the gate.
+- **Tenant websites from the AI builder are mobile-first.** Different product, different rules —
+  never apply this decision to them.
 
 ## App frame & scrolling — decided 2026-07-22
 
