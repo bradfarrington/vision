@@ -426,6 +426,7 @@ function CategoryPicker({
   return (
     <Combo
       variant="text"
+      align="start"
       value={doc.category}
       placeholder="+ Category"
       searchPlaceholder="Search or add category…"

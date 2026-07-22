@@ -148,6 +148,34 @@ if (!ok) return;
 - Multi-field/interactive dialogs (e.g. "New additional-info field") stay bespoke `Dialog`
   compositions from `components/ui/dialog` — `useDialogs` is for confirm/acknowledge only.
 
+## Popover menus — positioned against the viewport — decided 2026-07-22
+
+**A dropdown menu is `position: fixed`, measured from its trigger's bounding rect — never
+`absolute`.** The `Combo` menu (`components/crm/combo.tsx`) is the reference implementation; the
+document-category picker was the bug that forced it (the menu was clipped in half by the documents
+list's `overflow-hidden` card and its scroller). Every combo in the CRM sits inside a clipping
+ancestor — tab scrollers, bordered list cards, the two-pane panels — so an absolutely-positioned
+menu is cut off somewhere sooner or later.
+
+- **`fixed`, not a portal.** Same reasoning as the map overlay: the menu is themed with
+  `var(--accent-blue)`/`--accent-tint`/`--accent-active`, and portalling it to `document.body`
+  drops it out of the shell root where `tenantThemeVars` are set, so every tenant with a brand
+  colour silently gets platform blue. `fixed` escapes ancestor clipping on its own, and keeping the
+  menu in the tree also keeps the existing click-outside check (`ref.contains`) working unchanged.
+  This only holds while no ancestor has `transform`/`filter`/`backdrop-filter`/`contain` — those
+  would make `fixed` resolve against that ancestor instead.
+- **Position is recomputed while open** on `resize` and on `scroll` **in the capture phase** (so
+  scrolling any ancestor, not just the window, moves the menu with its trigger). A `fixed` menu that
+  is placed once detaches the moment the list behind it scrolls.
+- **It flips and clamps rather than spilling off-screen**: `left` is clamped into the viewport,
+  and the menu opens upward when there isn't ~200px below and there's more room above. `maxHeight`
+  comes from the space actually available, with the option list as the flex scroller — the old
+  fixed `max-h-56` didn't know how close to the bottom of the window it was.
+- **`align` picks the trigger edge to line up with**: `end` (right) is the default for
+  `variant="text"`, because field rows justify `label … value` and the value sits on the right.
+  **Left-aligned triggers must pass `align="start"`** or the menu opens leftwards across the
+  sidebar — that's what the documents category picker does.
+
 ## Screen size — decided 2026-07-22
 
 **The CRM is desktop-only for now, and that is a deliberate holding position.** Below **1280px** the
