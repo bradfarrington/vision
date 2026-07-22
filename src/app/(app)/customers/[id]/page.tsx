@@ -16,6 +16,7 @@ import {
   updateContactField,
   updateRelationshipField,
   addSalesStaff,
+  deleteSalesStaff,
 } from "@/app/(app)/customers/actions";
 import { gbp, isCommercial } from "@/lib/format";
 import {
@@ -997,7 +998,7 @@ function BillingTab({
           <E c={c} label="VAT After Discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
           <E c={c} label="In Accounts System" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
           <E c={c} label="Accounts Reference" field="default_account_reference" value={c.default_account_reference} mono />
-          <E c={c} label="Sales Manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} onAddNew={addSalesStaff} />
+          <E c={c} label="Sales Manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} onAddNew={addSalesStaff} onDeleteOption={deleteSalesStaff} />
           <E c={c} label="VAT No." field="vat_no" value={c.vat_no} mono />
           <E c={c} label="CIS Reg" field="cis_reg" value={c.cis_reg} mono last />
         </Card>
@@ -1210,6 +1211,7 @@ function E({
   lookupOptions,
   listKey,
   onAddNew,
+  onDeleteOption,
   mono,
   danger,
   last,
@@ -1223,6 +1225,7 @@ function E({
   lookupOptions?: { id: string; label: string }[];
   listKey?: string;
   onAddNew?: (label: string) => Promise<{ label?: string; error?: string }>;
+  onDeleteOption?: (id: string) => Promise<{ error?: string }>;
   mono?: boolean;
   danger?: boolean;
   last?: boolean;
@@ -1240,6 +1243,7 @@ function E({
         lookupOptions={lookupOptions}
         listKey={listKey}
         onAddNew={onAddNew}
+        onDeleteOption={onDeleteOption}
         mono={mono}
         booleanDanger={danger}
       />

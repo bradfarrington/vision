@@ -670,3 +670,21 @@ export async function addSalesStaff(name: string): Promise<{ label?: string; err
   revalidatePath("/customers", "layout");
   return { label: clean };
 }
+
+/**
+ * Take a staff member off the Sales manager / Salesperson pick-lists.
+ * Deactivates rather than deletes: `getSalesStaff()` filters on active, and a
+ * person who has left still has to stay attached to the records they worked on
+ * (the stored value is their name, so historic records read unchanged).
+ */
+export async function deleteSalesStaff(id: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("staff_members")
+    .update({ active: false })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/customers", "layout");
+  return {};
+}

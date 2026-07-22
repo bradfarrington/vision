@@ -901,6 +901,9 @@ function LinkPicker({
       ]}
       value={value}
       onChange={onChange}
+      // "Not linked" IS this list's empty state — clearing would leave the
+      // picker with no valid value.
+      clearable={false}
       placeholder="Link to a lead or contract…"
       searchPlaceholder="Search leads & contracts…"
     />

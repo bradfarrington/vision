@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { useFloatingMenu } from "./floating-menu";
 import { Icon } from "./icon";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -32,6 +33,16 @@ export function DatePicker({
   const [view, setView] = useState<"day" | "month" | "year">("day");
   const [cursor, setCursor] = useState<Date>(() => parseDate(value) ?? new Date());
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Fixed, viewport-positioned — see components/crm/floating-menu.
+  const menuStyle = useFloatingMenu({
+    open,
+    triggerRef,
+    width: 280,
+    align: variant === "text" ? "end" : "start",
+    maxHeight: 340,
+  });
 
   const selected = parseDate(value);
 
@@ -83,6 +94,7 @@ export function DatePicker({
     <div ref={ref} className={cn("relative", variant === "text" && "inline-block", className)}>
       {variant === "text" ? (
         <button
+          ref={triggerRef}
           type="button"
           onClick={toggle}
           className={cn(
@@ -94,6 +106,7 @@ export function DatePicker({
         </button>
       ) : (
         <button
+          ref={triggerRef}
           type="button"
           onClick={toggle}
           className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
@@ -103,12 +116,10 @@ export function DatePicker({
         </button>
       )}
 
-      {open && (
+      {open && menuStyle && (
         <div
-          className={cn(
-            "absolute z-50 mt-1 w-[280px] rounded-xl border border-[#e7e7ea] bg-white p-3 shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]",
-            variant === "text" ? "right-0" : "left-0",
-          )}
+          style={menuStyle}
+          className="z-50 overflow-y-auto rounded-xl border border-[#e7e7ea] bg-white p-3 shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]"
         >
           <div className="mb-2 flex items-center justify-between">
             <button

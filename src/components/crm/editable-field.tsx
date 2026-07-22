@@ -111,7 +111,9 @@ export function EditableField({
         className={className}
         options={(lookupOptions ?? []).map((o) => ({ id: o.id, value: o.label, label: o.label }))}
         value={(current as string) ?? null}
-        onChange={(v) => save(v)}
+        // "" is the combo clearing itself — save it as an empty field, not as
+        // an empty string, so the optimistic value reads as blank too.
+        onChange={(v) => save(v === "" ? null : v)}
         placeholder={placeholder}
         searchPlaceholder="Search or add…"
         onAddNew={onAddNew ?? (listKey ? (label) => addTenantOption(listKey, label) : undefined)}

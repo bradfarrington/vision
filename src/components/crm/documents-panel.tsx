@@ -434,7 +434,8 @@ function CategoryPicker({
       options={options.map((o) => ({ id: o.id, value: o.label, label: o.label }))}
       onChange={(value) =>
         start(async () => {
-          await setDocumentCategory(doc.id, value, ownerType, ownerId);
+          // "" clears the category (clicking the selected one again).
+          await setDocumentCategory(doc.id, value || null, ownerType, ownerId);
           router.refresh();
         })
       }

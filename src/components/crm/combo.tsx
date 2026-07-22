@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { useDialogs } from "./dialogs";
+import { useFloatingMenu } from "./floating-menu";
 import { Icon } from "./icon";
 
 export type ComboOption = { id?: string; value: string; label: string };
 
 const MENU_WIDTH = 224; // w-56, the "text" variant's fixed menu width
-const MENU_GAP = 4; // breathing room between trigger and menu
-const VIEWPORT_MARGIN = 8; // never let the menu touch the window edge
-const MIN_MENU_HEIGHT = 200; // below this, prefer flipping above the trigger
-const MAX_MENU_HEIGHT = 320;
 
 // Reusable searchable dropdown with an inline "Add new" — the tenant-editable
 // pick-list control. Filters as you type; if the query matches nothing you can
@@ -30,6 +28,7 @@ export function Combo({
   className,
   variant = "input",
   align,
+  clearable = true,
   mono,
 }: {
   options: ComboOption[];
@@ -47,6 +46,9 @@ export function Combo({
    *  text alignment: right for the "text" variant (field rows put the value on
    *  the right), left for the boxed input. */
   align?: "start" | "end";
+  /** Clicking the already-selected option empties the field. Off only where the
+   *  list has its own "none" entry, or where a value is required. */
+  clearable?: boolean;
   mono?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -56,7 +58,14 @@ export function Combo({
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
+  const { confirm } = useDialogs();
+
+  const menuStyle = useFloatingMenu({
+    open,
+    triggerRef,
+    width: variant === "input" ? "trigger" : MENU_WIDTH,
+    align: align ?? (variant === "text" ? "end" : "start"),
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -66,48 +75,6 @@ export function Combo({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
-
-  // The menu is positioned against the VIEWPORT, not the trigger's box. Combos
-  // live inside clipping scrollers (the documents list, tab panels, cards), and
-  // an absolutely-positioned menu is cut off by the first `overflow-hidden`
-  // ancestor. `fixed` escapes that — and unlike a portal it stays in the tree,
-  // so the tenant accent variables still inherit. Recompute while open so a
-  // scroll behind it doesn't leave the menu stranded.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const el = triggerRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const width = variant === "input" ? r.width : MENU_WIDTH;
-      const alignEnd = (align ?? (variant === "text" ? "end" : "start")) === "end";
-      const left = Math.min(
-        Math.max(VIEWPORT_MARGIN, alignEnd ? r.right - width : r.left),
-        Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN),
-      );
-      const below = window.innerHeight - r.bottom - MENU_GAP - VIEWPORT_MARGIN;
-      const above = r.top - MENU_GAP - VIEWPORT_MARGIN;
-      const flip = below < MIN_MENU_HEIGHT && above > below;
-      const maxHeight = Math.max(MIN_MENU_HEIGHT, Math.min(MAX_MENU_HEIGHT, flip ? above : below));
-      setMenuStyle({
-        position: "fixed",
-        left,
-        width,
-        maxHeight,
-        ...(flip
-          ? { bottom: window.innerHeight - r.top + MENU_GAP }
-          : { top: r.bottom + MENU_GAP }),
-      });
-    };
-    place();
-    window.addEventListener("resize", place);
-    // Capture phase: catches scrolling on any ancestor, not just the window.
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [open, variant, align]);
 
   const q = query.trim().toLowerCase();
   const filtered = options.filter((o) => o.label.toLowerCase().includes(q));
@@ -139,7 +106,10 @@ export function Combo({
     });
   }
 
-  const shown = selected?.label ?? value;
+  // `||`, not `??`: a cleared field can arrive as "" as well as null, and an
+  // empty string would otherwise render an empty — so unclickable — trigger
+  // with no placeholder to aim at.
+  const shown = selected?.label || value || null;
 
   return (
     <div ref={ref} className={cn("relative", variant === "text" && "inline-block", className)}>
@@ -151,7 +121,8 @@ export function Combo({
           className={cn(
             "-mx-1 rounded px-1 text-right text-[12.5px] font-medium text-[#3f3f46] transition-colors hover:bg-[var(--accent-tint)]",
             mono && "font-mono",
-            !shown && "text-[#a1a1aa]",
+            // min-w keeps an empty field clickable even if its placeholder is blank.
+            !shown && "min-w-[18px] text-[#a1a1aa]",
           )}
         >
           {shown ?? placeholder}
@@ -191,36 +162,69 @@ export function Combo({
             />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            {filtered.map((o) => (
-              <div key={o.value} className="group flex items-center rounded-md hover:bg-[var(--accent-tint)]">
-                <button
-                  type="button"
-                  onClick={() => choose(o.value)}
-                  className={cn(
-                    "flex-1 px-2.5 py-1.5 text-left text-[12.5px]",
-                    o.value === value ? "font-semibold text-[var(--accent-active)]" : "text-[#3f3f46]",
-                  )}
-                >
-                  {o.label}
-                </button>
-                {onDelete && o.id && (
+            {filtered.map((o) => {
+              // Same case-insensitive comparison the trigger uses, so the tick
+              // can't disagree with the value on show.
+              const isSelected = o.value.toLowerCase() === (value ?? "").toLowerCase();
+              const clears = isSelected && clearable;
+              return (
+                <div key={o.value} className="group flex items-center rounded-md hover:bg-[var(--accent-tint)]">
                   <button
                     type="button"
-                    aria-label={`Remove ${o.label}`}
-                    disabled={pending}
-                    onClick={() =>
-                      start(async () => {
-                        await onDelete(o.id!);
-                        router.refresh();
-                      })
-                    }
-                    className="mr-1 px-1.5 text-[12px] text-[#a1a1aa] opacity-0 hover:text-[#d64545] group-hover:opacity-100"
+                    title={clears ? `Clear “${o.label}”` : undefined}
+                    onClick={() => choose(clears ? "" : o.value)}
+                    className={cn(
+                      "flex min-w-0 flex-1 items-center gap-1.5 px-2.5 py-1.5 text-left text-[12.5px]",
+                      isSelected ? "font-semibold text-[var(--accent-active)]" : "text-[#3f3f46]",
+                    )}
                   >
-                    ✕
+                    {/* The tick sits ONLY on the selected row — an empty slot on
+                        every other row would indent the whole list to wait for a
+                        mark that isn't coming. On hover it becomes an ✕: that's
+                        the "click me again to empty the field" affordance. */}
+                    {isSelected && (
+                      <span className="flex w-3.5 shrink-0 items-center justify-center">
+                        <Icon
+                          name="check"
+                          size={12}
+                          strokeWidth={2.4}
+                          className={clears ? "group-hover:hidden" : ""}
+                        />
+                        {clears && (
+                          <Icon name="x" size={12} strokeWidth={2.4} className="hidden group-hover:block" />
+                        )}
+                      </span>
+                    )}
+                    <span className="truncate">{o.label}</span>
                   </button>
-                )}
-              </div>
-            ))}
+                  {onDelete && o.id && (
+                    <button
+                      type="button"
+                      aria-label={`Remove “${o.label}” from this list`}
+                      title={`Remove “${o.label}” from this list`}
+                      disabled={pending}
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Remove “${o.label}” from this list?`,
+                          message:
+                            "It stops appearing in this dropdown for everyone at your company. Records already set to it keep the value, and you can add it back at any time.",
+                          confirmLabel: "Remove from list",
+                          tone: "danger",
+                        });
+                        if (!ok) return;
+                        start(async () => {
+                          await onDelete(o.id!);
+                          router.refresh();
+                        });
+                      }}
+                      className="mr-1 shrink-0 rounded p-1 text-[#d4d4d8] transition-colors hover:bg-white hover:text-[#d64545] group-hover:text-[#a1a1aa]"
+                    >
+                      <Icon name="trash" size={12} strokeWidth={1.9} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
 
             {onAddNew && q && !exact && (
               <button

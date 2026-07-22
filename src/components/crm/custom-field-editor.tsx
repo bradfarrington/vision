@@ -56,7 +56,7 @@ export function CustomFieldValue({
         variant="text"
         options={options.map((o) => ({ id: o.id, value: o.label, label: o.label }))}
         value={value}
-        onChange={(v) => persist(v)}
+        onChange={(v) => persist(v || null)}
         placeholder="—"
         searchPlaceholder="Search or add…"
         onAddNew={(label) => addTenantOption(listKey, label)}

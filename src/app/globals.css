@@ -197,4 +197,19 @@
   html {
     @apply font-sans;
   }
+
+  /* This is an app, not a web page — nothing paints a scrollbar track. Every
+     scroller (tab panels, lists, dropdown menus, the document/notes panes)
+     still scrolls by wheel, trackpad, keyboard and touch; the gutter just
+     never appears, so a list doesn't reflow the moment it overflows. */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge */
+  }
+  *::-webkit-scrollbar {
+    /* Chromium + Safari */
+    width: 0;
+    height: 0;
+    display: none;
+  }
 }

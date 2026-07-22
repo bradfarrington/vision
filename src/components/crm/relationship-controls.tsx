@@ -13,6 +13,8 @@ import {
 } from "@/app/(app)/customers/actions";
 import type { RelationshipType } from "@/lib/data/customer-record";
 import { cn } from "@/lib/utils";
+import { useDialogs } from "./dialogs";
+import { useFloatingMenu } from "./floating-menu";
 import { Icon } from "./icon";
 import { btnPrimary, btnSecondary } from "./primitives";
 import {
@@ -80,7 +82,18 @@ function RelationshipTypeSelect({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
+  const { confirm } = useDialogs();
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Fixed, viewport-positioned — see components/crm/floating-menu.
+  const menuStyle = useFloatingMenu({
+    open,
+    triggerRef,
+    width: variant === "pill" ? 260 : "trigger",
+    align: "start",
+    maxHeight: 360,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -127,6 +140,7 @@ function RelationshipTypeSelect({
     <div ref={ref} className={cn("relative", variant === "pill" ? "inline-block" : "", className)}>
       {variant === "pill" ? (
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
           className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-[12px] font-semibold text-[var(--accent-active)] transition-[filter] hover:brightness-95"
@@ -136,6 +150,7 @@ function RelationshipTypeSelect({
         </button>
       ) : (
         <button
+          ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
           className="flex w-full items-center gap-2 rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-left text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
@@ -145,10 +160,13 @@ function RelationshipTypeSelect({
         </button>
       )}
 
-      {open && (
-        <div className="absolute z-50 mt-1 w-[260px] overflow-hidden rounded-lg border border-[#e7e7ea] bg-white shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]">
+      {open && menuStyle && (
+        <div
+          style={menuStyle}
+          className="z-50 flex flex-col overflow-hidden rounded-lg border border-[#e7e7ea] bg-white shadow-[0_12px_32px_rgba(10,10,10,0.10),0_4px_8px_rgba(10,10,10,0.05)]"
+        >
           {adding ? (
-            <div className="flex flex-col gap-2 p-3">
+            <div className="flex min-h-0 flex-col gap-2 overflow-y-auto p-3">
               <div className="text-[12px] font-semibold text-[#0a0a0a]">New relationship type</div>
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] text-[#71717a]">This Side Reads</span>
@@ -186,7 +204,7 @@ function RelationshipTypeSelect({
             </div>
           ) : (
             <>
-              <div className="border-b border-[#f4f4f5] p-2">
+              <div className="shrink-0 border-b border-[#f4f4f5] p-2">
                 <input
                   autoFocus
                   value={query}
@@ -195,7 +213,7 @@ function RelationshipTypeSelect({
                   className="w-full rounded-md border border-[#d4d4d8] px-2.5 py-1.5 text-[12.5px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
                 />
               </div>
-              <div className="max-h-56 overflow-y-auto p-1">
+              <div className="min-h-0 flex-1 overflow-y-auto p-1">
                 {filtered.map((o) => (
                   <div key={o.key} className="group flex items-center rounded-md hover:bg-[var(--accent-tint)]">
                     <button
@@ -213,17 +231,26 @@ function RelationshipTypeSelect({
                     </button>
                     <button
                       type="button"
-                      aria-label={`Remove ${o.label}`}
+                      aria-label={`Remove “${o.label}” from this list`}
+                      title={`Remove “${o.label}” from this list`}
                       disabled={pending}
-                      onClick={() =>
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Remove “${o.label}” from this list?`,
+                          message:
+                            "Both directions of the pair go, for everyone at your company. Relationships already set to it keep their wording, and you can add it back at any time.",
+                          confirmLabel: "Remove from list",
+                          tone: "danger",
+                        });
+                        if (!ok) return;
                         start(async () => {
                           await deleteRelationshipType(o.typeId);
                           router.refresh();
-                        })
-                      }
-                      className="mr-1 px-1.5 text-[12px] text-[#a1a1aa] opacity-0 hover:text-[#d64545] group-hover:opacity-100"
+                        });
+                      }}
+                      className="mr-1 shrink-0 rounded p-1 text-[#d4d4d8] transition-colors hover:bg-white hover:text-[#d64545] group-hover:text-[#a1a1aa]"
                     >
-                      ✕
+                      <Icon name="trash" size={12} strokeWidth={1.9} />
                     </button>
                   </div>
                 ))}

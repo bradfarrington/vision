@@ -75,6 +75,41 @@ Any field that should be a controlled pick-list (title, property type, payment t
 - **UI:** the reusable searchable `Combo` (`src/components/crm/combo.tsx`) — search + inline "Add new" + remove, accent-themed. Wire it inline via `EditableField type="lookup"` (`listKey` + `lookupOptions`), backed by `addTenantOption` / `deleteTenantOption`. Fetch several lists at once with `getTenantOptionLists([...])`.
 - The stored value on the record stays the **label text** (no FK), so legacy/free-text values still display even if not in the list.
 
+### Every lookup does all three things — decided 2026-07-22
+
+A pick-list is only tenant-editable if all three are reachable from the dropdown itself. Wiring one
+without the others is the bug, not a smaller feature:
+
+1. **Add** — the inline "Add new" (`onAddNew`).
+2. **Remove from the list** — the trash control on each option row (`onDelete`). **Every `Combo`
+   with editable options must pass it**; `EditableField type="lookup"` fills it in from `listKey`
+   automatically, so a lookup only lacks it when it uses a bespoke source. The Sales manager picker
+   was exactly that gap — it had `onAddNew` and no delete until `deleteSalesStaff` landed.
+3. **Clear the field** — **clicking the already-selected option deselects it** and empties the
+   field. There was previously no way back to blank once a value was set, only sideways to another
+   one. The selected row carries a tick that turns into an ✕ on hover to advertise it. `clearable`
+   turns this off, and only two cases justify it: the list carries its own "none" entry (the notes
+   `LinkPicker`'s "Not linked") or the field is genuinely required.
+
+- **"Remove from the list" and "clear this field" are different actions and must not look alike.**
+  Removing is a per-row **trash** control on the right, always visible (a hover-only affordance for
+  the only way to curate a list is undiscoverable), greys up on row hover and reddens on its own.
+  Clearing is the ✕ that replaces the tick on the selected row. Never use a bare ✕ for both.
+- **Removing an option is confirmed** through `useDialogs().confirm` (never `window.confirm` — see
+  § Dialogs), and the message states what survives: the option leaves the dropdown for the whole
+  company, **records already set to it keep their value** (the stored value is label text, not an
+  FK), and it can be added back.
+- **A "delete" that would orphan a person retires them instead.** `deleteSalesStaff` sets
+  `staff_members.active = false` — `getSalesStaff()` filters on active, so they leave the picker
+  while every record they worked stays intact. Do the same for any lookup backed by a real entity.
+- **`""` from a combo means "cleared", and the consumer converts it to `null`** before saving
+  (`EditableField`, `CustomFieldValue`, `setDocumentCategory`). Storing an empty string instead of
+  null leaves a field that reads blank but isn't. The trigger also falls back to its placeholder on
+  `""` as well as null (`||`, not `??`) — an empty trigger renders as nothing at all and the field
+  becomes unclickable, which is how it first went wrong.
+- **The tick sits only on the selected row**, not as a reserved slot on every row: an empty leading
+  column indents the whole list waiting for a mark that never comes.
+
 ## Customer record & inline editing — built 2026-07-21
 
 The customer detail (`src/app/(app)/customers/[id]/page.tsx`) is a **tabbed record**
@@ -151,19 +186,23 @@ if (!ok) return;
 ## Popover menus — positioned against the viewport — decided 2026-07-22
 
 **A dropdown menu is `position: fixed`, measured from its trigger's bounding rect — never
-`absolute`.** The `Combo` menu (`components/crm/combo.tsx`) is the reference implementation; the
-document-category picker was the bug that forced it (the menu was clipped in half by the documents
-list's `overflow-hidden` card and its scroller). Every combo in the CRM sits inside a clipping
-ancestor — tab scrollers, bordered list cards, the two-pane panels — so an absolutely-positioned
-menu is cut off somewhere sooner or later.
+`absolute`.** The shared hook is **`useFloatingMenu`** (`components/crm/floating-menu.ts`) and every
+popover uses it: `Combo`, `RelationshipTypeSelect`, `DatePicker`. The document-category picker was
+the bug that forced it (the menu was clipped in half by the documents list's `overflow-hidden` card
+and its scroller). Every dropdown in the CRM sits inside a clipping ancestor — tab scrollers,
+bordered list cards, the two-pane panels — so an absolutely-positioned menu is cut off somewhere
+sooner or later. **Don't hand-roll another one**; a bespoke menu is how the relationship picker
+inherited the same bug.
 
 - **`fixed`, not a portal.** Same reasoning as the map overlay: the menu is themed with
   `var(--accent-blue)`/`--accent-tint`/`--accent-active`, and portalling it to `document.body`
   drops it out of the shell root where `tenantThemeVars` are set, so every tenant with a brand
   colour silently gets platform blue. `fixed` escapes ancestor clipping on its own, and keeping the
   menu in the tree also keeps the existing click-outside check (`ref.contains`) working unchanged.
-  This only holds while no ancestor has `transform`/`filter`/`backdrop-filter`/`contain` — those
-  would make `fixed` resolve against that ancestor instead.
+  A `transform`/`filter`/`perspective`/`contain` on an ancestor makes IT the containing block for
+  `fixed` children, so the hook walks up, finds that ancestor and rebases the coordinates onto it.
+  That case is real, not theoretical: the shadcn `DialogContent` is translate-centred, and the
+  relationship-type picker opens inside it.
 - **Position is recomputed while open** on `resize` and on `scroll` **in the capture phase** (so
   scrolling any ancestor, not just the window, moves the menu with its trigger). A `fixed` menu that
   is placed once detaches the moment the list behind it scrolls.
@@ -203,6 +242,14 @@ is correct server-side with no flash and no viewport JS.
 `min-w-0 overflow-hidden`. The topbar and icon rail are therefore always in place and there is no
 page-level scrollbar to chase.
 
+- **No scrollbar is ever painted, anywhere in the CRM.** A global base rule in `globals.css`
+  (`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`) hides the track on every
+  scroller — tab panels, lists, dropdown menus, the document and notes panes. **This is an app, not
+  a web page:** a gutter appearing the moment a list overflows reflows the layout and reads as
+  chrome. Scrolling itself is untouched (wheel, trackpad, keyboard, touch). The consequence to
+  design around: **a scroller must look scrollable from its content** — that is why digests are
+  capped with a "View all →", `FitRows` clips to whole rows, and menus size to the space available.
+  Don't add a bespoke styled scrollbar back for one component.
 - **Every screen owns its own scroll.** A page's root is `flex flex-1 flex-col` plus either
   `overflow-y-auto` (it may be taller than the panel) or `overflow-hidden` with an inner
   `min-h-0 flex-1` scroller (lists, two-pane panels). Adding a page without one of those clips its
