@@ -54,6 +54,7 @@ import {
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
+import type { IconName } from "@/components/crm/icon";
 
 // Customer detail — the full contact record across tabs, every field editable
 // inline (click a value to edit; Enter/blur saves).
@@ -156,7 +157,9 @@ type Lookups = Record<string, { id: string; label: string }[]>;
 function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   const liveLeads = c.leads.filter((l) => isLiveLead(l.status)).length;
   return (
-    <div className="flex flex-col gap-4">
+    // Capped so cards stay a readable measure on a wide monitor — three columns
+    // stretched across 1900px leaves each one mostly empty space.
+    <div className="flex max-w-[1240px] flex-col gap-4">
       <SnapshotStrip c={c} liveLeads={liveLeads} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -255,47 +258,61 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
 function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
   const { lifetimeValue, outstandingTotal } = c.financials;
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Stat label="Lifetime value" value={gbp(lifetimeValue)} to="Billing & account" />
-      <Stat
-        label="Outstanding"
-        value={gbp(outstandingTotal)}
-        tone={outstandingTotal > 0 ? "amber" : undefined}
-        to="Billing & account"
-      />
+    // Tiles size to their content rather than stretching across the viewport —
+    // a money figure in a full-width card reads as mostly empty space.
+    <div className="flex flex-wrap gap-3">
+      <Stat label="Lifetime value" value={gbp(lifetimeValue)} tone="success" to="Billing & account" />
+      <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Billing & account" />
       <Stat
         label="Live leads"
         value={String(liveLeads)}
         sub={c.leadCount > 0 ? `of ${c.leadCount}` : undefined}
+        tone="accent"
       />
-      <Stat label="Contracts" value={String(c.contractCount)} />
+      <Stat label="Contracts" value={String(c.contractCount)} tone="neutral" />
     </div>
   );
 }
+
+// Tinted chip + value colour per tone, shared by the stat tiles and the summary
+// cards. Money reads at a glance: earned = green, owed = red. Semantic colours
+// are platform-fixed; only `accent` rebrands with the tenant.
+const STAT_TONE = {
+  success: { chip: "bg-[#e7f4ec] text-[#1a7f3e]", value: "text-[#1a7f3e]", rule: "bg-[#1a7f3e]" },
+  danger: { chip: "bg-[#fdecec] text-[#d64545]", value: "text-[#d64545]", rule: "bg-[#d64545]" },
+  amber: { chip: "bg-[#fdf2dc] text-[#b86e00]", value: "text-[#b86e00]", rule: "bg-[#b86e00]" },
+  accent: {
+    chip: "bg-[var(--accent-tint)] text-[var(--accent-blue)]",
+    value: "text-[var(--accent-blue)]",
+    rule: "bg-[var(--accent-blue)]",
+  },
+  neutral: { chip: "bg-[#f4f4f5] text-[#52525b]", value: "text-[#0a0a0a]", rule: "bg-[#d4d4d8]" },
+} satisfies Record<string, { chip: string; value: string; rule: string }>;
 
 function Stat({
   label,
   value,
   sub,
-  tone,
+  tone = "neutral",
   to,
 }: {
   label: string;
   value: string;
   sub?: string;
-  tone?: "amber";
+  tone?: keyof typeof STAT_TONE;
   to?: string;
 }) {
+  const t = STAT_TONE[tone];
   const body = (
-    <Card className="h-full !py-3">
+    // A coloured rule down the leading edge carries the tone without an icon.
+    <Card className="relative h-full min-w-[164px] overflow-hidden !px-4 !py-3">
+      <span className={`absolute inset-y-0 left-0 w-[3px] ${t.rule}`} />
       <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
         {label}
       </div>
-      <div className="mt-1 flex items-baseline gap-1.5">
+      <div className="flex items-baseline gap-1.5">
         <span
-          className={`font-[family-name:var(--font-inter-tight)] text-[20px] font-extrabold tracking-[-0.01em] ${
-            tone === "amber" ? "text-[#b86e00]" : "text-[#0a0a0a]"
-          }`}
+          className={`font-[family-name:var(--font-inter-tight)] text-[19px] font-extrabold tracking-[-0.01em] ${t.value}`}
         >
           {value}
         </span>
@@ -304,11 +321,48 @@ function Stat({
     </Card>
   );
   return to ? (
-    <TabJump to={to} className="block text-left transition-opacity hover:opacity-80">
+    <TabJump to={to} className="text-left transition-opacity hover:opacity-80">
       {body}
     </TabJump>
   ) : (
     body
+  );
+}
+
+/**
+ * Shared shell for the overview digests: a tinted icon chip carries the card's
+ * meaning in colour, and the header always offers the jump to its owning tab.
+ */
+function SummaryCard({
+  title,
+  icon,
+  tone,
+  to,
+  linkLabel = "View all →",
+  children,
+}: {
+  title: string;
+  icon: IconName;
+  tone: keyof typeof STAT_TONE;
+  to: string;
+  linkLabel?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <div className="mb-2 flex items-center gap-2.5">
+        <span
+          className={`grid size-7 shrink-0 place-items-center rounded-lg ${STAT_TONE[tone].chip}`}
+        >
+          <Icon name={icon} size={14} strokeWidth={1.9} />
+        </span>
+        <CardTitle>{title}</CardTitle>
+        <TabLink to={to} className="ml-auto">
+          {linkLabel}
+        </TabLink>
+      </div>
+      {children}
+    </Card>
   );
 }
 
@@ -321,11 +375,7 @@ function ContactSummary({ c }: { c: CustomerRecord }) {
   ].filter((p) => p.value);
   const email = c.email ?? c.mainContact?.email ?? null;
   return (
-    <Card>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <CardTitle>Contact</CardTitle>
-        <TabLink to="Address & access">Edit →</TabLink>
-      </div>
+    <SummaryCard title="Contact" icon="phone" tone="accent" to="Address & access" linkLabel="Edit →">
       {!email && phones.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No phone or email recorded.</p>
       ) : (
@@ -355,7 +405,7 @@ function ContactSummary({ c }: { c: CustomerRecord }) {
           {c.no_whatsapp && <Pill tone="neutral">No WhatsApp</Pill>}
         </div>
       )}
-    </Card>
+    </SummaryCard>
   );
 }
 
@@ -366,11 +416,13 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
     .join(", ");
   const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
   return (
-    <Card>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <CardTitle>Address</CardTitle>
-        <TabLink to="Address & access">Edit →</TabLink>
-      </div>
+    <SummaryCard
+      title="Address"
+      icon="flag"
+      tone="amber"
+      to="Address & access"
+      linkLabel="Edit →"
+    >
       {lines.length === 0 && !c.postcode ? (
         <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
       ) : (
@@ -395,7 +447,7 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
           <p className="line-clamp-3 text-[12.5px] leading-[1.6] text-[#3f3f46]">{c.directions}</p>
         </div>
       )}
-    </Card>
+    </SummaryCard>
   );
 }
 
@@ -407,11 +459,13 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
     { label: "Post", value: c.letter_opt_in },
   ];
   return (
-    <Card>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <CardTitle>Marketing consent</CardTitle>
-        <TabLink to="Marketing & permissions">Edit →</TabLink>
-      </div>
+    <SummaryCard
+      title="Marketing consent"
+      icon="check"
+      tone="success"
+      to="Marketing & permissions"
+      linkLabel="Edit →"
+    >
       <div className="flex flex-wrap gap-1.5">
         {channels.map((ch) => (
           <ConsentChip key={ch.label} label={ch.label} value={ch.value} />
@@ -427,7 +481,7 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
           </Row>
         )}
       </div>
-    </Card>
+    </SummaryCard>
   );
 }
 
@@ -445,11 +499,7 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
 function RecentNotes({ c }: { c: CustomerRecord }) {
   const recent = c.customerNotes.slice(0, 3);
   return (
-    <Card>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <CardTitle>Recent notes</CardTitle>
-        <TabLink to="Notes">View all →</TabLink>
-      </div>
+    <SummaryCard title="Recent notes" icon="message" tone="accent" to="Notes">
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
       ) : (
@@ -473,18 +523,14 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
           </TabJump>
         ))
       )}
-    </Card>
+    </SummaryCard>
   );
 }
 
 function RecentDocuments({ c }: { c: CustomerRecord }) {
   const recent = c.documents.slice(0, 4);
   return (
-    <Card>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <CardTitle>Recent documents</CardTitle>
-        <TabLink to="Documents">View all →</TabLink>
-      </div>
+    <SummaryCard title="Recent documents" icon="file" tone="amber" to="Documents">
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No documents yet.</p>
       ) : (
@@ -506,18 +552,14 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
           </TabJump>
         ))
       )}
-    </Card>
+    </SummaryCard>
   );
 }
 
 function LinkedCustomers({ c }: { c: CustomerRecord }) {
   const linked = c.relationships.slice(0, 5);
   return (
-    <Card>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <CardTitle>Linked customers</CardTitle>
-        <TabLink to="Relationships">View all →</TabLink>
-      </div>
+    <SummaryCard title="Linked customers" icon="user" tone="success" to="Relationships">
       {linked.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">
           No linked customers — family, neighbours and referrers go here.
@@ -550,7 +592,7 @@ function LinkedCustomers({ c }: { c: CustomerRecord }) {
           );
         })
       )}
-    </Card>
+    </SummaryCard>
   );
 }
 

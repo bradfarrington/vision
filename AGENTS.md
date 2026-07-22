@@ -168,6 +168,13 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   Contact/Address/Consent → **Leads & contracts** → Notes/Documents/Linked.
 - **Consent chips show three states, not two** — blank = never asked, which is materially different
   from a recorded "No". Same rule as the `tristate` editor.
+- **Colour carries meaning on the overview, and the tab is capped at `max-w-[1240px]`.** Three
+  columns stretched across a 1900px monitor leave each card mostly empty, and the record read as a
+  wall of black-on-white. One `STAT_TONE` map drives both surfaces: stat tiles get a 3px coloured
+  rule down the leading edge plus a coloured figure (**lifetime value green `#1a7f3e`, outstanding
+  red `#d64545`**, live leads = tenant accent, contracts neutral) and **no icons**; summary cards get
+  a tinted icon chip beside the title. Stat tiles are `min-w-[164px]` in a `flex-wrap` row so they
+  size to the figure instead of stretching.
 - **No new queries.** Everything renders from what `getCustomerRecord()` already loads; a summary
   card must never add a round-trip. If a future card needs data the record doesn't carry, add it to
   that loader (behind `selectWithFallback`), not to the component.
