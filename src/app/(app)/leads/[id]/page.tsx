@@ -286,7 +286,7 @@ function Tab({ label, count, active }: { label: string; count?: number; active?:
       {label}
       {count != null && count > 0 && <span className="ml-1 text-[11px] text-[#a1a1aa]">{count}</span>}
       {active && (
-        <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-sm bg-[var(--accent-blue)]" />
+        <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-sm bg-[var(--accent-blue)]" />
       )}
     </span>
   );

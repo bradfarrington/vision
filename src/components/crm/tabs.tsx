@@ -45,7 +45,13 @@ export function Tabs({ tabs }: { tabs: TabDef[] }) {
   return (
     <TabNavContext.Provider value={nav}>
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex items-end gap-0.5 overflow-x-auto border-b border-[#e7e7ea]">
+        {/* overflow-x-auto alone makes the strip scrollable in BOTH axes, and the
+            active underline used to sit at -bottom-px — one pixel outside the
+            box — so the bar could be dragged a pixel and snapped back. The
+            underline now sits inside at bottom-0 and vertical overflow is
+            clipped, leaving only the genuine horizontal scroll on narrow
+            windows. */}
+        <div className="flex items-end gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-[#e7e7ea]">
           {tabs.map((t, i) => (
             <button
               key={t.label}
@@ -60,12 +66,14 @@ export function Tabs({ tabs }: { tabs: TabDef[] }) {
                 <span className="ml-1 text-[11px] text-[#a1a1aa]">{t.count}</span>
               )}
               {i === active && (
-                <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-sm bg-[var(--accent-blue)]" />
+                <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-sm bg-[var(--accent-blue)]" />
               )}
             </button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pt-3">{tabs[active]?.content}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3">
+          {tabs[active]?.content}
+        </div>
       </div>
     </TabNavContext.Provider>
   );
