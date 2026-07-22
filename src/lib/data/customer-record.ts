@@ -346,7 +346,10 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
   const leads = ((c.leads ?? []) as CustomerLead[]).slice().sort(
     (a, b) => leadDate(b) - leadDate(a),
   );
-  const contracts = (c.contracts ?? []) as ContractSummary[];
+  // Newest first, like leads/documents/notes — the overview shows the latest few.
+  const contracts = ((c.contracts ?? []) as ContractSummary[])
+    .slice()
+    .sort((a, b) => contractDate(b) - contractDate(a));
   const liveLeadCount = leads.filter((l) => isLiveLead(l.status)).length;
   const lifetimeValue = leads
     .filter((l) => l.status === "won")
@@ -472,5 +475,10 @@ function displayName(c: CustomerFields): string {
 function leadDate(l: CustomerLead): number {
   const d = l.lead_date ?? l.created_at;
   const t = d ? new Date(d).getTime() : 0;
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function contractDate(k: ContractSummary): number {
+  const t = k.contract_date ? new Date(k.contract_date).getTime() : 0;
   return Number.isNaN(t) ? 0 : t;
 }

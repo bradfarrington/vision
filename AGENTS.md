@@ -193,8 +193,14 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   A new card is appended to whichever column is shortest — the columns don't have to match.
 - **Leads and contracts live in column 4 as compact stacks**, not the full-width `LeadCard` /
   `ContractCard`. A column is ~310px, so a row carries reference, what it is, when, how much and the
-  stage badge, and links to the lead for everything else. `lead-card.tsx` is no longer used by the
-  customer overview — keep it for the lead screens.
+  stage badge, and links to the lead for everything else.
+- **Every digest is capped and every cap has a destination.** Notes / documents / contracts / leads
+  show the latest `DIGEST_ROWS` (3), linked customers `LINKED_ROWS` (2) — a card must not grow with
+  the data or the tab starts scrolling. Anything capped MUST offer the jump to the tab holding the
+  full list, which is why the **Leads & contracts tab** exists: it is where the designed full-width
+  `LeadCard`/`ContractCard` live now that the overview only summarises them. Loaders sort newest
+  first (leads by `lead_date`, contracts by `contract_date`, documents/notes by `created_at`) so
+  "the latest three" is true at the source, not re-sorted per card.
 - **The "Other contact" card subtracts the Main contact card.** The primary contact mirrors the
   customer's own email/phone by design, so the card filters out any value already printed next to it
   and renders nothing at all when that leaves it empty. Don't reintroduce a card that prints the same

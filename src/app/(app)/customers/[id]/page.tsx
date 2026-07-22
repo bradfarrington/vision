@@ -53,6 +53,7 @@ import {
   RelationshipTypeEditor,
 } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
+import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
 
 // Customer detail — the full contact record across tabs, every field editable
@@ -132,6 +133,11 @@ export default async function CustomerDetailPage({
       <Tabs
         tabs={[
           { label: "Overview", content: <OverviewTab c={c} lookups={lookups} /> },
+          {
+            label: "Leads & contracts",
+            count: c.leads.length,
+            content: <LeadsContractsTab c={c} />,
+          },
           { label: "Contacts", count: c.contacts.length, content: <ContactsTab c={c} roleOptions={lookups.contact_role} /> },
           {
             label: "Relationships",
@@ -246,6 +252,9 @@ const OV_CARD = "!px-[15px] !py-[13px]";
  * click away for the full list.
  */
 const DIGEST_ROWS = 3;
+
+/** Linked customers are two lines tall each, so they get a shorter cap. */
+const LINKED_ROWS = 2;
 
 function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
   const { lifetimeValue, outstandingTotal } = c.financials;
@@ -462,7 +471,7 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
 }
 
 function RecentNotes({ c }: { c: CustomerRecord }) {
-  const recent = c.customerNotes.slice(0, 2);
+  const recent = c.customerNotes.slice(0, DIGEST_ROWS);
   return (
     <SummaryCard title="Recent notes" to="Notes">
       {recent.length === 0 ? (
@@ -498,13 +507,18 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
 // opens the lead for everything else.
 
 function ContractsCard({ c }: { c: CustomerRecord }) {
-  const contracts = c.contracts;
+  const contracts = c.contracts.slice(0, DIGEST_ROWS);
   return (
     <Card className={OV_CARD}>
       <div className="mb-1.5 flex items-center gap-2.5">
         <CardTitle>Contracts</CardTitle>
-        {contracts.length > 0 && (
-          <span className="ml-auto text-[11.5px] text-[#71717a]">{contracts.length}</span>
+        {c.contracts.length > 0 && (
+          <span className="ml-auto flex items-center gap-2 text-[11.5px] text-[#71717a]">
+            {c.contracts.length}
+            {c.contracts.length > contracts.length && (
+              <TabLink to="Leads & contracts">View all →</TabLink>
+            )}
+          </span>
         )}
       </div>
       {contracts.length === 0 ? (
@@ -552,13 +566,17 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
 }
 
 function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
+  const leads = c.leads.slice(0, DIGEST_ROWS);
   return (
     <Card className={OV_CARD}>
       <div className="mb-1.5 flex items-center gap-2.5">
         <CardTitle>Leads</CardTitle>
         {c.leads.length > 0 && (
-          <span className="ml-auto text-[11.5px] text-[#71717a]">
+          <span className="ml-auto flex items-center gap-2 text-[11.5px] text-[#71717a]">
             {c.leads.length} · {liveLeads} live
+            {c.leads.length > leads.length && (
+              <TabLink to="Leads & contracts">View all →</TabLink>
+            )}
           </span>
         )}
       </div>
@@ -573,12 +591,12 @@ function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
           </Link>
         </p>
       ) : (
-        c.leads.map((l, i) => (
+        leads.map((l, i) => (
           <Link
             key={l.id}
             href={`/leads/${l.id}`}
             className={`-mx-2 block rounded px-2 hover:bg-[#fafafa] ${
-              i === c.leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
+              i === leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
             }`}
           >
             <div className="flex flex-col gap-1 py-2">
@@ -637,7 +655,7 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
 }
 
 function LinkedCustomers({ c }: { c: CustomerRecord }) {
-  const linked = c.relationships.slice(0, DIGEST_ROWS);
+  const linked = c.relationships.slice(0, LINKED_ROWS);
   return (
     <SummaryCard title="Linked customers" to="Relationships">
       {linked.length === 0 ? (
@@ -673,6 +691,48 @@ function LinkedCustomers({ c }: { c: CustomerRecord }) {
         })
       )}
     </SummaryCard>
+  );
+}
+
+/**
+ * Every lead and contract in full, using the designed cards. The overview shows
+ * only the latest few of each; this is where "View all →" lands, and it is the
+ * only place the rich LeadCard/ContractCard fit (they need the full width).
+ */
+function LeadsContractsTab({ c }: { c: CustomerRecord }) {
+  if (c.leads.length === 0 && c.contracts.length === 0)
+    return (
+      <Empty>
+        No leads yet.{" "}
+        <Link
+          href={`/leads/new?customer=${c.id}`}
+          className="font-semibold text-[var(--accent-blue)]"
+        >
+          Create the first lead →
+        </Link>
+      </Empty>
+    );
+  // A contract belongs under the lead it came from; one with no lead — or a lead
+  // that isn't on this customer — still has to show, or it vanishes from the record.
+  const leadIds = new Set(c.leads.map((l) => l.id));
+  return (
+    <div className="flex max-w-[1320px] flex-col gap-3">
+      {c.leads.map((lead) => (
+        <div key={lead.id} className="flex flex-col gap-3">
+          <LeadCard lead={lead} />
+          {c.contracts
+            .filter((k) => k.lead_id === lead.id)
+            .map((k) => (
+              <ContractCard key={k.id} contract={k} />
+            ))}
+        </div>
+      ))}
+      {c.contracts
+        .filter((k) => !k.lead_id || !leadIds.has(k.lead_id))
+        .map((k) => (
+          <ContractCard key={k.id} contract={k} />
+        ))}
+    </div>
   );
 }
 
