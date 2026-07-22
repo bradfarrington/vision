@@ -315,6 +315,12 @@ fork per-entity copies.
   `flex-1`/`min-h-0`), with the list scrolling internally — no fixed height, no magic offsets.
   Added icon glyphs: `upload`, `download`, `trash`, `x`, `printer`, `maximize`, `minimize`,
   `minus`.
+- **A preview opens at FIT, never at actual size.** Zoom is `number | "fit"` and starts at `"fit"`
+  in both the inline and fullscreen viewers — images get `max-width/height:100%`, PDFs get the
+  viewer's own page-fit (`view=Fit` for Chromium + `zoom=page-fit` for pdf.js). `zoom=100` means
+  actual paper size, so an A4 scan used to open cropped to its top-left corner and every user's
+  first move was to zoom out. The percentage button resets to Fit; stepping off Fit lands on
+  100% (in) or 75% (out).
 - **Viewer** (`document-viewer.tsx`): exports `InlineViewer` (right pane) and `FullscreenViewer`
   (overlay, opened from the pane's maximize button); both share a `Stage` that renders images
   `<img>` (CSS zoom), PDFs via `<iframe>`, text `<iframe>`, else a download card. Zoom (− / % / +,

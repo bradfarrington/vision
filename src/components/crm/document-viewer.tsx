@@ -30,6 +30,17 @@ const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 4;
 const ZOOM_STEP = 0.25;
 
+/**
+ * Zoom is either a scale factor or "fit" — the whole document sized to the
+ * pane. **"fit" is the default**: opening a file should show all of it, and
+ * zooming in is the deliberate act. (Actual size is a poor default: a scanned
+ * A4 survey opens cropped to its top-left corner and every user's first move is
+ * to zoom out.) Stepping out of "fit" lands on the nearest sensible scale.
+ */
+type Zoom = number | "fit";
+const ZOOM_FROM_FIT_IN = 1;
+const ZOOM_FROM_FIT_OUT = 0.75;
+
 // Fetch a fresh signed URL (private bucket). Callers key the viewer body by
 // document id, so this mounts fresh per document — state is only set from the
 // async callback, never synchronously in the effect body.
@@ -59,7 +70,12 @@ async function openDownload(id: string) {
 // ---------------------------------------------------------------------------
 // Zoom bar — shared − / percent / + control.
 // ---------------------------------------------------------------------------
-function ZoomBar({ zoom, setZoom, dark }: { zoom: number; setZoom: (z: number) => void; dark?: boolean }) {
+function ZoomBar({ zoom, setZoom, dark }: { zoom: Zoom; setZoom: (z: Zoom) => void; dark?: boolean }) {
+  const fit = zoom === "fit";
+  const zoomOut = () =>
+    setZoom(fit ? ZOOM_FROM_FIT_OUT : Math.max(ZOOM_MIN, Math.round((zoom - ZOOM_STEP) * 100) / 100));
+  const zoomIn = () =>
+    setZoom(fit ? ZOOM_FROM_FIT_IN : Math.min(ZOOM_MAX, Math.round((zoom + ZOOM_STEP) * 100) / 100));
   const btn = dark
     ? "flex h-7 w-7 items-center justify-center rounded-md border border-white/20 bg-white/5 text-white transition-colors hover:bg-white/15 disabled:opacity-40"
     : "flex h-7 w-7 items-center justify-center rounded-md border border-[#e7e7ea] bg-white text-[#3f3f46] transition-colors hover:bg-[#fafafa] disabled:opacity-40";
@@ -70,25 +86,25 @@ function ZoomBar({ zoom, setZoom, dark }: { zoom: number; setZoom: (z: number) =
         type="button"
         className={btn}
         aria-label="Zoom out"
-        disabled={zoom <= ZOOM_MIN}
-        onClick={() => setZoom(Math.max(ZOOM_MIN, Math.round((zoom - ZOOM_STEP) * 100) / 100))}
+        disabled={!fit && zoom <= ZOOM_MIN}
+        onClick={zoomOut}
       >
         <Icon name="minus" size={14} strokeWidth={2} />
       </button>
       <button
         type="button"
-        onClick={() => setZoom(1)}
+        onClick={() => setZoom("fit")}
         className={`min-w-[44px] text-center text-[11.5px] font-semibold tabular-nums ${label} hover:underline`}
-        title="Reset zoom"
+        title="Fit to view"
       >
-        {Math.round(zoom * 100)}%
+        {fit ? "Fit" : `${Math.round(zoom * 100)}%`}
       </button>
       <button
         type="button"
         className={btn}
         aria-label="Zoom in"
-        disabled={zoom >= ZOOM_MAX}
-        onClick={() => setZoom(Math.min(ZOOM_MAX, Math.round((zoom + ZOOM_STEP) * 100) / 100))}
+        disabled={!fit && zoom >= ZOOM_MAX}
+        onClick={zoomIn}
       >
         <Icon name="plus" size={14} strokeWidth={2} />
       </button>
@@ -111,7 +127,7 @@ function Stage({
   url: string | null;
   loading: boolean;
   error: string | null;
-  zoom: number;
+  zoom: Zoom;
   dark?: boolean;
 }) {
   const k = kindOf(doc.file_type);
@@ -135,7 +151,7 @@ function Stage({
             alt={doc.name}
             className="block rounded-md object-contain shadow-lg"
             style={
-              zoom === 1
+              zoom === "fit"
                 ? { maxWidth: "100%", maxHeight: "100%" }
                 : { width: `${zoom * 100}%`, maxWidth: "none", height: "auto" }
             }
@@ -152,12 +168,22 @@ function Stage({
     // nav / sidebar); keep the scrollbar so a zoomed page can be panned. Changing
     // the #fragment alone won't re-apply zoom, so the iframe is keyed by zoom to
     // remount. The signed URL keeps its ?token= query; PDF params go after #.
-    const pct = Math.round(zoom * 100);
+    //
+    // "fit" maps to the viewer's own page-fit mode, which sizes the WHOLE page
+    // to the pane — `zoom=100` means actual paper size, so an A4 scan opened
+    // cropped to its top-left corner.
+    // `view=Fit` is the PDF open-parameter Chromium honours; `zoom=page-fit` is
+    // pdf.js's spelling of the same thing. Emitting both covers either viewer,
+    // and neither is sent when an explicit percentage is chosen.
+    const hash =
+      zoom === "fit"
+        ? "#toolbar=0&navpanes=0&view=Fit&zoom=page-fit"
+        : `#toolbar=0&navpanes=0&zoom=${Math.round(zoom * 100)}`;
     return (
       <div className="h-full w-full bg-[#525659]">
         <iframe
-          key={pct}
-          src={`${url}#toolbar=0&navpanes=0&zoom=${pct}`}
+          key={String(zoom)}
+          src={`${url}${hash}`}
           title={doc.name}
           className="h-full w-full border-0"
         />
@@ -225,7 +251,7 @@ export function InlineViewer({ doc, onFullscreen }: { doc: ViewerDoc | null; onF
 
 function InlineBody({ doc, onFullscreen }: { doc: ViewerDoc; onFullscreen: () => void }) {
   const { url, error, loading } = useSignedUrl(doc.id);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState<Zoom>("fit");
   const k = kindOf(doc.file_type);
   const zoomable = k === "image" || k === "pdf";
 
@@ -283,7 +309,7 @@ export function FullscreenViewer({ doc, onClose }: { doc: ViewerDoc | null; onCl
 
 function FsOverlay({ doc, onClose }: { doc: ViewerDoc; onClose: () => void }) {
   const { url, error, loading } = useSignedUrl(doc.id);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState<Zoom>("fit");
   const k = kindOf(doc.file_type);
   const zoomable = k === "image" || k === "pdf";
 
