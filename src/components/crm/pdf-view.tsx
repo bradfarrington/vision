@@ -21,7 +21,10 @@ import type { Zoom } from "./document-viewer";
 
 // pdf.js's types aren't worth pulling in for the three calls we make.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type PdfDoc = { numPages: number; getPage: (n: number) => Promise<any>; destroy: () => Promise<void> };
+type PdfDoc = { numPages: number; getPage: (n: number) => Promise<any> };
+/** Teardown lives on the LOADING TASK, not the document — `PDFDocumentProxy.destroy()`
+ *  no longer exists in pdf.js 6. It aborts the fetch and tears down the worker. */
+type PdfTask = { promise: Promise<PdfDoc>; destroy: () => Promise<void> };
 
 let pdfjsPromise: Promise<any> | null = null;
 function loadPdfjs(): Promise<any> {
@@ -49,19 +52,15 @@ export function PdfView({ url, zoom }: { url: string; zoom: Zoom }) {
   // --- open the document ---------------------------------------------------
   useEffect(() => {
     let cancelled = false;
-    let opened: PdfDoc | null = null;
+    let task: PdfTask | null = null;
     // No state reset here: the component is keyed by url at the call site, so a
     // different file arrives as a fresh mount rather than a half-cleared one.
     (async () => {
       try {
         const pdfjs = await loadPdfjs();
-        const task = pdfjs.getDocument({ url, isEvalSupported: false });
+        task = pdfjs.getDocument({ url, isEvalSupported: false }) as PdfTask;
         const d: PdfDoc = await task.promise;
-        if (cancelled) {
-          d.destroy();
-          return;
-        }
-        opened = d;
+        if (cancelled) return;
         const first = await d.getPage(1);
         const vp = first.getViewport({ scale: 1 });
         if (cancelled) return;
@@ -74,7 +73,9 @@ export function PdfView({ url, zoom }: { url: string; zoom: Zoom }) {
 
     return () => {
       cancelled = true;
-      opened?.destroy();
+      // Closing mid-load rejects the task's promise; that rejection is the
+      // teardown working, not a failure to report.
+      task?.destroy().catch(() => {});
     };
   }, [url]);
 
@@ -175,22 +176,25 @@ function PdfPage({
     let task: { cancel: () => void } | null = null;
 
     (async () => {
-      const page = await doc.getPage(pageNumber);
-      if (cancelled) return;
-      const viewport = page.getViewport({ scale });
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      // Render at device resolution, present at CSS size — a 1:1 canvas is
-      // visibly soft on a retina screen, and small print is the whole point.
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
-      setSize({ width: viewport.width, height: viewport.height });
-      task = page.render({ canvas, viewport, transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0] });
+      // Everything here is abandoned mid-flight on close, zoom or unmount —
+      // getPage and render both reject when the document is torn down, and
+      // that rejection IS the teardown, so the whole body is guarded.
       try {
+        const page = await doc.getPage(pageNumber);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        // Render at device resolution, present at CSS size — a 1:1 canvas is
+        // visibly soft on a retina screen, and small print is the whole point.
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        setSize({ width: viewport.width, height: viewport.height });
+        task = page.render({ canvas, viewport, transform: dpr === 1 ? null : [dpr, 0, 0, dpr, 0, 0] });
         await (task as any).promise;
       } catch {
-        // Cancelled by a zoom change or unmount — not an error worth showing.
+        // Cancelled, or the document went away — nothing to show the user.
       }
     })();
 

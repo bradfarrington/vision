@@ -664,6 +664,11 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
 - **Pages render lazily** (`IntersectionObserver`, 400px margin) and each holds its footprint from
   page 1's aspect ratio before it rasterises, so a long document neither renders up front nor makes
   the scroller jump as pages arrive. Render tasks are cancelled on zoom change and unmount.
+- **Teardown is on the LOADING TASK, not the document.** `PDFDocumentProxy.destroy()` does not
+  exist in pdf.js 6 — keep the `getDocument()` task and call `task.destroy()` on cleanup (closing
+  the full-screen viewer crashed on exactly this). Everything in flight — `getPage`, `render` —
+  rejects when the document is torn down, so those awaits are guarded: the rejection IS the
+  teardown, not an error to surface.
 - **Known trade-off: there is NO text layer**, so a digital PDF can't be selected or searched in
   place. Accepted because most files here are scans; Download opens the real file and Print still
   hands off to the browser. Adding `TextLayer` is the follow-up if anyone asks for search.
