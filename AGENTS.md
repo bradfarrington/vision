@@ -184,8 +184,8 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **The overview is a BENTO of four independent column stacks**, not a row-aligned grid, capped at
   `max-w-[1320px]` (`md:grid-cols-2 xl:grid-cols-4`, each column a `flex flex-col gap-4`):
   - strip — lifetime value · outstanding · live leads · contracts
-  - col 1 — Identity · Other contact · Flags
-  - col 2 — Main contact · Address · Linked customers
+  - col 1 — Identity · Flags
+  - col 2 — Contact · Address
   - col 3 — Marketing consent · Recent documents · Recent notes
   - col 4 — Contracts · Leads
   **Cards must never be laid out in aligned rows here.** Identity is ten rows and Contact is two;
@@ -211,10 +211,16 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   `LeadCard`/`ContractCard` live now that the overview only summarises them. Loaders sort newest
   first (leads by `lead_date`, contracts by `contract_date`, documents/notes by `created_at`) so
   "the latest three" is true at the source, not re-sorted per card.
-- **The "Other contact" card subtracts the Main contact card.** The primary contact mirrors the
-  customer's own email/phone by design, so the card filters out any value already printed next to it
-  and renders nothing at all when that leaves it empty. Don't reintroduce a card that prints the same
-  mobile number twice.
+- **ONE contact card, not two.** The main contact and the customer's own numbers live on different
+  tables (`customer_contacts` vs `customers`) but that is our problem, not the user's — as two cards
+  they printed the same mobile twice and needed dedupe logic to hide it. `ContactCard` shows the
+  contact's name/role/email/phone then any *other* number the customer has, skipping duplicates.
+- **Marketing consent chips carry the answer in COLOUR** (green consented / red refused / grey never
+  asked) with no "· yes" text, so all four channels fit one line. Colour alone isn't accessible, so
+  the state is also in the `title` and an `sr-only` span.
+- **Bottom breathing room belongs INSIDE the tab scroller** (`pb-2` in `tabs.tsx`). Padding on the
+  page wrapper sits outside the scroll box, so a card reaching the end of the panel would run flush
+  into its edge.
 - **Consent chips show three states, not two** — blank = never asked, which is materially different
   from a recorded "No". Same rule as the `tristate` editor.
 - **Colour carries meaning, and it lives in the figures and chips — never in card headers.** Stat

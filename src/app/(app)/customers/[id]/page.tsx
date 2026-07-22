@@ -191,29 +191,18 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
               <E c={c} label="Company" field="company_name" value={c.company_name} last />
             )}
           </Card>
-          <ContactSummary c={c} />
+          <Card className={OV_CARD}>
+            <CardTitle className="mb-1.5">Flags</CardTitle>
+            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
+            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
+            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+            <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
+          </Card>
         </div>
 
         <div className="flex flex-col gap-3">
-          <Card className={OV_CARD}>
-            <CardTitle className="mb-1.5">Main contact</CardTitle>
-            {c.mainContact ? (
-              <>
-                <Row label="Name">{c.mainContact.name}</Row>
-                {c.mainContact.position_role && (
-                  <Row label="Role">{c.mainContact.position_role}</Row>
-                )}
-                <CRow id={c.mainContact.id} label="Email" field="email" value={c.mainContact.email} />
-                <CRow id={c.mainContact.id} label="Phone" field="phone" value={c.mainContact.phone} last />
-              </>
-            ) : (
-              <p className="py-2 text-[12px] text-[#71717a]">
-                Add a first &amp; last name — the main contact appears here.
-              </p>
-            )}
-          </Card>
+          <ContactCard c={c} />
           <AddressSummary c={c} />
-          <LinkedCustomers c={c} />
         </div>
 
         <div className="flex flex-col gap-3">
@@ -225,13 +214,6 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <div className="flex flex-col gap-3">
           <ContractsCard c={c} />
           <LeadsCard c={c} liveLeads={liveLeads} />
-          <Card className={OV_CARD}>
-            <CardTitle className="mb-1.5">Flags</CardTitle>
-            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
-            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
-            <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
-          </Card>
         </div>
       </div>
     </div>
@@ -252,9 +234,6 @@ const OV_CARD = "!px-[15px] !py-[13px]";
  * click away for the full list.
  */
 const DIGEST_ROWS = 3;
-
-/** Linked customers are two lines tall each, so they get a shorter cap. */
-const LINKED_ROWS = 2;
 
 function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
   const { lifetimeValue, outstandingTotal } = c.financials;
@@ -370,39 +349,65 @@ function SummaryCard({
 }
 
 /**
- * The OTHER ways to reach them. The primary contact mirrors the customer's own
- * name/email/phone by design, so anything already on the Main contact card is
- * filtered out — otherwise the same number is printed twice, side by side. If
- * that leaves nothing to say, the card doesn't render at all.
+ * Everything needed to reach this customer, in ONE card: the main contact's
+ * name/role/email/phone plus the customer's own other numbers. These live on two
+ * tables (customer_contacts vs customers) but that is our problem, not the
+ * user's — split across two cards they printed the same mobile twice and needed
+ * dedupe logic to hide it.
  */
-function ContactSummary({ c }: { c: CustomerRecord }) {
-  const shown = new Set(
-    [c.mainContact?.email, c.mainContact?.phone].filter(Boolean).map((v) => String(v).trim()),
-  );
-  const rows = [
-    { label: "Email", value: c.email, href: (v: string) => `mailto:${v}` },
-    { label: "Mobile", value: c.mobile, href: (v: string) => `tel:${v}` },
-    { label: "Mobile 2", value: c.mobile_2, href: (v: string) => `tel:${v}` },
-    { label: "Home", value: c.home_telephone, href: (v: string) => `tel:${v}` },
-    { label: "Work", value: c.work_telephone, href: (v: string) => `tel:${v}` },
+function ContactCard({ c }: { c: CustomerRecord }) {
+  const m = c.mainContact;
+  // A number already shown as the contact's own isn't repeated below it.
+  const shown = new Set([m?.email, m?.phone].filter(Boolean).map((v) => String(v).trim()));
+  const extra = [
+    { label: "Email", value: c.email },
+    { label: "Mobile", value: c.mobile },
+    { label: "Mobile 2", value: c.mobile_2 },
+    { label: "Home", value: c.home_telephone },
+    { label: "Work", value: c.work_telephone },
   ].filter((r) => r.value && !shown.has(r.value.trim()));
 
-  if (rows.length === 0 && !c.no_whatsapp) return null;
   return (
-    <SummaryCard title="Other contact" to="Address & access" linkLabel="Edit →">
-      {rows.map((r, i) => (
-        <Row key={r.label} label={r.label} last={i === rows.length - 1}>
-          <a href={r.href(r.value!)} className="hover:text-[var(--accent-blue)]">
-            {r.value}
-          </a>
-        </Row>
-      ))}
+    <Card className={OV_CARD}>
+      <div className="mb-1.5 flex items-center gap-2.5">
+        <CardTitle>Contact</CardTitle>
+        <TabLink to="Address & access" className="ml-auto">
+          Edit →
+        </TabLink>
+      </div>
+      {!m && extra.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">
+          Add a first &amp; last name — the main contact appears here.
+        </p>
+      ) : (
+        <>
+          {m && (
+            <>
+              <Row label="Name">{m.name}</Row>
+              {m.position_role && <Row label="Role">{m.position_role}</Row>}
+              <CRow id={m.id} label="Email" field="email" value={m.email} />
+              <CRow
+                id={m.id}
+                label="Phone"
+                field="phone"
+                value={m.phone}
+                last={extra.length === 0 && !c.no_whatsapp}
+              />
+            </>
+          )}
+          {extra.map((r, i) => (
+            <Row key={r.label} label={r.label} last={i === extra.length - 1 && !c.no_whatsapp}>
+              {r.value}
+            </Row>
+          ))}
+        </>
+      )}
       {c.no_whatsapp && (
-        <div className={`flex flex-wrap gap-1.5 ${rows.length > 0 ? "mt-2.5 border-t border-[#f4f4f5] pt-2.5" : ""}`}>
+        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-[#f4f4f5] pt-2">
           <Pill tone="neutral">No WhatsApp</Pill>
         </div>
       )}
-    </SummaryCard>
+    </Card>
   );
 }
 
@@ -456,7 +461,7 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
           <ConsentChip key={ch.label} label={ch.label} value={ch.value} />
         ))}
       </div>
-      <div className="mt-3">
+      <div className="mt-2">
         <Row label="Referral Source" last={!c.opt_in_date}>
           {c.marketing_code ?? "—"}
         </Row>
@@ -470,13 +475,23 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
   );
 }
 
-// Blank = never asked, which is materially different from a recorded "No".
+/**
+ * Colour carries the answer — green consented, red refused, grey never asked
+ * (which is materially different from a recorded "No"). Dropping the "· yes"
+ * from each chip fits all four on one line instead of two.
+ *
+ * Colour alone is not an accessible signal, so the state is also spelled out in
+ * the tooltip and in the accessible name for screen readers.
+ */
 function ConsentChip({ label, value }: { label: string; value: boolean | null }) {
   const tone = value == null ? "neutral" : value ? "success" : "danger";
-  const mark = value == null ? "not asked" : value ? "yes" : "no";
+  const state = value == null ? "Not asked" : value ? "Yes" : "No";
   return (
-    <Pill tone={tone}>
-      {label} · {mark}
+    <Pill tone={tone} className={value == null ? "opacity-70" : undefined}>
+      <span title={`${label}: ${state}`}>
+        {label}
+        <span className="sr-only"> — {state}</span>
+      </span>
     </Pill>
   );
 }
@@ -660,46 +675,6 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
             )}
           </TabJump>
         ))
-      )}
-    </SummaryCard>
-  );
-}
-
-function LinkedCustomers({ c }: { c: CustomerRecord }) {
-  const linked = c.relationships.slice(0, LINKED_ROWS);
-  return (
-    <SummaryCard title="Linked customers" to="Relationships" shown={linked.length} total={c.relationships.length}>
-      {linked.length === 0 ? (
-        <p className="py-1 text-[12px] text-[#71717a]">
-          No linked customers — family, neighbours and referrers go here.
-        </p>
-      ) : (
-        linked.map((r, i) => {
-          const row = (
-            <div
-              className={`flex items-center gap-2.5 py-2 ${
-                i === linked.length - 1 ? "" : "border-b border-[#f4f4f5]"
-              }`}
-            >
-              <Avatar name={r.related?.name ?? "?"} size={28} />
-              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-[#0a0a0a]">
-                {r.related?.name ?? "Unknown customer"}
-              </span>
-              {r.label && <Pill tone="neutral">{r.label}</Pill>}
-            </div>
-          );
-          return r.related ? (
-            <Link
-              key={r.id}
-              href={`/customers/${r.related.id}`}
-              className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
-            >
-              {row}
-            </Link>
-          ) : (
-            <div key={r.id}>{row}</div>
-          );
-        })
       )}
     </SummaryCard>
   );

@@ -71,7 +71,11 @@ export function Tabs({ tabs }: { tabs: TabDef[] }) {
             </button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3">
+        {/* The bottom breathing room lives INSIDE the scroller, so a card that
+            reaches the end of the panel still clears its edge by the same margin
+            as the sides — padding on the page wrapper sits outside the scroll
+            box and the last card would run flush into it. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-3 pb-2">
           {tabs[active]?.content}
         </div>
       </div>
