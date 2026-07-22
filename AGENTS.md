@@ -436,9 +436,20 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   licence condition. The OSM Foundation's guidelines permit it *adjacent to* the map, which is what
   the footer line is. Do not delete it, and note that Google and Mapbox both mandate an on-canvas
   logo — this adjacent-credit approach does not carry over to them.
-- **Scroll-wheel zoom is disabled deliberately.** Maps sit inside scrolling tab panels, and a wheel
-  over the canvas would swallow the page scroll. Zoom is the buttons or double-click. Rotation and
-  pitch are off too — a tilted map helps nobody find a house.
+- **Scroll-wheel zoom is off in a card, on in fullscreen.** A card map sits inside a scrolling tab
+  panel and a wheel over the canvas would swallow the page scroll; the overlay has no page behind
+  it, so the wheel does the obvious thing. Rotation and pitch are off everywhere — a tilted map
+  helps nobody find a house.
+- **Fullscreen overlay mirrors the document viewer** — expand button top-LEFT of the canvas (the
+  zoom control owns top-right), `fixed inset-0 z-50`, Escape to close, dark chrome header carrying
+  the address and the Directions / what3words links. **It is NOT a portal to `document.body`**, and
+  that is load-bearing: the pin is filled with `var(--accent-blue)` from `tenantThemeVars` on the
+  app shell root, so a portalled marker silently falls back to platform blue for every tenant with
+  a brand colour. `fixed` covers the viewport perfectly well from inside the tree.
+- **Inline and fullscreen each own a MapLibre instance** (`MapCanvas`). Sharing one and re-parenting
+  the GL canvas was the alternative and it is worse: the inline map comes back showing wherever the
+  user panned to in fullscreen. `MapCanvas` keeps the tile-error callback in a latest-ref so a
+  parent re-render never tears the map down and rebuilds it.
 - **A map has a FIXED height and never grows with the data**, like every other card (see § Bento
   layout). On the customer record it is its own **Location** card, above Access notes — "where is
   this?" and "how do I get in?" are different questions, and a map wedged under a free-text note

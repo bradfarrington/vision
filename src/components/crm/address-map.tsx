@@ -5,6 +5,7 @@ import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { Icon } from "./icon";
 import { resolveAddress } from "@/app/(app)/geo/actions";
 import {
   addressKey,
@@ -29,11 +30,6 @@ import {
 // rather than at module scope — a screen that never shows a map never ships the
 // renderer, and the customer record only pays for it when the Address tab is
 // opened.
-//
-// The pin goes on the BUILDING (see geocodeAddress in lib/geo.ts). When the
-// geocoder can only manage the street or the postcode, the map says so rather
-// than implying door-level accuracy — a map that quietly rounds to the middle
-// of a postcode will eventually send a fitter to the wrong house.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_STYLE = "https://tiles.openfreemap.org/styles/positron";
@@ -42,8 +38,12 @@ const STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
 /**
  * How far in to zoom for each quality of match — never further than we actually
  * know. This is the ONLY place the match precision shows itself: the map does
- * not editorialise about what the geocoder could or could not pin down. The
- * precision is still recorded in `address_locations` if it is ever needed.
+ * not editorialise about what the geocoder could or could not pin down. An
+ * earlier build captioned street-level hits with "the exact building could not
+ * be identified" and it was rejected on sight — a pin that is on the right
+ * street reads as broken the moment the UI hedges about it, and that distrust
+ * spreads to the exact ones too. The precision is still recorded in
+ * `address_locations` if it is ever needed.
  */
 const ZOOM_FOR: Record<MatchPrecision, number> = {
   address: 18,
@@ -52,36 +52,114 @@ const ZOOM_FOR: Record<MatchPrecision, number> = {
   outcode: 12,
 };
 
-/**
- * Attribution lives in the card's fine print, NOT on the canvas.
- *
- * The map's own control was tried twice and rejected both times: MapLibre's
- * `compact: true` renders EXPANDED until the user's first drag (it adds
- * `maplibregl-compact-show` alongside `maplibregl-compact`), and collapsing it
- * to the ⓘ button still puts map-tool chrome on a CRM card, one click from a
- * wall of provider branding.
- *
- * It cannot simply be deleted: OpenStreetMap data is published under the ODbL
- * and crediting it is a licence condition, not a preference. The OSM
- * Foundation's attribution guidelines allow that credit to sit *adjacent to*
- * the map rather than on it — so `attributionControl: false` takes it off the
- * canvas and `<MapCredit>` puts it in the footer as fine print, where it looks
- * like part of our UI. Compliant, and no map branding on the map.
- *
- * If a future provider forbids adjacent attribution (Google and Mapbox both
- * mandate an on-canvas logo), that provider's rules win — do not reuse this.
- */
-function MapCredit() {
-  return (
-    <a
-      href="https://www.openstreetmap.org/copyright"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-[10px] text-[#c4c4c8] hover:text-[#71717a] hover:underline"
-    >
-      © OpenStreetMap
-    </a>
-  );
+// ---------------------------------------------------------------------------
+// MapCanvas — one MapLibre instance in a box.
+//
+// Split out so the inline card and the fullscreen overlay can each own their
+// own map. Sharing a single instance between the two was the alternative and it
+// is worse: moving a live GL canvas between containers means re-parenting the
+// WebGL context, and the inline map would come back showing wherever the user
+// had panned to full screen.
+// ---------------------------------------------------------------------------
+function MapCanvas({
+  lat,
+  lng,
+  zoom,
+  interactive = true,
+  /** Wheel-zoom. On in fullscreen (nothing behind to scroll), off in a card. */
+  scrollZoom = false,
+  onTileError,
+  className = "",
+}: {
+  lat: number;
+  lng: number;
+  zoom: number;
+  interactive?: boolean;
+  scrollZoom?: boolean;
+  onTileError: () => void;
+  className?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markerRef = useRef<MapLibreMarker | null>(null);
+
+  // Latest-ref for the callback so the map is not torn down and rebuilt just
+  // because the parent re-rendered and handed us a new closure.
+  const tileErrorRef = useRef(onTileError);
+  useEffect(() => {
+    tileErrorRef.current = onTileError;
+  });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const maplibregl = (await import("maplibre-gl")).default;
+      // Strict Mode runs effects twice; without this the first map is built
+      // against a container the second run has already claimed.
+      if (cancelled) return;
+
+      const map = new maplibregl.Map({
+        container,
+        style: STYLE_URL,
+        center: [lng, lat],
+        zoom,
+        interactive,
+        // Off the canvas — the credit is rendered as card fine print instead.
+        // See MapCredit below before changing this.
+        attributionControl: false,
+        // A rotated or tilted map helps nobody find a house, and a stray
+        // two-finger drag spinning the view reads as a bug.
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchZoomRotate: false,
+      });
+      mapRef.current = map;
+
+      // In a card, wheel-zoom is deliberately OFF: the map sits inside a
+      // scrolling tab panel and would swallow the page scroll. Full screen has
+      // no page behind it, so the wheel is free to do the obvious thing.
+      if (scrollZoom) map.scrollZoom.enable();
+      else map.scrollZoom.disable();
+
+      if (interactive) {
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      }
+
+      // Tile host unreachable (it is a free third-party service) — the parent
+      // falls back to the address text rather than an endless grey box.
+      map.on("error", (e) => {
+        if (!cancelled && e?.error && !mapRef.current?.isStyleLoaded()) tileErrorRef.current();
+      });
+
+      const el = document.createElement("div");
+      el.style.cursor = "default";
+      el.setAttribute("aria-hidden", "true");
+      el.innerHTML = PIN_SVG;
+      markerRef.current = new maplibregl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([lng, lat])
+        .addTo(map);
+    })();
+
+    // The card sits in a bento layout that resizes with the window, and the
+    // overlay resizes with it too; the GL canvas does not track its box.
+    const observer = new ResizeObserver(() => mapRef.current?.resize());
+    observer.observe(container);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      markerRef.current?.remove();
+      markerRef.current = null;
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, [lat, lng, zoom, interactive, scrollZoom]);
+
+  return <div ref={containerRef} className={`h-full w-full ${className}`} />;
 }
 
 type AddressMapProps = AddressInput & {
@@ -91,8 +169,10 @@ type AddressMapProps = AddressInput & {
   height?: number;
   /** Drag/zoom. Off gives a static locator thumbnail. */
   interactive?: boolean;
-  /** The caveat + links strip under the canvas. */
+  /** The credit + links strip under the canvas. */
   showFooter?: boolean;
+  /** The expand-to-fullscreen button. */
+  allowFullscreen?: boolean;
   className?: string;
 };
 
@@ -108,14 +188,12 @@ export function AddressMap({
   height = 220,
   interactive = true,
   showFooter = true,
+  allowFullscreen = true,
   className = "",
 }: AddressMapProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
-  const markerRef = useRef<MapLibreMarker | null>(null);
-
   // Bumped by "Try again" to re-run the lookup after a transient failure.
   const [attempt, setAttempt] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
 
   // The address parts stay PRIMITIVE props all the way down to the effect
   // dependencies. Taking them as one object would mean a fresh identity every
@@ -133,7 +211,7 @@ export function AddressMap({
   const [resolved, setResolved] = useState<{ key: string; result: ResolvedLocation } | null>(null);
   const [tileError, setTileError] = useState<string | null>(null);
 
-  // --- 1. Address → coordinates (server action, read-through DB cache) -------
+  // --- Address → coordinates (server action, read-through DB cache) ----------
   useEffect(() => {
     if (!addrKey) return;
     let cancelled = false;
@@ -158,79 +236,8 @@ export function AddressMap({
   const tilesFailed = tileError === key;
 
   const coords = location?.status === "ok" ? location : null;
-  const lat = coords?.lat;
-  const lng = coords?.lng;
   const zoom = coords ? ZOOM_FOR[coords.precision] : 15;
-
-  // --- 2. Coordinates → map -------------------------------------------------
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || lat == null || lng == null) return;
-
-    let cancelled = false;
-
-    (async () => {
-      const maplibregl = (await import("maplibre-gl")).default;
-      // Strict Mode runs effects twice; without this the first map is built
-      // against a container the second run has already claimed.
-      if (cancelled) return;
-
-      const map = new maplibregl.Map({
-        container,
-        style: STYLE_URL,
-        center: [lng, lat],
-        zoom,
-        interactive,
-        // Off the canvas — the credit is rendered as card fine print instead.
-        // See MapCredit above before changing this.
-        attributionControl: false,
-        // A rotated or tilted map helps nobody find a house, and a stray
-        // two-finger drag spinning the view reads as a bug.
-        dragRotate: false,
-        pitchWithRotate: false,
-        touchZoomRotate: false,
-      });
-      mapRef.current = map;
-
-      // Scroll-wheel zoom is deliberately OFF: the map sits inside a scrolling
-      // tab panel, and a wheel over it would swallow the page scroll. Zoom is
-      // via the buttons, or double-click.
-      map.scrollZoom.disable();
-      if (interactive) {
-        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-      }
-
-      // Tile host unreachable (it is a free third-party service) — fall back to
-      // the address text rather than an endless grey box.
-      map.on("error", (e) => {
-        if (!cancelled && e?.error && !mapRef.current?.isStyleLoaded()) setTileError(key);
-      });
-
-      const el = document.createElement("div");
-      el.style.cursor = "default";
-      el.setAttribute("aria-hidden", "true");
-      el.innerHTML = PIN_SVG;
-      markerRef.current = new maplibregl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat([lng, lat])
-        .addTo(map);
-    })();
-
-    // The card sits in a bento layout that resizes with the window; the GL
-    // canvas does not track its box on its own.
-    const observer = new ResizeObserver(() => mapRef.current?.resize());
-    observer.observe(container);
-
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-      markerRef.current?.remove();
-      markerRef.current = null;
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
-  }, [lat, lng, zoom, interactive, key]);
-
-  const retry = () => setAttempt((n) => n + 1);
+  const showMap = coords && !tilesFailed;
 
   return (
     <div className={className}>
@@ -238,48 +245,122 @@ export function AddressMap({
         className="relative overflow-hidden rounded-lg border border-[#e7e7ea] bg-[#f4f4f5]"
         style={{ height }}
       >
-        {coords && !tilesFailed ? (
-          <div ref={containerRef} className="h-full w-full" />
+        {showMap ? (
+          <>
+            <MapCanvas
+              lat={coords.lat}
+              lng={coords.lng}
+              zoom={zoom}
+              interactive={interactive}
+              onTileError={() => setTileError(key)}
+            />
+            {allowFullscreen && (
+              // Top-LEFT: the zoom control owns the top-right corner.
+              <button
+                type="button"
+                onClick={() => setFullscreen(true)}
+                aria-label="Expand map"
+                title="Expand map"
+                className="absolute left-2.5 top-2.5 inline-flex size-7 items-center justify-center rounded-md border border-[#e7e7ea] bg-white/95 text-[#3f3f46] shadow-[0_1px_3px_rgba(10,10,10,0.12)] transition-colors hover:text-[var(--accent-blue)]"
+              >
+                <Icon name="maximize" size={14} strokeWidth={2} />
+              </button>
+            )}
+          </>
         ) : (
           <MapPlaceholder
             state={tilesFailed ? { status: "unavailable" } : location}
             line={line}
-            onRetry={retry}
+            onRetry={() => setAttempt((n) => n + 1)}
           />
         )}
       </div>
 
-      {/* Links only. The map never narrates how confident it is — a caption
-          hedging about what "could not be identified" makes staff distrust a
-          pin that is, in practice, on the right street. Precision is still
-          recorded in the cache, and it quietly sets the zoom. */}
+      {/* Links only. Precision is never narrated — it quietly sets the zoom. */}
       {showFooter && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
           <MapCredit />
           <span className="ml-auto flex items-center gap-3">
-            {line && (
-              <a
-                href={directionsUrl(line)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-[var(--accent-blue)] hover:underline"
-              >
-                Directions →
-              </a>
-            )}
-            {what3words && (
-              <a
-                href={what3wordsUrl(what3words)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-[var(--accent-blue)] hover:underline"
-              >
-                what3words →
-              </a>
-            )}
+            {line && <DirectionsLink line={line} />}
+            {what3words && <What3WordsLink words={what3words} />}
           </span>
         </div>
       )}
+
+      {fullscreen && showMap && (
+        <FullscreenMap
+          lat={coords.lat}
+          lng={coords.lng}
+          zoom={zoom}
+          line={line}
+          what3words={what3words}
+          onTileError={() => setTileError(key)}
+          onClose={() => setFullscreen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fullscreen overlay — same pattern as the document viewer's FullscreenViewer.
+//
+// Deliberately NOT a portal to document.body. The pin is filled with
+// `var(--accent-blue)`, which is set as an inline style on the app shell root
+// (tenantThemeVars); a portal would render the marker outside that root and it
+// would silently fall back to the platform blue for every tenant with their own
+// brand colour. `fixed inset-0` covers the viewport just as well from inside
+// the tree, and keeps the theme.
+// ---------------------------------------------------------------------------
+function FullscreenMap({
+  lat,
+  lng,
+  zoom,
+  line,
+  what3words,
+  onTileError,
+  onClose,
+}: {
+  lat: number;
+  lng: number;
+  zoom: number;
+  line: string;
+  what3words?: string | null;
+  onTileError: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm">
+      <div className="flex items-center gap-3 px-4 py-3 text-white">
+        <Icon name="map-pin" size={16} strokeWidth={1.75} className="text-white/70" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{line}</span>
+        {line && <DirectionsLink line={line} dark />}
+        {what3words && <What3WordsLink words={what3words} dark />}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/5 text-white transition-colors hover:bg-white/15"
+        >
+          <Icon name="x" size={16} strokeWidth={2} />
+        </button>
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <MapCanvas lat={lat} lng={lng} zoom={zoom} scrollZoom onTileError={onTileError} />
+        {/* The credit follows the map wherever it goes — the card's footer line
+            is not on screen here, so it has to be restated. */}
+        <span className="pointer-events-auto absolute bottom-2 left-3">
+          <MapCredit dark />
+        </span>
+      </div>
     </div>
   );
 }
@@ -330,8 +411,85 @@ function MapPlaceholder({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Footer bits
+// ---------------------------------------------------------------------------
+
+function DirectionsLink({ line, dark = false }: { line: string; dark?: boolean }) {
+  return (
+    <a
+      href={directionsUrl(line)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={
+        dark
+          ? "rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/15"
+          : "font-semibold text-[var(--accent-blue)] hover:underline"
+      }
+    >
+      Directions →
+    </a>
+  );
+}
+
+function What3WordsLink({ words, dark = false }: { words: string; dark?: boolean }) {
+  return (
+    <a
+      href={what3wordsUrl(words)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={
+        dark
+          ? "rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/15"
+          : "font-semibold text-[var(--accent-blue)] hover:underline"
+      }
+    >
+      what3words →
+    </a>
+  );
+}
+
+/**
+ * Attribution lives in the card's fine print, NOT on the canvas.
+ *
+ * The map's own control was tried twice and rejected both times: MapLibre's
+ * `compact: true` renders EXPANDED until the user's first drag (it adds
+ * `maplibregl-compact-show` alongside `maplibregl-compact`), and collapsing it
+ * to the ⓘ button still puts map-tool chrome on a CRM card, one click from a
+ * wall of provider branding.
+ *
+ * It cannot simply be deleted: OpenStreetMap data is published under the ODbL
+ * and crediting it is a licence condition, not a preference — and the notice is
+ * owed to the people VIEWING the map, so a comment in the source would not
+ * satisfy it. The OSM Foundation's guidelines allow that credit to sit
+ * *adjacent to* the map rather than on it, so `attributionControl: false` takes
+ * it off the canvas and this puts it in the fine print, where it looks like
+ * part of our UI.
+ *
+ * If a future provider forbids adjacent attribution (Google and Mapbox both
+ * mandate an on-canvas logo), that provider's rules win — do not reuse this.
+ */
+function MapCredit({ dark = false }: { dark?: boolean }) {
+  return (
+    <a
+      href="https://www.openstreetmap.org/copyright"
+      target="_blank"
+      rel="noopener noreferrer"
+      className={
+        dark
+          ? "text-[10px] text-white/35 hover:text-white/80 hover:underline"
+          : "text-[10px] text-[#c4c4c8] hover:text-[#71717a] hover:underline"
+      }
+    >
+      © OpenStreetMap
+    </a>
+  );
+}
+
 // The pin from the design export, re-used verbatim so the real map carries the
-// same marker the illustrative one did — tenant accent, white centre.
+// same marker the illustrative one did. `var(--accent-blue)` resolves through
+// inheritance from the app shell root, so the pin is the TENANT's brand colour
+// — which is why this must never render through a portal (see FullscreenMap).
 const PIN_SVG = `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg">
   <path d="M13 0C5.8 0 0 5.8 0 13c0 9 13 21 13 21s13-12 13-21C26 5.8 20.2 0 13 0z" fill="var(--accent-blue)"/>
   <circle cx="13" cy="13" r="5" fill="#fff"/>
