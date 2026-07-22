@@ -740,7 +740,7 @@ function ContactsTab({
       {c.contacts.length === 0 ? (
         <Empty>No linked contacts yet — add one above.</Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {c.contacts.map((ct) => (
             <Card key={ct.id}>
               <div className="flex items-center gap-2.5">
@@ -893,20 +893,26 @@ function RelationshipsTab({
 }
 
 function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
+  // Three bento columns, like the overview: independent stacks so a card sizes
+  // to its own content instead of stretching to the tallest in its row, and a
+  // narrower card keeps each label beside its value rather than a ruler apart.
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Card>
-        <CardTitle className="mb-2">Address</CardTitle>
-        <E c={c} label="House Name" field="house_name" value={c.house_name} />
-        <E c={c} label="House Number" field="house_number" value={c.house_number} />
-        <E c={c} label="Street" field="street" value={c.street} />
-        <E c={c} label="Locality" field="locality" value={c.locality} type="lookup" listKey="locality" lookupOptions={lookups.locality} />
-        <E c={c} label="Town" field="town" value={c.town} />
-        <E c={c} label="County" field="county" value={c.county} />
-        <E c={c} label="Postcode" field="postcode" value={c.postcode} mono />
-        <E c={c} label="What3words" field="what_3_words" value={c.what_3_words} mono />
-        <E c={c} label="Business Address" field="business_address" value={c.business_address} type="boolean" last />
-      </Card>
+    <div className="grid max-w-[1320px] grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardTitle className="mb-2">Address</CardTitle>
+          <E c={c} label="House Name" field="house_name" value={c.house_name} />
+          <E c={c} label="House Number" field="house_number" value={c.house_number} />
+          <E c={c} label="Street" field="street" value={c.street} />
+          <E c={c} label="Locality" field="locality" value={c.locality} type="lookup" listKey="locality" lookupOptions={lookups.locality} />
+          <E c={c} label="Town" field="town" value={c.town} />
+          <E c={c} label="County" field="county" value={c.county} />
+          <E c={c} label="Postcode" field="postcode" value={c.postcode} mono />
+          <E c={c} label="What3words" field="what_3_words" value={c.what_3_words} mono />
+          <E c={c} label="Business Address" field="business_address" value={c.business_address} type="boolean" last />
+        </Card>
+      </div>
+
       <div className="flex flex-col gap-4">
         <Card>
           <CardTitle className="mb-2">Phones</CardTitle>
@@ -917,14 +923,23 @@ function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <E c={c} label="Fax / Alt" field="fax_alt_no" value={c.fax_alt_no} />
           <E c={c} label="WhatsApp Opt-Out" field="no_whatsapp" value={c.no_whatsapp} type="boolean" last />
         </Card>
+      </div>
+
+      <div className="flex flex-col gap-4">
         <Card>
-          <div className="mb-2 flex items-center justify-between">
-            <CardTitle>Access notes</CardTitle>
-            <EditableField id={c.id} field="directions" value={c.directions} action={updateCustomerField} type="textarea" placeholder="Add access notes…" className="text-[12px] font-semibold text-[var(--accent-blue)]" />
-          </div>
-          <p className="text-[12.5px] leading-[1.6] text-[#3f3f46]">
-            {c.directions ?? "No access notes recorded."}
-          </p>
+          <CardTitle className="mb-2">Access notes</CardTitle>
+          {/* The note itself IS the editor — it was printed twice before (an
+              accent-blue editable in the header and a read-only echo below),
+              which read as two different fields. */}
+          <EditableField
+            id={c.id}
+            field="directions"
+            value={c.directions}
+            action={updateCustomerField}
+            type="textarea"
+            placeholder="No access notes recorded."
+            className="block w-full text-left text-[12.5px] leading-[1.6] whitespace-pre-wrap text-[#3f3f46]"
+          />
           {(c.postcode || c.what_3_words) && <IllustrativeMap className="mt-3" />}
         </Card>
       </div>
@@ -942,8 +957,8 @@ function BillingTab({
   salesUsers: StaffOption[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:col-span-2">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 lg:col-span-2">
       <Card>
         <CardTitle className="mb-2">Invoice address</CardTitle>
         <E c={c} label="Invoice Name" field="invoice_name" value={c.invoice_name} />

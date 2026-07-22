@@ -300,6 +300,24 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   become everyone's. A tenant default with user override can layer on later; assume user-scoped
   storage from the start. Do NOT bring a column picker into the customer record.
 
+## Bento layout is the house style — decided 2026-07-22
+
+The overview's bento (independent column stacks, cards sized to their own content) is **the layout
+pattern for the whole app**, not an overview-only trick. Applied to the record's editing tabs on
+2026-07-22 and to be used for new screens:
+
+- **Card grids get `items-start`, or columns get their own `flex flex-col gap-4` stack.** A plain
+  CSS grid stretches every card to the tallest in its row, so a 9-row Address card left a 6-row
+  Phones card with three rows of dead white.
+- **Prefer MORE, NARROWER columns over fewer wide ones** (Address is `md:grid-cols-2 xl:grid-cols-3`,
+  capped `max-w-[1320px]`). A field row is `label … value` justified apart, so a card stretched over
+  half a 1900px screen puts a metre of nothing between the two — the label stops belonging to its
+  value. Narrow cards keep the pair readable.
+- **A field appears ONCE per card.** Access notes used to print the note twice — an accent-blue
+  editable in the card header and a read-only echo below it — which reads as two separate fields.
+  If a value needs to be editable, make the displayed value the editor (`EditableField` with
+  `type="textarea"` and a left-aligned `className`), don't add a second copy.
+
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 
 One table backs every note in the CRM (`public.lead_notes`): customer-level when `lead_id` is
