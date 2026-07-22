@@ -169,18 +169,25 @@ the customer record; reuse it for leads/contracts rather than forking.
   `customer_id` set, so it reads from the customer record and from the thing it's about. The
   customer Notes tab shows every non-marketing note on the customer, lead-linked ones included.
   (Notes written on the lead screen don't set `customer_id`, so they stay lead-only for now.)
-- **Attachments are ordinary documents** carrying `documents.note_id` — same bucket, same tenant
-  RLS, same viewer, and they still appear on the Documents tab. `ON DELETE SET NULL`: deleting a
-  note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field, and
-  rename them in place with the shared `renameDocument`.
-- **Every note and document carries a per-tenant reference** — `NOTE-0018` / `DOC-0104`
-  (zero-padded to 4, then grows), allocated by the shared `next_reference` counter (`documents.document_number`, `lead_notes.note_number`; helpers
+- **An attachment is a LINK, never a copy.** `note_attachments` (note_id ↔ document_id) joins a
+  note to an ordinary `documents` row — same bucket, same tenant RLS, same viewer, one row on the
+  Documents tab. One file is stored, named and numbered ONCE, so renaming it from a note renames
+  it everywhere, because it is the same file. A document can be referenced by several notes.
+  (This replaced a `documents.note_id` design where attaching an existing file copied the row —
+  that produced visible duplicates on the Documents tab and two names for one file. Don't go back.)
+  Removing an attachment from a note deletes the JOIN row (`detachDocumentFromNote`) — the file
+  stays on the customer; deleting files is the Documents tab's job. Deleting a note cascades its
+  join rows only.
+- **Every note and document carries a per-CUSTOMER reference** — `NOTE-0018` / `DOC-0104`
+  (zero-padded to 4, then grows), so the first file on a customer is DOC-0001. Allocated by the
+  shared `next_reference` counter under a name that encodes the owner (`document:<customer_id>`,
+  `note:<customer_id|lead_id>`) (`documents.document_number`, `lead_notes.note_number`; helpers
   `noteRef`/`documentRef` in `src/lib/leads.ts`). Shown on note meta lines, document rows, and in
   the viewer header beside the file name — where a note attachment also shows its `NOTE-…` chip, so
   a previewed file always says where it came from. Anything else that creates notes/documents MUST
   allocate its number the same way.
-- **References are allocated forward and never reused.** Deleting a note or document does NOT free
-  its number and the counter never rewinds — a reference is an identity, not a count, and recycling
+- **References are allocated forward and never reused within their customer.** Deleting a note or
+  document does NOT free its number and the counter never rewinds — a reference is an identity, not a count, and recycling
   one silently repoints every email/job sheet/history entry that quotes it. Gaps are expected and
   fine (`next_reference` is gap-tolerant by design). If a screen wants "3rd note on this customer",
   that is a positional label computed at render time, NOT the reference.
@@ -190,13 +197,11 @@ the customer record; reuse it for leads/contracts rather than forking.
   attached.
 - **Never store the same bytes twice.** Files are hashed (SHA-256 → `documents.content_hash`),
   computed in the browser before upload so a duplicate costs one small query, not a wasted upload.
-  If the identical file is already on the customer, the user picks: attach the existing one
-  (`attachExistingDocument` writes a new row pointing at the SAME `file_url`) or upload another
-  copy. Escape/backdrop takes the non-duplicating option. **Because objects are shared,
-  `deleteDocument` removes the stored object only when no other row references that `file_url`** —
-  anything that deletes documents in future MUST keep that refcount check or it will punch holes
-  in other rows. (The Documents tab's own drag-drop upload does not dedupe yet — same treatment
-  is still to do there.)
+  If the identical file is already on the customer, the user picks: link the existing one
+  (`attachDocumentToNote`) or upload another copy. Escape/backdrop takes the non-duplicating
+  option. `deleteDocument` still only removes the stored object when no other row references that
+  `file_url` — keep that refcount check, since legacy rows may still share objects. (The Documents
+  tab's own drag-drop upload does not dedupe yet — same treatment is still to do there.)
 - **UI:** `src/components/crm/notes-panel.tsx` — a **two-pane panel like the Documents tab**:
   left (45%) = composer (text + link picker + attach) over the note thread, each note carrying its
   author/date-time stamp, an "Edited by …" button that expands the full version list, inline edit,
@@ -288,7 +293,9 @@ fork per-entity copies.
   `20260721101100_document_categories.sql` (category defaults) and
   `20260722090000_note_links_versions_attachments.sql` (note links/versions/attachments) and
   `20260722091000_document_dedupe.sql` (content hash + dedupe indexes) and
-  `20260722092000_document_note_numbers.sql` (D-/N- reference numbers + backfill) still need
+  `20260722092000_document_note_numbers.sql` (reference numbers + backfill) and
+  `20260722093000_note_attachments_and_per_customer_refs.sql` (attachments become links; refs
+  renumbered per customer; merges the duplicate document rows the old design created) still need
   applying** — document upload/view won't work until the storage one is run in the SQL
   editor, and the Notes tab will error until the note one is. After applying the note migration,
   **reload the PostgREST schema cache** (Supabase dashboard → API → restart, or

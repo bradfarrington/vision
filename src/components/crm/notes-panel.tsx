@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { addNote, deleteNote, loadNoteHistory, updateNote } from "@/app/(app)/notes/actions";
 import {
-  attachExistingDocument,
-  deleteDocument,
+  attachDocumentToNote,
+  detachDocumentFromNote,
   findDuplicateDocument,
   renameDocument,
   uploadDocument,
@@ -61,7 +61,9 @@ export function NotesPanel({
   const [composing, setComposing] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState<ViewerDoc | null>(null);
-  const attachmentsFor = (noteId: string) => documents.filter((d) => d.noteId === noteId);
+  // Attachments are links, so a document belongs to a note via note_attachments.
+  const attachmentsFor = (noteId: string) =>
+    documents.filter((d) => d.notes.some((n) => n.id === noteId));
   const empty = notes.length === 0;
 
   const preview = documents.find((d) => d.id === previewId) ?? null;
@@ -72,9 +74,11 @@ export function NotesPanel({
         file_name: preview.file_name,
         file_type: preview.file_type,
         reference: documentRef(preview.number),
-        // Which note the file is attached to, so the preview always says where
-        // it came from.
-        source: preview.noteId ? noteRef(preview.noteNumber) : null,
+        // Which note(s) the file is attached to, so the preview always says
+        // where it came from.
+        source: preview.notes.length
+          ? preview.notes.map((n) => noteRef(n.number)).join(", ")
+          : null,
       }
     : null;
 
@@ -221,12 +225,7 @@ function NoteComposer({
       // single rejected file doesn't lose the note or the other files.
       const failed: string[] = [];
       for (const d of picked) {
-        const att = await attachExistingDocument({
-          documentId: d.id,
-          noteId: res.id,
-          ownerType: "customer",
-          ownerId: customerId,
-        });
+        const att = await attachDocumentToNote({ documentId: d.id, noteId: res.id, customerId });
         if (att.error) failed.push(`${d.name}: ${att.error}`);
       }
       for (const f of files) {
@@ -435,12 +434,7 @@ function NoteRow({
     setError(null);
     start(async () => {
       for (const d of chosen) {
-        const res = await attachExistingDocument({
-          documentId: d.id,
-          noteId: note.id,
-          ownerType: "customer",
-          ownerId: customerId,
-        });
+        const res = await attachDocumentToNote({ documentId: d.id, noteId: note.id, customerId });
         if (res.error) setError(`${d.name}: ${res.error}`);
       }
       router.refresh();
@@ -519,6 +513,7 @@ function NoteRow({
               key={a.id}
               doc={a}
               customerId={customerId}
+              noteId={note.id}
               selected={a.id === previewId}
               onPreview={() => onPreview(a.id)}
             />
@@ -636,11 +631,13 @@ function NoteRow({
 function Attachment({
   doc,
   customerId,
+  noteId,
   selected,
   onPreview,
 }: {
   doc: DocumentItem;
   customerId: string;
+  noteId: string;
   selected: boolean;
   onPreview: () => void;
 }) {
@@ -711,18 +708,21 @@ function Attachment({
       </button>
       <button
         type="button"
-        aria-label={`Remove ${doc.name}`}
+        aria-label={`Remove ${doc.name} from this note`}
+        title="Remove from this note"
         disabled={pending}
         onClick={async () => {
+          // Detaching, not deleting: the file is the customer's, this note just
+          // points at it. Deleting files is the Documents tab's job.
           const ok = await confirm({
-            title: `Delete “${doc.name}”?`,
-            message: "The file is removed from the customer's record too, not just this note.",
-            confirmLabel: "Delete file",
-            tone: "danger",
+            title: `Remove “${doc.name}” from this note?`,
+            message: `The file stays on the customer's record as ${documentRef(doc.number)} — only the reference from this note goes.`,
+            confirmLabel: "Remove from note",
+            tone: "warning",
           });
           if (!ok) return;
           start(async () => {
-            await deleteDocument(doc.id, "customer", customerId);
+            await detachDocumentFromNote({ documentId: doc.id, noteId, customerId });
             router.refresh();
           });
         }}
@@ -965,12 +965,7 @@ async function uploadAttachment({
         tone: "warning",
       });
       if (!uploadAnyway) {
-        return attachExistingDocument({
-          documentId: dupe.id,
-          noteId,
-          ownerType: "customer",
-          ownerId: customerId,
-        });
+        return attachDocumentToNote({ documentId: dupe.id, noteId, customerId });
       }
     }
   }

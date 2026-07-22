@@ -82,16 +82,18 @@ export type DocumentItem = {
   created_at: string;
   uploaded_by: string | null;
   uploader: string | null; // resolved display name
-  /** Set when the file was attached to a note (it's still a normal document). */
-  noteId: string | null;
-  /** The reference number of that note, for "from N-18" labels. */
-  noteNumber: number | null;
+  /**
+   * Notes this file is attached to. An attachment is a LINK (note_attachments),
+   * not a copy — the same document can be referenced by several notes and is
+   * only ever stored, named and numbered once.
+   */
+  notes: { id: string; number: number | null }[];
 };
 
 // Columns selected for a document row, plus the uploader name join. Kept here so
 // getCustomerRecord (and future lead/contract loaders) select an identical shape.
 export const DOCUMENT_SELECT =
-  "id, document_number, name, file_name, file_type, file_size, file_url, category, created_at, note_id, note:note_id(note_number), uploaded_by, uploader:uploaded_by(first_name, last_name)";
+  "id, document_number, name, file_name, file_type, file_size, file_url, category, created_at, uploaded_by, uploader:uploaded_by(first_name, last_name), notes:note_attachments(note_id, note:note_id(note_number))";
 
 // Same shape minus anything added by a migration that may not be applied yet.
 // Schema is applied by hand here (see AGENTS.md), so a loader that asks for a
@@ -124,8 +126,7 @@ type RawDocRow = {
   file_url: string;
   category: string | null;
   created_at: string;
-  note_id: string | null;
-  note: { note_number: number | null } | null;
+  notes: { note_id: string; note: { note_number: number | null } | null }[] | null;
   uploaded_by: string | null;
   uploader: { first_name: string | null; last_name: string | null } | null;
 };
@@ -143,8 +144,10 @@ export function mapDocumentRow(row: RawDocRow): DocumentItem {
     category: row.category,
     created_at: row.created_at,
     uploaded_by: row.uploaded_by,
-    noteId: row.note_id ?? null,
-    noteNumber: row.note?.note_number ?? null,
+    notes: (row.notes ?? []).map((a) => ({
+      id: a.note_id,
+      number: a.note?.note_number ?? null,
+    })),
     uploader: row.uploader
       ? [row.uploader.first_name, row.uploader.last_name].filter(Boolean).join(" ").trim() || null
       : null,

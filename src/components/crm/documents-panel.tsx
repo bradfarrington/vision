@@ -60,7 +60,10 @@ export function DocumentsPanel({
         file_name: selected.file_name,
         file_type: selected.file_type,
         reference: documentRef(selected.number),
-        source: selected.noteId ? noteRef(selected.noteNumber) : null,
+        // A file can be referenced by several notes — name them all.
+        source: selected.notes.length
+          ? selected.notes.map((n) => noteRef(n.number)).join(", ")
+          : null,
       }
     : null;
 
@@ -379,7 +382,7 @@ function DocRow({
           {" · "}
           {doc.uploader ?? "—"} · {longDate(doc.created_at)}
           {doc.file_size ? ` · ${fileSize(doc.file_size)}` : ""}
-          {doc.noteId ? ` · from ${noteRef(doc.noteNumber)}` : ""}
+          {doc.notes.length ? ` · from ${doc.notes.map((n) => noteRef(n.number)).join(", ")}` : ""}
         </p>
 
         {/* Category picker */}

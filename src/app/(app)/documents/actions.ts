@@ -98,11 +98,14 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     });
   if (upErr) return { error: `Upload failed: ${upErr.message}` };
 
-  // Per-tenant reference (D-<n>) — the counter derives the tenant from the JWT.
-  const { data: documentNumber } = await supabase.rpc("next_reference", { p_name: "document" });
+  // Reference counts within the customer (DOC-0001 is their first file). The
+  // counter name encodes the customer; the tenant still comes from the JWT.
+  const { data: documentNumber } = await supabase.rpc("next_reference", {
+    p_name: `document:${customerId}`,
+  });
 
   const db = supabase as any;
-  const { error: insErr } = await db.from("documents").insert({
+  const { data: inserted, error: insErr } = await db.from("documents").insert({
     company_id: companyId,
     document_number: documentNumber != null ? Number(documentNumber) : null,
     [OWNER_FK[ownerType]]: ownerId,
@@ -116,14 +119,25 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     file_size: file.size,
     file_url: objectPath,
     category,
-    note_id: noteId,
     content_hash: contentHash,
     uploaded_by: user?.id ?? null,
-  });
+  })
+  .select("id")
+  .single();
   if (insErr) {
     // Don't leave an orphaned object if the metadata row failed.
     await supabase.storage.from(DOCUMENTS_BUCKET).remove([objectPath]);
     return { error: `Save failed: ${insErr.message}` };
+  }
+
+  // Attaching to a note is a link, never a second copy of the file.
+  if (noteId && inserted?.id) {
+    const link = await db.from("note_attachments").insert({
+      company_id: companyId,
+      note_id: noteId,
+      document_id: inserted.id,
+    });
+    if (link.error) return { error: `Attach failed: ${link.error.message}` };
   }
 
   revalidatePath(ownerRevalidatePath(ownerType, ownerId));
@@ -164,58 +178,54 @@ export async function findDuplicateDocument(args: {
 }
 
 /**
- * Attach a file that's already on the record to a note, without re-uploading it.
- * Writes a new documents row pointing at the SAME storage object, so the note
- * owns its own attachment row while the bytes are stored once. Deleting either
- * row leaves the object alone until the last reference goes (see deleteDocument).
+ * Link a document that's already on the record to a note. No upload, no second
+ * documents row, no new reference — the note simply points at the same file, so
+ * renaming it anywhere renames it everywhere (it IS the same file).
  */
-export async function attachExistingDocument(args: {
+export async function attachDocumentToNote(args: {
   documentId: string;
   noteId: string;
-  ownerType: string;
-  ownerId: string;
+  /** Whose record to revalidate. */
+  customerId: string;
 }): Promise<{ error?: string }> {
-  if (!isDocumentOwnerType(args.ownerType)) return { error: "Invalid owner type." };
-
   const companyId = await getCompanyId();
   if (!companyId) return { error: "No tenant in session." };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
   const db = supabase as any;
 
-  const { data: src, error: readErr } = await db
-    .from("documents")
-    .select("name, file_name, file_type, file_size, file_url, category, content_hash, customer_id")
-    .eq("id", args.documentId)
-    .maybeSingle();
-  if (readErr) return { error: readErr.message };
-  if (!src) return { error: "That file is no longer on the record." };
-
-  // A shared object still gets its own reference — it's a distinct attachment.
-  const { data: documentNumber } = await supabase.rpc("next_reference", { p_name: "document" });
-
-  const { error } = await db.from("documents").insert({
-    company_id: companyId,
-    document_number: documentNumber != null ? Number(documentNumber) : null,
-    [OWNER_FK[args.ownerType as DocumentOwnerType]]: args.ownerId,
-    customer_id: src.customer_id,
-    context: args.ownerType,
-    name: src.name,
-    file_name: src.file_name,
-    file_type: src.file_type,
-    file_size: src.file_size,
-    file_url: src.file_url, // shared object — intentionally not re-uploaded
-    category: src.category,
-    content_hash: src.content_hash,
-    note_id: args.noteId,
-    uploaded_by: user?.id ?? null,
-  });
+  const { error } = await db
+    .from("note_attachments")
+    .upsert(
+      { company_id: companyId, note_id: args.noteId, document_id: args.documentId },
+      { onConflict: "note_id,document_id", ignoreDuplicates: true },
+    );
   if (error) return { error: error.message };
 
-  revalidatePath(ownerRevalidatePath(args.ownerType as DocumentOwnerType, args.ownerId));
+  revalidatePath(`/customers/${args.customerId}`);
+  return {};
+}
+
+/**
+ * Unlink a document from a note. The file stays on the record — this only
+ * removes the reference, which is the whole point of attachments being links.
+ */
+export async function detachDocumentFromNote(args: {
+  documentId: string;
+  noteId: string;
+  customerId: string;
+}): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const db = supabase as any;
+
+  const { error } = await db
+    .from("note_attachments")
+    .delete()
+    .eq("note_id", args.noteId)
+    .eq("document_id", args.documentId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/customers/${args.customerId}`);
   return {};
 }
 

@@ -48,8 +48,12 @@ export async function addNote(input: {
   } = await supabase.auth.getUser();
   const db = supabase as any;
 
-  // Per-tenant reference (N-<n>) — the counter derives the tenant from the JWT.
-  const { data: noteNumber } = await supabase.rpc("next_reference", { p_name: "note" });
+  // Reference counts within the customer (or the lead, for lead-only notes):
+  // NOTE-0001 is that record's first note. Tenant still comes from the JWT.
+  const owner = input.customerId ?? input.leadId ?? null;
+  const { data: noteNumber } = owner
+    ? await supabase.rpc("next_reference", { p_name: `note:${owner}` })
+    : { data: null };
 
   const ins = await db
     .from("lead_notes")
