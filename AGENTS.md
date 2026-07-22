@@ -161,23 +161,32 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   `TabJump` (a clickable row/region) are the two small client buttons that call `goTo("Notes")`.
   Targets are matched by **exact tab label**, so renaming a tab means updating its jump targets.
   Tab state is deliberately NOT in the URL — no navigation, no scroll reset on jump.
-- **The overview is a 4-column grid** (`sm:grid-cols-2 xl:grid-cols-4`), capped at `max-w-[1320px]`:
+- **The overview is a BENTO of four independent column stacks**, not a row-aligned grid, capped at
+  `max-w-[1320px]` (`md:grid-cols-2 xl:grid-cols-4`, each column a `flex flex-col gap-4`):
   - strip — lifetime value · outstanding · live leads · contracts
-  - row 1, *who they are and how to reach them* — Identity · Main contact · Contact · Address
-  - row 2, *how they're handled* — Flags · Marketing consent · Linked customers · Recent documents
-  - **Leads & contracts**
-  - Recent notes — the one full-width card, tiling its 4 notes 4-across to hold the same rhythm
-  Nine cards don't divide by four, which is why Recent notes sits alone under the leads list.
-  Adding a card means re-balancing the rows, not appending a fifth column.
+  - col 1 — Identity · Other contact · Flags
+  - col 2 — Main contact · Address · Linked customers
+  - col 3 — Marketing consent · Recent documents · Recent notes
+  - col 4 — Contracts · Leads
+  **Cards must never be laid out in aligned rows here.** Identity is ten rows and Contact is two;
+  a row grid stretches every card to the tallest in its row, which left half the screen empty.
+  A new card is appended to whichever column is shortest — the columns don't have to match.
+- **Leads and contracts live in column 4 as compact stacks**, not the full-width `LeadCard` /
+  `ContractCard`. A column is ~310px, so a row carries reference, what it is, when, how much and the
+  stage badge, and links to the lead for everything else. `lead-card.tsx` is no longer used by the
+  customer overview — keep it for the lead screens.
+- **The "Other contact" card subtracts the Main contact card.** The primary contact mirrors the
+  customer's own email/phone by design, so the card filters out any value already printed next to it
+  and renders nothing at all when that leaves it empty. Don't reintroduce a card that prints the same
+  mobile number twice.
 - **Consent chips show three states, not two** — blank = never asked, which is materially different
   from a recorded "No". Same rule as the `tristate` editor.
-- **Colour carries meaning on the overview, and the tab is capped at `max-w-[1240px]`.** Three
-  columns stretched across a 1900px monitor leave each card mostly empty, and the record read as a
-  wall of black-on-white. One `STAT_TONE` map drives both surfaces: stat tiles get a 3px coloured
-  rule down the leading edge plus a coloured figure (**lifetime value green `#1a7f3e`, outstanding
-  red `#d64545`**, live leads = tenant accent, contracts neutral) and **no icons**; summary cards get
-  a tinted icon chip beside the title. Stat tiles are `min-w-[164px]` in a `flex-wrap` row so they
-  size to the figure instead of stretching.
+- **Colour carries meaning, and it lives in the figures and chips — never in card headers.** Stat
+  tiles get a 3px coloured rule down the leading edge plus a coloured figure (**lifetime value green
+  `#1a7f3e`, outstanding red `#d64545`**, live leads = tenant accent, contracts neutral) from the
+  `STAT_TONE` map, and are `min-w-[164px]` in a `flex-wrap` row so they size to the figure rather
+  than stretching. **No icons on any card header** — every card is a plain title plus its jump link;
+  icon chips were tried there and rejected.
 - **No new queries.** Everything renders from what `getCustomerRecord()` already loads; a summary
   card must never add a round-trip. If a future card needs data the record doesn't carry, add it to
   that loader (behind `selectWithFallback`), not to the component.

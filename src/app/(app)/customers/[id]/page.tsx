@@ -33,6 +33,7 @@ import {
   Icon,
   Pill,
   RefChip,
+  StageBadge,
   btnPrimary,
   btnSecondary,
 } from "@/components/crm/primitives";
@@ -52,9 +53,7 @@ import {
   RelationshipTypeEditor,
 } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
-import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
-import type { IconName } from "@/components/crm/icon";
 
 // Customer detail — the full contact record across tabs, every field editable
 // inline (click a value to edit; Enter/blur saves).
@@ -162,90 +161,69 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
     <div className="flex max-w-[1320px] flex-col gap-4">
       <SnapshotStrip c={c} liveLeads={liveLeads} />
 
-      {/* Who they are and how to reach them. */}
-      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardTitle className="mb-2">Identity</CardTitle>
-          <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
-          <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
-          <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
-          <E c={c} label="First name" field="first_name" value={c.first_name} />
-          <E c={c} label="Last name" field="last_name" value={c.last_name} />
-          <E c={c} label="2nd first name" field="first_name_2" value={c.first_name_2} />
-          <E c={c} label="2nd last name" field="last_name_2" value={c.last_name_2} />
-          <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
-          {isCommercial(c.customer_type) && (
-            <E c={c} label="Company" field="company_name" value={c.company_name} last />
-          )}
-        </Card>
-        <Card>
-          <CardTitle className="mb-2">Main contact</CardTitle>
-          {c.mainContact ? (
-            <>
-              <Row label="Name">{c.mainContact.name}</Row>
-              {c.mainContact.position_role && (
-                <Row label="Role">{c.mainContact.position_role}</Row>
-              )}
-              <CRow id={c.mainContact.id} label="Email" field="email" value={c.mainContact.email} />
-              <CRow id={c.mainContact.id} label="Phone" field="phone" value={c.mainContact.phone} last />
-            </>
-          ) : (
-            <p className="py-2 text-[12px] text-[#71717a]">
-              Add a first &amp; last name — the main contact appears here.
-            </p>
-          )}
-        </Card>
-        <ContactSummary c={c} />
-        <AddressSummary c={c} />
-      </div>
-
-      {/* How they're handled: flags, consent, who they're linked to, their files. */}
-      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardTitle className="mb-2">Flags</CardTitle>
-          <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
-          <E c={c} label="Payment risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-          <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
-          <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
-        </Card>
-        <ConsentSummary c={c} />
-        <LinkedCustomers c={c} />
-        <RecentDocuments c={c} />
-      </div>
-
-      <div className="flex items-center gap-2.5">
-        <h2 className="font-[family-name:var(--font-inter-tight)] text-[16px] font-bold text-[#0a0a0a]">
-          Leads &amp; contracts
-        </h2>
-        <span className="text-xs text-[#71717a]">
-          {c.leadCount} {c.leadCount === 1 ? "lead" : "leads"} · {liveLeads} live · {c.contractCount}{" "}
-          {c.contractCount === 1 ? "contract" : "contracts"}
-          {c.lifetimeValue > 0 && (
-            <> · lifetime value <strong className="text-[#0a0a0a]">{gbp(c.lifetimeValue)}</strong></>
-          )}
-        </span>
-      </div>
-      <div className="flex flex-col gap-3">
-        {c.leads.length === 0 && c.contracts.length === 0 ? (
-          <Card className="text-center text-[12.5px] text-[#71717a]">
-            No leads yet.{" "}
-            <Link href={`/leads/new?customer=${c.id}`} className="font-semibold text-[var(--accent-blue)]">
-              Create the first lead →
-            </Link>
+      {/* Bento: four independent column stacks. Cards are different heights by
+          nature (Identity is ten rows, Contact is two) — a row-aligned grid
+          stretches every card in a row to the tallest, which is where the dead
+          space came from. Each column packs its own cards instead. */}
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardTitle className="mb-2">Identity</CardTitle>
+            <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
+            <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
+            <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
+            <E c={c} label="First name" field="first_name" value={c.first_name} />
+            <E c={c} label="Last name" field="last_name" value={c.last_name} />
+            <E c={c} label="2nd first name" field="first_name_2" value={c.first_name_2} />
+            <E c={c} label="2nd last name" field="last_name_2" value={c.last_name_2} />
+            <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
+            {isCommercial(c.customer_type) && (
+              <E c={c} label="Company" field="company_name" value={c.company_name} last />
+            )}
           </Card>
-        ) : (
-          c.leads.map((lead) => (
-            <div key={lead.id} className="flex flex-col gap-3">
-              <LeadCard lead={lead} />
-              {c.contracts.filter((ct) => ct.lead_id === lead.id).map((ct) => (
-                <ContractCard key={ct.id} contract={ct} />
-              ))}
-            </div>
-          ))
-        )}
-      </div>
+          <ContactSummary c={c} />
+          <Card>
+            <CardTitle className="mb-2">Flags</CardTitle>
+            <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
+            <E c={c} label="Payment risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
+            <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+            <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
+          </Card>
+        </div>
 
-      <RecentNotes c={c} />
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardTitle className="mb-2">Main contact</CardTitle>
+            {c.mainContact ? (
+              <>
+                <Row label="Name">{c.mainContact.name}</Row>
+                {c.mainContact.position_role && (
+                  <Row label="Role">{c.mainContact.position_role}</Row>
+                )}
+                <CRow id={c.mainContact.id} label="Email" field="email" value={c.mainContact.email} />
+                <CRow id={c.mainContact.id} label="Phone" field="phone" value={c.mainContact.phone} last />
+              </>
+            ) : (
+              <p className="py-2 text-[12px] text-[#71717a]">
+                Add a first &amp; last name — the main contact appears here.
+              </p>
+            )}
+          </Card>
+          <AddressSummary c={c} />
+          <LinkedCustomers c={c} />
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <ConsentSummary c={c} />
+          <RecentDocuments c={c} />
+          <RecentNotes c={c} />
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <ContractsCard c={c} />
+          <LeadsCard c={c} liveLeads={liveLeads} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -330,20 +308,16 @@ function Stat({
 }
 
 /**
- * Shared shell for the overview digests: a tinted icon chip carries the card's
- * meaning in colour, and the header always offers the jump to its owning tab.
+ * Shared shell for the overview digests — a plain title (no icon, to match the
+ * Identity/Flags cards) plus the jump to the tab that owns the data.
  */
 function SummaryCard({
   title,
-  icon,
-  tone,
   to,
   linkLabel = "View all →",
   children,
 }: {
   title: string;
-  icon: IconName;
-  tone: keyof typeof STAT_TONE;
   to: string;
   linkLabel?: string;
   children: React.ReactNode;
@@ -351,11 +325,6 @@ function SummaryCard({
   return (
     <Card>
       <div className="mb-2 flex items-center gap-2.5">
-        <span
-          className={`grid size-7 shrink-0 place-items-center rounded-lg ${STAT_TONE[tone].chip}`}
-        >
-          <Icon name={icon} size={14} strokeWidth={1.9} />
-        </span>
         <CardTitle>{title}</CardTitle>
         <TabLink to={to} className="ml-auto">
           {linkLabel}
@@ -366,43 +335,37 @@ function SummaryCard({
   );
 }
 
+/**
+ * The OTHER ways to reach them. The primary contact mirrors the customer's own
+ * name/email/phone by design, so anything already on the Main contact card is
+ * filtered out — otherwise the same number is printed twice, side by side. If
+ * that leaves nothing to say, the card doesn't render at all.
+ */
 function ContactSummary({ c }: { c: CustomerRecord }) {
-  const phones = [
-    { label: "Mobile", value: c.mobile },
-    { label: "Mobile 2", value: c.mobile_2 },
-    { label: "Home", value: c.home_telephone },
-    { label: "Work", value: c.work_telephone },
-  ].filter((p) => p.value);
-  const email = c.email ?? c.mainContact?.email ?? null;
+  const shown = new Set(
+    [c.mainContact?.email, c.mainContact?.phone].filter(Boolean).map((v) => String(v).trim()),
+  );
+  const rows = [
+    { label: "Email", value: c.email, href: (v: string) => `mailto:${v}` },
+    { label: "Mobile", value: c.mobile, href: (v: string) => `tel:${v}` },
+    { label: "Mobile 2", value: c.mobile_2, href: (v: string) => `tel:${v}` },
+    { label: "Home", value: c.home_telephone, href: (v: string) => `tel:${v}` },
+    { label: "Work", value: c.work_telephone, href: (v: string) => `tel:${v}` },
+  ].filter((r) => r.value && !shown.has(r.value.trim()));
+
+  if (rows.length === 0 && !c.no_whatsapp) return null;
   return (
-    <SummaryCard title="Contact" icon="phone" tone="accent" to="Address & access" linkLabel="Edit →">
-      {!email && phones.length === 0 ? (
-        <p className="py-1 text-[12px] text-[#71717a]">No phone or email recorded.</p>
-      ) : (
-        <>
-          {email && (
-            <Row label="Email">
-              <a
-                href={`mailto:${email}`}
-                className="text-[var(--accent-blue)] hover:underline"
-              >
-                {email}
-              </a>
-            </Row>
-          )}
-          {phones.map((p, i) => (
-            <Row key={p.label} label={p.label} last={i === phones.length - 1}>
-              <a href={`tel:${p.value}`} className="hover:text-[var(--accent-blue)]">
-                {p.value}
-              </a>
-            </Row>
-          ))}
-        </>
-      )}
-      {(c.no_whatsapp || c.do_not_contact) && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-[#f4f4f5] pt-2.5">
-          {c.do_not_contact && <Pill tone="danger">Do not contact</Pill>}
-          {c.no_whatsapp && <Pill tone="neutral">No WhatsApp</Pill>}
+    <SummaryCard title="Other contact" to="Address & access" linkLabel="Edit →">
+      {rows.map((r, i) => (
+        <Row key={r.label} label={r.label} last={i === rows.length - 1}>
+          <a href={r.href(r.value!)} className="hover:text-[var(--accent-blue)]">
+            {r.value}
+          </a>
+        </Row>
+      ))}
+      {c.no_whatsapp && (
+        <div className={`flex flex-wrap gap-1.5 ${rows.length > 0 ? "mt-2.5 border-t border-[#f4f4f5] pt-2.5" : ""}`}>
+          <Pill tone="neutral">No WhatsApp</Pill>
         </div>
       )}
     </SummaryCard>
@@ -416,13 +379,7 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
     .join(", ");
   const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
   return (
-    <SummaryCard
-      title="Address"
-      icon="flag"
-      tone="amber"
-      to="Address & access"
-      linkLabel="Edit →"
-    >
+    <SummaryCard title="Address" to="Address & access" linkLabel="Edit →">
       {lines.length === 0 && !c.postcode ? (
         <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
       ) : (
@@ -459,13 +416,7 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
     { label: "Post", value: c.letter_opt_in },
   ];
   return (
-    <SummaryCard
-      title="Marketing consent"
-      icon="check"
-      tone="success"
-      to="Marketing & permissions"
-      linkLabel="Edit →"
-    >
+    <SummaryCard title="Marketing consent" to="Marketing & permissions" linkLabel="Edit →">
       <div className="flex flex-wrap gap-1.5">
         {channels.map((ch) => (
           <ConsentChip key={ch.label} label={ch.label} value={ch.value} />
@@ -496,43 +447,156 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
   );
 }
 
-// The one full-width card, sitting under the leads list. Its notes tile 4-across
-// so it matches the column rhythm above rather than running the page width.
 function RecentNotes({ c }: { c: CustomerRecord }) {
-  const recent = c.customerNotes.slice(0, 4);
+  const recent = c.customerNotes.slice(0, 3);
   return (
-    <SummaryCard title="Recent notes" icon="message" tone="accent" to="Notes">
+    <SummaryCard title="Recent notes" to="Notes">
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {recent.map((n) => (
-            <TabJump
-              key={n.id}
-              to="Notes"
-              className="rounded-lg bg-[#fafafa] px-3 py-2.5 text-left transition-colors hover:bg-[#f4f4f5]"
-            >
-              <div className="flex items-center gap-2">
-                {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
-                <span className="truncate text-[11.5px] text-[#a1a1aa]">
-                  {n.author ?? "Unknown"} · {longDate(n.createdAt)}
-                </span>
-              </div>
-              <p className="mt-1.5 line-clamp-3 text-[12.5px] leading-[1.55] text-[#3f3f46]">
-                {n.content}
-              </p>
-            </TabJump>
-          ))}
-        </div>
+        recent.map((n, i) => (
+          <TabJump
+            key={n.id}
+            to="Notes"
+            className={`-mx-2 block w-[calc(100%+1rem)] rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
+              i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
+              <span className="truncate text-[11.5px] text-[#a1a1aa]">
+                {n.author ?? "Unknown"} · {longDate(n.createdAt)}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.55] text-[#3f3f46]">
+              {n.content}
+            </p>
+          </TabJump>
+        ))
       )}
     </SummaryCard>
+  );
+}
+
+// --- Column 4: the work itself ----------------------------------------------
+// Compact stacks rather than the full-width LeadCard/ContractCard — a column is
+// ~310px, so each row carries reference, what it is, when, and how much, and
+// opens the lead for everything else.
+
+function ContractsCard({ c }: { c: CustomerRecord }) {
+  const contracts = c.contracts;
+  return (
+    <Card>
+      <div className="mb-2 flex items-center gap-2.5">
+        <CardTitle>Contracts</CardTitle>
+        {contracts.length > 0 && (
+          <span className="ml-auto text-[11.5px] text-[#71717a]">{contracts.length}</span>
+        )}
+      </div>
+      {contracts.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">
+          No contracts yet — they appear here once a lead is won.
+        </p>
+      ) : (
+        contracts.map((k, i) => {
+          const row = (
+            <div
+              className={`flex flex-col gap-1 py-2 ${
+                i === contracts.length - 1 ? "" : "border-b border-[#f4f4f5]"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                  {k.contract_type ?? "Contract"}
+                </span>
+                <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
+                  {gbp(k.gross_value ?? 0)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11.5px] text-[#a1a1aa]">
+                {k.contract_date && <span>{longDate(k.contract_date)}</span>}
+                {k.status && <Pill tone="neutral">{k.status}</Pill>}
+              </div>
+            </div>
+          );
+          return k.lead_id ? (
+            <Link
+              key={k.id}
+              href={`/leads/${k.lead_id}`}
+              className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
+            >
+              {row}
+            </Link>
+          ) : (
+            <div key={k.id}>{row}</div>
+          );
+        })
+      )}
+    </Card>
+  );
+}
+
+function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
+  return (
+    <Card>
+      <div className="mb-2 flex items-center gap-2.5">
+        <CardTitle>Leads</CardTitle>
+        {c.leads.length > 0 && (
+          <span className="ml-auto text-[11.5px] text-[#71717a]">
+            {c.leads.length} · {liveLeads} live
+          </span>
+        )}
+      </div>
+      {c.leads.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">
+          No leads yet.{" "}
+          <Link
+            href={`/leads/new?customer=${c.id}`}
+            className="font-semibold text-[var(--accent-blue)]"
+          >
+            Create the first →
+          </Link>
+        </p>
+      ) : (
+        c.leads.map((l, i) => (
+          <Link
+            key={l.id}
+            href={`/leads/${l.id}`}
+            className={`-mx-2 block rounded px-2 hover:bg-[#fafafa] ${
+              i === c.leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
+            }`}
+          >
+            <div className="flex flex-col gap-1 py-2">
+              <div className="flex items-center gap-2">
+                <RefChip>{leadRef(l.lead_number)}</RefChip>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                  {l.product_type ?? l.product_interest_1 ?? "Lead"}
+                </span>
+                {(l.gross_value ?? l.estimated_value) != null && (
+                  <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
+                    {gbp(l.gross_value ?? l.estimated_value ?? 0)}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <StageBadge status={l.status} />
+                {l.lead_date && (
+                  <span className="text-[11.5px] text-[#a1a1aa]">{longDate(l.lead_date)}</span>
+                )}
+              </div>
+            </div>
+          </Link>
+        ))
+      )}
+    </Card>
   );
 }
 
 function RecentDocuments({ c }: { c: CustomerRecord }) {
   const recent = c.documents.slice(0, 4);
   return (
-    <SummaryCard title="Recent documents" icon="file" tone="amber" to="Documents">
+    <SummaryCard title="Recent documents" to="Documents">
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No documents yet.</p>
       ) : (
@@ -561,7 +625,7 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
 function LinkedCustomers({ c }: { c: CustomerRecord }) {
   const linked = c.relationships.slice(0, 5);
   return (
-    <SummaryCard title="Linked customers" icon="user" tone="success" to="Relationships">
+    <SummaryCard title="Linked customers" to="Relationships">
       {linked.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">
           No linked customers — family, neighbours and referrers go here.
