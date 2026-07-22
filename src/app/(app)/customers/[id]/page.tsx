@@ -158,32 +158,37 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   return (
     // Capped so cards stay a readable measure on a wide monitor — four columns
     // stretched across 1900px leaves each one mostly empty space.
-    <div className="flex max-w-[1320px] flex-col gap-4">
+    //
+    // The overview is meant to fit its panel without scrolling, so it runs
+    // denser than the editing tabs: `[&_[data-row]]:py-[5px]` tightens every
+    // Row/E/CRow in one place instead of threading a `dense` prop through
+    // thirty call sites, and the cards use OV_CARD's tighter padding.
+    <div className="flex max-w-[1320px] flex-col gap-3 [&_[data-row]]:py-[5px]">
       <SnapshotStrip c={c} liveLeads={liveLeads} />
 
       {/* Bento: four independent column stacks. Cards are different heights by
           nature (Identity is ten rows, Contact is two) — a row-aligned grid
           stretches every card in a row to the tallest, which is where the dead
           space came from. Each column packs its own cards instead. */}
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardTitle className="mb-2">Identity</CardTitle>
+      <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-col gap-3">
+          <Card className={OV_CARD}>
+            <CardTitle className="mb-1.5">Identity</CardTitle>
             <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
             <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
             <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
             <E c={c} label="First name" field="first_name" value={c.first_name} />
             <E c={c} label="Last name" field="last_name" value={c.last_name} />
-            <E c={c} label="2nd first name" field="first_name_2" value={c.first_name_2} />
-            <E c={c} label="2nd last name" field="last_name_2" value={c.last_name_2} />
+            <E c={c} label="Second first name" field="first_name_2" value={c.first_name_2} />
+            <E c={c} label="Second last name" field="last_name_2" value={c.last_name_2} />
             <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
             {isCommercial(c.customer_type) && (
               <E c={c} label="Company" field="company_name" value={c.company_name} last />
             )}
           </Card>
           <ContactSummary c={c} />
-          <Card>
-            <CardTitle className="mb-2">Flags</CardTitle>
+          <Card className={OV_CARD}>
+            <CardTitle className="mb-1.5">Flags</CardTitle>
             <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
             <E c={c} label="Payment risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
             <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
@@ -191,9 +196,9 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardTitle className="mb-2">Main contact</CardTitle>
+        <div className="flex flex-col gap-3">
+          <Card className={OV_CARD}>
+            <CardTitle className="mb-1.5">Main contact</CardTitle>
             {c.mainContact ? (
               <>
                 <Row label="Name">{c.mainContact.name}</Row>
@@ -213,13 +218,13 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <LinkedCustomers c={c} />
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           <ConsentSummary c={c} />
           <RecentDocuments c={c} />
           <RecentNotes c={c} />
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           <ContractsCard c={c} />
           <LeadsCard c={c} liveLeads={liveLeads} />
         </div>
@@ -232,6 +237,16 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
 // Read-only digests of data that lives on another tab. Each one deep-links to
 // the tab that owns it (TabLink/TabJump) rather than duplicating its editing —
 // the owning tab stays the single place a field is changed.
+
+/** Overview card padding — tighter than the default Card so the tab fits its panel. */
+const OV_CARD = "!px-[15px] !py-[13px]";
+
+/**
+ * How many rows a digest shows before "View all →" takes over. Kept small on
+ * purpose: the overview has to fit without scrolling, and the owning tab is one
+ * click away for the full list.
+ */
+const DIGEST_ROWS = 3;
 
 function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
   const { lifetimeValue, outstandingTotal } = c.financials;
@@ -323,8 +338,8 @@ function SummaryCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <div className="mb-2 flex items-center gap-2.5">
+    <Card className={OV_CARD}>
+      <div className="mb-1.5 flex items-center gap-2.5">
         <CardTitle>{title}</CardTitle>
         <TabLink to={to} className="ml-auto">
           {linkLabel}
@@ -448,7 +463,7 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
 }
 
 function RecentNotes({ c }: { c: CustomerRecord }) {
-  const recent = c.customerNotes.slice(0, 3);
+  const recent = c.customerNotes.slice(0, DIGEST_ROWS);
   return (
     <SummaryCard title="Recent notes" to="Notes">
       {recent.length === 0 ? (
@@ -486,8 +501,8 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
 function ContractsCard({ c }: { c: CustomerRecord }) {
   const contracts = c.contracts;
   return (
-    <Card>
-      <div className="mb-2 flex items-center gap-2.5">
+    <Card className={OV_CARD}>
+      <div className="mb-1.5 flex items-center gap-2.5">
         <CardTitle>Contracts</CardTitle>
         {contracts.length > 0 && (
           <span className="ml-auto text-[11.5px] text-[#71717a]">{contracts.length}</span>
@@ -539,8 +554,8 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
 
 function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
   return (
-    <Card>
-      <div className="mb-2 flex items-center gap-2.5">
+    <Card className={OV_CARD}>
+      <div className="mb-1.5 flex items-center gap-2.5">
         <CardTitle>Leads</CardTitle>
         {c.leads.length > 0 && (
           <span className="ml-auto text-[11.5px] text-[#71717a]">
@@ -594,7 +609,7 @@ function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
 }
 
 function RecentDocuments({ c }: { c: CustomerRecord }) {
-  const recent = c.documents.slice(0, 4);
+  const recent = c.documents.slice(0, DIGEST_ROWS);
   return (
     <SummaryCard title="Recent documents" to="Documents">
       {recent.length === 0 ? (
@@ -623,7 +638,7 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
 }
 
 function LinkedCustomers({ c }: { c: CustomerRecord }) {
-  const linked = c.relationships.slice(0, 5);
+  const linked = c.relationships.slice(0, DIGEST_ROWS);
   return (
     <SummaryCard title="Linked customers" to="Relationships">
       {linked.length === 0 ? (
@@ -728,7 +743,7 @@ function CRow({
   listKey?: string;
 }) {
   return (
-    <div className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
+    <div data-row className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
       <span className="shrink-0 text-[#71717a]">{label}</span>
       <EditableField
         id={id}
@@ -843,7 +858,7 @@ function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <E c={c} label="Town" field="town" value={c.town} />
         <E c={c} label="County" field="county" value={c.county} />
         <E c={c} label="Postcode" field="postcode" value={c.postcode} mono />
-        <E c={c} label="what3words" field="what_3_words" value={c.what_3_words} mono />
+        <E c={c} label="What3words" field="what_3_words" value={c.what_3_words} mono />
         <E c={c} label="Business address" field="business_address" value={c.business_address} type="boolean" last />
       </Card>
       <div className="flex flex-col gap-4">
@@ -1133,7 +1148,7 @@ function E({
   last?: boolean;
 }) {
   return (
-    <div className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
+    <div data-row className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
       <span className="shrink-0 text-[#71717a]">{label}</span>
       <EditableField
         id={c.id}
@@ -1164,7 +1179,7 @@ function Row({
   last?: boolean;
 }) {
   return (
-    <div className={`flex justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
+    <div data-row className={`flex justify-between gap-3 py-2 text-[12.5px] ${last ? "" : "border-b border-[#f4f4f5]"}`}>
       <span className="shrink-0 text-[#71717a]">{label}</span>
       <span className={`text-right font-medium text-[#3f3f46] ${mono ? "font-mono" : ""}`}>{children}</span>
     </div>

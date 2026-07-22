@@ -29,7 +29,7 @@ export default async function AppLayout({
     // dialogs pick up the tenant accent variables (see components/crm/dialogs).
     <div
       style={tenantThemeVars(company)}
-      className="flex min-h-full flex-1 flex-col bg-[#f4f4f5]"
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f4f4f5]"
     >
       <DialogsProvider>
         <Topbar
@@ -40,7 +40,7 @@ export default async function AppLayout({
           userRole={user.role}
           userInitials={userInitials(user)}
         />
-        <div className="flex min-h-0 flex-1 items-stretch">
+        <div className="flex min-h-0 min-w-0 flex-1 items-stretch overflow-hidden">
           <Sidebar />
           <main className="mr-4 mb-4 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
             {children}

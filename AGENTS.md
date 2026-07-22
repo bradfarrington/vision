@@ -148,6 +148,26 @@ if (!ok) return;
 - Multi-field/interactive dialogs (e.g. "New additional-info field") stay bespoke `Dialog`
   compositions from `components/ui/dialog` — `useDialogs` is for confirm/acknowledge only.
 
+## App frame & scrolling — decided 2026-07-22
+
+**The document never scrolls — in either axis.** `html` and `body` are `h-full overflow-hidden`
+(`src/app/layout.tsx`), the app shell root is `h-full overflow-hidden`, and the sidebar/main row adds
+`min-w-0 overflow-hidden`. The topbar and icon rail are therefore always in place and there is no
+page-level scrollbar to chase.
+
+- **Every screen owns its own scroll.** A page's root is `flex flex-1 flex-col` plus either
+  `overflow-y-auto` (it may be taller than the panel) or `overflow-hidden` with an inner
+  `min-h-0 flex-1` scroller (lists, two-pane panels). Adding a page without one of those clips its
+  content instead of scrolling it — the document can't bail you out any more.
+- **The `(auth)` layout scrolls itself**, and its centring sits on an inner `min-h-full` wrapper, not
+  on the scroll container — `items-center` on a scroller clips the top of anything taller than the
+  window.
+- **Screens that aren't lists should FIT.** Scrolling is for data (lists, document/note panels, long
+  forms), not for a record's summary. The customer overview is the worked example: it runs denser
+  than the editing tabs (`[&_[data-row]]:py-[5px]` on the tab root, `OV_CARD` padding, `gap-3`) and
+  every digest caps at `DIGEST_ROWS` with "View all →" carrying the rest. Make new summary cards
+  earn their height the same way.
+
 ## Customer overview — summary cards — built 2026-07-22
 
 The Overview tab is the **at-a-glance answer to "who do I ring, where do they live, what do they

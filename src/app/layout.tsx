@@ -34,11 +34,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // The app is a fixed viewport frame: the document itself never scrolls in
+    // either axis. Every screen scrolls inside its own panel instead, so the
+    // topbar and rail stay put and there is no page-level scrollbar.
     <html
       lang="en-GB"
-      className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full overflow-hidden antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex h-full flex-col overflow-hidden">{children}</body>
     </html>
   );
 }

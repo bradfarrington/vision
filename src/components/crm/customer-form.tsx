@@ -138,7 +138,7 @@ export function CustomerForm({
           <Field label="Postcode">
             <input name="postcode" defaultValue={initial.postcode ?? ""} className={`${inputClass} font-mono uppercase`} />
           </Field>
-          <Field label="what3words" full>
+          <Field label="What3words" full>
             <input name="what_3_words" defaultValue={initial.what_3_words ?? ""} className={`${inputClass} font-mono`} placeholder="///plot.gains.slower" />
           </Field>
         </Section>
