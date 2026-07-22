@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { addNote, deleteNote, loadNoteHistory, updateNote } from "@/app/(app)/notes/actions";
-import { deleteDocument, getDocumentSignedUrl, uploadDocument } from "@/app/(app)/documents/actions";
+import { deleteDocument, uploadDocument } from "@/app/(app)/documents/actions";
 import type { NoteItem, NoteRevision } from "@/lib/data/notes";
 import type { DocumentItem } from "@/lib/data/documents";
 import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
 import { useDialogs } from "./dialogs";
 import { Icon } from "./icon";
+import { InlineViewer, FullscreenViewer, type ViewerDoc } from "./document-viewer";
 
 // ---------------------------------------------------------------------------
 // Customer notes panel — compose, link, attach, edit, and read back history.
@@ -43,35 +44,74 @@ export function NotesPanel({
   // The composer's open state lives here so the empty state's button can open
   // it — with no notes there's one call to action, not a link and a card.
   const [composing, setComposing] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState<ViewerDoc | null>(null);
   const attachmentsFor = (noteId: string) => documents.filter((d) => d.noteId === noteId);
   const empty = notes.length === 0;
 
+  const preview = documents.find((d) => d.id === previewId) ?? null;
+  const previewDoc: ViewerDoc | null = preview
+    ? { id: preview.id, name: preview.name, file_name: preview.file_name, file_type: preview.file_type }
+    : null;
+
+  // The PDF preview is a cross-origin iframe; once focused it eats the first
+  // click on the surrounding UI. Blurring it on mouse-down keeps note actions
+  // single-click. (Same guard as DocumentsPanel — keep both.)
+  function reclaimFocus() {
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active.tagName === "IFRAME") active.blur();
+  }
+
   return (
-    <div className="flex max-w-3xl flex-col gap-4">
-      {(!empty || composing) && (
-        <NoteComposer
-          customerId={customerId}
-          linkTargets={linkTargets}
-          open={composing}
-          setOpen={setComposing}
-        />
-      )}
-      {empty ? (
-        !composing && <EmptyNotes onAdd={() => setComposing(true)} />
-      ) : (
-        <div className="rounded-xl border border-[#e7e7ea] bg-white px-4">
-          {notes.map((n, i) => (
-            <NoteRow
-              key={n.id}
+    <div className="flex flex-col lg:h-full" onMouseDownCapture={reclaimFocus}>
+      <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-stretch">
+        {/* Left: composer + the note thread, scrolling internally */}
+        <div
+          className={cn(
+            "flex flex-col gap-4 lg:min-h-0",
+            empty ? "lg:w-full" : "lg:w-[45%] lg:shrink-0",
+          )}
+        >
+          {(!empty || composing) && (
+            <NoteComposer
               customerId={customerId}
-              note={n}
-              attachments={attachmentsFor(n.id)}
               linkTargets={linkTargets}
-              last={i === notes.length - 1}
+              open={composing}
+              setOpen={setComposing}
             />
-          ))}
+          )}
+          {empty ? (
+            !composing && <EmptyNotes onAdd={() => setComposing(true)} />
+          ) : (
+            <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+              <div className="rounded-xl border border-[#e7e7ea] bg-white px-4">
+                {notes.map((n, i) => (
+                  <NoteRow
+                    key={n.id}
+                    customerId={customerId}
+                    note={n}
+                    attachments={attachmentsFor(n.id)}
+                    linkTargets={linkTargets}
+                    last={i === notes.length - 1}
+                    previewId={previewId}
+                    onPreview={setPreviewId}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Right: the same inline viewer the Documents tab uses — click any
+            attachment on the left to preview it here. */}
+        {!empty && (
+          <div className="flex min-h-[600px] min-w-0 flex-1 flex-col lg:min-h-0">
+            <InlineViewer doc={previewDoc} onFullscreen={() => previewDoc && setFullscreen(previewDoc)} />
+          </div>
+        )}
+      </div>
+
+      <FullscreenViewer doc={fullscreen} onClose={() => setFullscreen(null)} />
     </div>
   );
 }
@@ -264,12 +304,16 @@ function NoteRow({
   attachments,
   linkTargets,
   last,
+  previewId,
+  onPreview,
 }: {
   customerId: string;
   note: NoteItem;
   attachments: DocumentItem[];
   linkTargets: NoteLinkTarget[];
   last: boolean;
+  previewId: string | null;
+  onPreview: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.content);
@@ -388,7 +432,13 @@ function NoteRow({
             </Link>
           )}
           {attachments.map((a) => (
-            <Attachment key={a.id} doc={a} customerId={customerId} />
+            <Attachment
+              key={a.id}
+              doc={a}
+              customerId={customerId}
+              selected={a.id === previewId}
+              onPreview={() => onPreview(a.id)}
+            />
           ))}
         </div>
       )}
@@ -491,22 +541,38 @@ function NoteRow({
 }
 
 // --- Attachment chip --------------------------------------------------------
-function Attachment({ doc, customerId }: { doc: DocumentItem; customerId: string }) {
+function Attachment({
+  doc,
+  customerId,
+  selected,
+  onPreview,
+}: {
+  doc: DocumentItem;
+  customerId: string;
+  selected: boolean;
+  onPreview: () => void;
+}) {
   const [pending, start] = useTransition();
   const router = useRouter();
   const { confirm } = useDialogs();
 
-  function open() {
-    start(async () => {
-      const res = await getDocumentSignedUrl(doc.id);
-      if (res.url) window.open(res.url, "_blank", "noopener,noreferrer");
-    });
-  }
-
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f4f4f5] px-2.5 py-1 text-[11.5px] text-[#3f3f46]">
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] transition-colors",
+        selected
+          ? "bg-[var(--accent-tint)] text-[var(--accent-active)]"
+          : "bg-[#f4f4f5] text-[#3f3f46] hover:bg-[#ececee]",
+      )}
+    >
       <Icon name={isImage(doc) ? "eye" : "file"} size={11} />
-      <button type="button" onClick={open} disabled={pending} className="font-medium hover:underline">
+      <button
+        type="button"
+        // Selects the file for the viewer on the right, rather than punting the
+        // user out to a new tab.
+        onMouseDown={onPreview}
+        className={cn("font-medium", selected && "font-semibold")}
+      >
         {doc.name}
       </button>
       <button

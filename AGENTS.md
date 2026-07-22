@@ -172,9 +172,13 @@ the customer record; reuse it for leads/contracts rather than forking.
 - **Attachments are ordinary documents** carrying `documents.note_id` — same bucket, same tenant
   RLS, same viewer, and they still appear on the Documents tab. `ON DELETE SET NULL`: deleting a
   note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field.
-- **UI:** `src/components/crm/notes-panel.tsx` — composer (text + link picker + attach), then
-  per-note author/date-time stamp, an "Edited by … " button that expands the full version list,
-  inline edit, per-note attach, and attachment chips that open signed URLs.
+- **UI:** `src/components/crm/notes-panel.tsx` — a **two-pane panel like the Documents tab**:
+  left (45%) = composer (text + link picker + attach) over the note thread, each note carrying its
+  author/date-time stamp, an "Edited by …" button that expands the full version list, inline edit,
+  per-note attach and attachment chips; right (55%) = the shared `InlineViewer`, so clicking an
+  attachment previews it in place (zoom, download, full screen) instead of opening a tab. Reuses
+  `document-viewer.tsx` unchanged — including the cross-origin PDF `reclaimFocus` guard, which
+  MUST stay wherever that viewer is embedded.
 
 ## Documents — reusable file store — built 2026-07-21
 
