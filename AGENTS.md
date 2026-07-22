@@ -624,17 +624,13 @@ fork per-entity copies.
   100% (in) or 75% (out).
 - **Viewer** (`document-viewer.tsx`): exports `InlineViewer` (right pane) and `FullscreenViewer`
   (overlay, opened from the pane's maximize button); both share a `Stage` that renders images
-  `<img>` (CSS zoom), PDFs via `<iframe>`, text `<iframe>`, else a download card. Zoom (− / % / +,
-  25–400%) shows for images + PDFs only. Two PDF-specific gotchas baked in:
-  - **Native chrome hidden + real zoom.** The PDF `<iframe>` src uses `#toolbar=0&navpanes=0&zoom=N`
-    so only the page shows and zoom drives the **viewer's own** vector zoom (crisp small text) —
-    resizing the iframe box just re-fits the same page and doesn't magnify. Applying a new `#zoom`
-    needs a reload, so the iframe is **keyed by zoom pct** to remount. Chromium/Edge only (Firefox
-    pdf.js ignores these params).
-  - **Cross-origin focus-steal.** The PDF iframe is served from the Supabase storage domain, so
+  `<img>` (CSS zoom), PDFs via **our own `PdfView`**, text `<iframe>`, else a download card. Zoom
+  (− / % / +, 25–400%) shows for images + PDFs only.
+  - **Cross-origin focus-steal.** A file `<iframe>` is served from the Supabase storage domain, so
     once focused it eats the first click on the surrounding UI. `DocumentsPanel` blurs the focused
     iframe on `onMouseDownCapture`, and list rows select on `onMouseDown` (not click) — so
-    switching files is reliably single-click. Keep both if you touch this.
+    switching files is reliably single-click. Keep both if you touch this. (PDFs no longer use an
+    iframe, but text files still do.)
   - Print: images open a print window; PDFs open in a new tab (the browser prints from there).
 - **The viewer is LIGHT — canvas grey behind the page, white chrome — inline and full screen alike**
   (changed 2026-07-22; the overlay was previously dark like the map's). A document is a white page,
@@ -642,12 +638,36 @@ fork per-entity copies.
   Documents tab look like a different product. `ZoomBar`/`Stage`/`Centered` no longer take a `dark`
   prop — there is one appearance. **Note the map overlay stays dark and that is not an
   inconsistency**: map tiles are imagery, a scan is paper.
-- **The grey around a PDF page is the BROWSER's, not ours, and CSS cannot reach it.** The page is a
-  cross-origin `<iframe>` and Chromium paints its own `#525659` surround inside it. Our wrapper is
-  the app canvas and shows while the viewer loads. **Don't "fix" this with a colour change** — the
-  only real fix is rendering PDFs ourselves with pdf.js (a dependency + worker asset, and we'd have
-  to rebuild print, text selection and paging that the native viewer gives free). Not done; decide
-  deliberately if it ever matters enough.
+
+### PDFs are rendered by us, with pdf.js — built 2026-07-22
+
+`src/components/crm/pdf-view.tsx` renders each page to a `<canvas>` and frames it ourselves: white
+sheet, soft shadow, app canvas behind, pages stacked with a gap. **The browser's built-in viewer was
+tried first and could not be made to fit** — it paints its own near-black `#525659` surround inside a
+cross-origin `<iframe>`, which no CSS of ours can reach, at any tier of `#toolbar=0` chrome-hiding.
+That is the whole reason for the dependency; don't undo it to save 350KB.
+
+- **The worker is a static asset, copied at install time.** `scripts/copy-pdf-worker.mjs`
+  (a `postinstall`) copies `pdf.worker.min.mjs` out of `node_modules` into `public/`, and the viewer
+  points `GlobalWorkerOptions.workerSrc` at `/pdf.worker.min.mjs`. It is **gitignored** — node_modules
+  is the source of truth, so the copy can never drift from the `pdfjs-dist` we actually run. Resolving
+  it via `new URL(…, import.meta.url)` was rejected: it puts a runtime asset at the mercy of whichever
+  bundler is in play, and this way dev, `next build` and Vercel behave identically.
+- **`src/proxy.ts` must keep excluding `pdf.worker.min.mjs`** from the session matcher. A redirect
+  hands pdf.js an HTML page where it expects a script, and PDFs fail with nothing useful on screen.
+- **pdfjs-dist is imported dynamically, inside the effect**, and memoised in a module-level promise —
+  a record with no PDF never downloads it, and it can never run during SSR.
+- **Zoom means the same as it always did**: `fit` fits the WHOLE page to the pane (measured from
+  page 1 via a `ResizeObserver`), a percentage is paper size — hence `96/72`, since pdf.js scale 1 is
+  72dpi. Canvases are rasterised at `devicePixelRatio` (capped at 2) and presented at CSS size, or
+  small print is soft on a retina screen.
+- **Pages render lazily** (`IntersectionObserver`, 400px margin) and each holds its footprint from
+  page 1's aspect ratio before it rasterises, so a long document neither renders up front nor makes
+  the scroller jump as pages arrive. Render tasks are cancelled on zoom change and unmount.
+- **Known trade-off: there is NO text layer**, so a digital PDF can't be selected or searched in
+  place. Accepted because most files here are scans; Download opens the real file and Print still
+  hands off to the browser. Adding `TextLayer` is the follow-up if anyone asks for search.
+
 - **Loaders** select the shared `DOCUMENT_SELECT` (incl. `uploader:uploaded_by(...)`) and map
   with `mapDocumentRow` → `DocumentItem`. `getCustomerRecord` already does this;
   `CustomerDoc` is now an alias of `DocumentItem`. A standalone `getDocuments(ownerType, ownerId)`

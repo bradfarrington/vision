@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { getDocumentSignedUrl } from "@/app/(app)/documents/actions";
 import { Icon } from "./icon";
+import { PdfView } from "./pdf-view";
 
 export type ViewerDoc = {
   id: string;
@@ -37,7 +38,7 @@ const ZOOM_STEP = 0.25;
  * A4 survey opens cropped to its top-left corner and every user's first move is
  * to zoom out.) Stepping out of "fit" lands on the nearest sensible scale.
  */
-type Zoom = number | "fit";
+export type Zoom = number | "fit";
 const ZOOM_FROM_FIT_IN = 1;
 const ZOOM_FROM_FIT_OUT = 0.75;
 
@@ -159,36 +160,11 @@ function Stage({
   }
 
   if (k === "pdf") {
-    // Drive the PDF viewer's OWN zoom via the #zoom= param so the page re-renders
-    // its vectors at the new scale (crisp small text) — scaling the iframe box
-    // only makes the viewer re-fit the same page. Hide its chrome (toolbar / page
-    // nav / sidebar); keep the scrollbar so a zoomed page can be panned. Changing
-    // the #fragment alone won't re-apply zoom, so the iframe is keyed by zoom to
-    // remount. The signed URL keeps its ?token= query; PDF params go after #.
-    //
-    // "fit" maps to the viewer's own page-fit mode, which sizes the WHOLE page
-    // to the pane — `zoom=100` means actual paper size, so an A4 scan opened
-    // cropped to its top-left corner.
-    // `view=Fit` is the PDF open-parameter Chromium honours; `zoom=page-fit` is
-    // pdf.js's spelling of the same thing. Emitting both covers either viewer,
-    // and neither is sent when an explicit percentage is chosen.
-    const hash =
-      zoom === "fit"
-        ? "#toolbar=0&navpanes=0&view=Fit&zoom=page-fit"
-        : `#toolbar=0&navpanes=0&zoom=${Math.round(zoom * 100)}`;
-    return (
-      // NB: the surround you actually see around a PDF page is painted by the
-      // browser's own PDF viewer INSIDE this cross-origin iframe — CSS can't
-      // reach it. This is our canvas showing while it loads.
-      <div className="h-full w-full bg-[var(--canvas)]">
-        <iframe
-          key={String(zoom)}
-          src={`${url}${hash}`}
-          title={doc.name}
-          className="h-full w-full border-0"
-        />
-      </div>
-    );
+    // Rendered by us, not by the browser's built-in viewer — see pdf-view.tsx
+    // for why (its near-black surround lives inside a cross-origin iframe and
+    // no CSS of ours can reach it). "fit" fits the whole page to the pane;
+    // a percentage is paper size, so 100% is A4 at A4.
+    return <PdfView key={url} url={url} zoom={zoom} />;
   }
 
   if (k === "text") {

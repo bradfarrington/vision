@@ -14,9 +14,11 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico and common image assets
+     * - pdf.worker.min.mjs — pdf.js fetches its worker from /public, and a
+     *   session redirect would hand it HTML instead of a script.
      * Adjust as needed; auth checks must also live in Server Actions/Components,
      * not only here (see Next 16 proxy docs on Server Function coverage).
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|pdf\\.worker\\.min\\.mjs|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
