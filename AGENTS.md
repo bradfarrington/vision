@@ -283,26 +283,22 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   Contacts · Relationships · Address · Account · Marketing · Additional Info · Documents · Notes.
   Jump targets (`TabLink`/`TabJump` `to=`) are matched case-insensitively but still by label, so a
   rename means updating them — grep `to="` before renaming a tab.
-- **The Leads & Contracts tab is two STACKED TABLES, not cards and not sub-tabs.** Leads first,
-  then contracts, each with the /leads list's frame (heading + count, uppercase column row, grid
-  rows). Contracts sort to follow their leads' order and name the originating lead in a "From lead"
-  column; one whose lead is missing or belongs to another customer sorts last and renders as a
-  plain row, not a link that goes nowhere.
-  - *Rows beat cards here* — a card can't line values, stages and dates up with each other, and the
-    meta that made the designed `LeadCard` two lines tall costs no height in a column. The designed
-    horizontal cards (`components/crm/lead-card.tsx`) were **deleted** when this landed; the design
-    screens still show them, and that divergence is deliberate.
-  - *Sub-tabs were considered and rejected.* The record is already ten tabs deep, a customer has a
-    handful of each, and nesting would mean overview jumps landing on whichever sub-tab was last
-    active. Both lists stay visible.
-- **Customisable columns belong to the LIST SCREENS first** (`/leads`, `/customers`), which today
+- **The Leads & Contracts tab is two COLUMNS of cards** — leads left, contracts right, using the
+  designed `LeadCard`/`ContractCard` (`components/crm/lead-card.tsx`), each card one line:
+  reference · title · value · stage. Contracts follow their leads' order and carry `fromLead`
+  ("from L-2431"), since they no longer sit under their lead behind a connector elbow.
+- **The customer record is a SUMMARY of the work, not a workbench for it.** Two alternatives were
+  built and rejected on 2026-07-22: **sub-tabs** (Leads | Contracts) — the record is already ten tabs
+  deep and nesting would land overview jumps on whichever sub-tab was last active; and **full tables
+  with per-column detail** — too much detail for a record you open to remind yourself who this is.
+  Anyone who wants the full picture with dates, sources and salespeople goes to `/leads`. Keep this
+  tab at a glance; push depth to the list screens.
+- **Customisable columns belong to the LIST SCREENS ONLY** (`/leads`, `/customers`), which today
   hardcode a `GRID` template string. When built: a column registry per entity (key, label, width,
-  renderer, sortable) + a saved preference, and this tab then reuses that component with a customer
-  filter and a narrower default column set. Do NOT build a bespoke column picker inside the customer
-  record — that builds it twice.
-- **A saved column layout is PER USER, per list** (not per tenant): a salesperson and a fitter want
-  different columns, and one admin's preference must not become everyone's. A tenant-level default
-  with user override can layer on later; the storage should assume user-scoped from the start.
+  renderer, sortable) + a saved preference. **A saved column layout is PER USER, per list** (not per
+  tenant) — a salesperson and a fitter want different columns, and one admin's preference must not
+  become everyone's. A tenant default with user override can layer on later; assume user-scoped
+  storage from the start. Do NOT bring a column picker into the customer record.
 
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 
