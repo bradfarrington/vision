@@ -40,15 +40,24 @@ export function NotesPanel({
   /** Leads + contracts a note can be pinned to. */
   linkTargets: NoteLinkTarget[];
 }) {
+  // The composer's open state lives here so the empty state's button can open
+  // it — with no notes there's one call to action, not a link and a card.
+  const [composing, setComposing] = useState(false);
   const attachmentsFor = (noteId: string) => documents.filter((d) => d.noteId === noteId);
+  const empty = notes.length === 0;
 
   return (
     <div className="flex max-w-3xl flex-col gap-4">
-      <NoteComposer customerId={customerId} linkTargets={linkTargets} />
-      {notes.length === 0 ? (
-        <p className="py-8 text-center text-[12.5px] text-[#71717a]">
-          No customer notes yet — the first one goes above.
-        </p>
+      {(!empty || composing) && (
+        <NoteComposer
+          customerId={customerId}
+          linkTargets={linkTargets}
+          open={composing}
+          setOpen={setComposing}
+        />
+      )}
+      {empty ? (
+        !composing && <EmptyNotes onAdd={() => setComposing(true)} />
       ) : (
         <div className="rounded-xl border border-[#e7e7ea] bg-white px-4">
           {notes.map((n, i) => (
@@ -67,15 +76,44 @@ export function NotesPanel({
   );
 }
 
+// --- Empty state ------------------------------------------------------------
+// Matches the Documents panel's empty card: dashed well, one icon, one line of
+// explanation, one button. It also sells what notes do here — stamped, linkable
+// and versioned — which a bare "no notes yet" doesn't.
+function EmptyNotes({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#e7e7ea] bg-[#fafafa] px-6 py-14 text-center">
+      <span className="mb-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-tint)] text-[var(--accent-active)]">
+        <Icon name="message" size={18} strokeWidth={1.75} />
+      </span>
+      <p className="text-[13.5px] font-semibold text-[#0a0a0a]">No notes on this customer yet</p>
+      <p className="max-w-[380px] text-[12px] leading-relaxed text-[#71717a]">
+        Every note records who wrote it and when. Pin one to a lead or contract, attach photos or
+        documents, and edits keep a full history.
+      </p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-blue)] px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+      >
+        <Icon name="plus" size={13} strokeWidth={2.2} /> Write the first note
+      </button>
+    </div>
+  );
+}
+
 // --- Composer ---------------------------------------------------------------
 function NoteComposer({
   customerId,
   linkTargets,
+  open,
+  setOpen,
 }: {
   customerId: string;
   linkTargets: NoteLinkTarget[];
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [content, setContent] = useState("");
   const [link, setLink] = useState<string>(NO_LINK);
   const [files, setFiles] = useState<File[]>([]);
