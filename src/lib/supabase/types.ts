@@ -131,6 +131,59 @@ export type Database = {
           },
         ]
       }
+      address_locations: {
+        Row: {
+          address_key: string
+          address_line: string | null
+          checked_at: string
+          company_id: string
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          match_precision: string | null
+          place: string | null
+          postcode: string | null
+          source: string
+        }
+        Insert: {
+          address_key: string
+          address_line?: string | null
+          checked_at?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          match_precision?: string | null
+          place?: string | null
+          postcode?: string | null
+          source?: string
+        }
+        Update: {
+          address_key?: string
+          address_line?: string | null
+          checked_at?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          match_precision?: string | null
+          place?: string | null
+          postcode?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "address_locations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           assigned_to: string | null
@@ -1915,10 +1968,12 @@ export type Database = {
         Row: {
           category: string | null
           company_id: string
+          content_hash: string | null
           context: string | null
           contract_id: string | null
           created_at: string
           customer_id: string | null
+          document_number: number | null
           file_name: string
           file_size: number | null
           file_type: string | null
@@ -1931,10 +1986,12 @@ export type Database = {
         Insert: {
           category?: string | null
           company_id: string
+          content_hash?: string | null
           context?: string | null
           contract_id?: string | null
           created_at?: string
           customer_id?: string | null
+          document_number?: number | null
           file_name: string
           file_size?: number | null
           file_type?: string | null
@@ -1947,10 +2004,12 @@ export type Database = {
         Update: {
           category?: string | null
           company_id?: string
+          content_hash?: string | null
           context?: string | null
           contract_id?: string | null
           created_at?: string
           customer_id?: string | null
+          document_number?: number | null
           file_name?: string
           file_size?: number | null
           file_type?: string | null
@@ -2720,31 +2779,43 @@ export type Database = {
           category: string | null
           company_id: string
           content: string
+          contract_id: string | null
           created_at: string
           created_by: string | null
           customer_id: string | null
           id: string
           lead_id: string | null
+          note_number: number | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           category?: string | null
           company_id: string
           content: string
+          contract_id?: string | null
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
           id?: string
           lead_id?: string | null
+          note_number?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           category?: string | null
           company_id?: string
           content?: string
+          contract_id?: string | null
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
           id?: string
           lead_id?: string | null
+          note_number?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -2752,6 +2823,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
             referencedColumns: ["id"]
           },
           {
@@ -2773,6 +2851,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -3167,6 +3252,104 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_attachments: {
+        Row: {
+          company_id: string
+          created_at: string
+          document_id: string
+          id: string
+          note_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          document_id: string
+          id?: string
+          note_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          note_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_attachments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_attachments_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "lead_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_revisions: {
+        Row: {
+          company_id: string
+          content: string
+          edited_at: string
+          edited_by: string | null
+          id: string
+          note_id: string
+          version: number
+        }
+        Insert: {
+          company_id: string
+          content: string
+          edited_at?: string
+          edited_by?: string | null
+          id?: string
+          note_id: string
+          version: number
+        }
+        Update: {
+          company_id?: string
+          content?: string
+          edited_at?: string
+          edited_by?: string | null
+          id?: string
+          note_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_revisions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_revisions_edited_by_fkey"
+            columns: ["edited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_revisions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "lead_notes"
             referencedColumns: ["id"]
           },
         ]
@@ -3826,6 +4009,44 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ui_layouts: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          layout: Json
+          layout_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          layout?: Json
+          layout_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          layout?: Json
+          layout_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ui_layouts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
