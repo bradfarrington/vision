@@ -70,6 +70,16 @@ export function contractRef(contractNumber: number | null | undefined): string {
   return contractNumber != null ? `C-${contractNumber}` : "C-—";
 }
 
+/** Human reference for a document: D-104. */
+export function documentRef(documentNumber: number | null | undefined): string {
+  return documentNumber != null ? `D-${documentNumber}` : "D-—";
+}
+
+/** Human reference for a note: N-18. */
+export function noteRef(noteNumber: number | null | undefined): string {
+  return noteNumber != null ? `N-${noteNumber}` : "N-—";
+}
+
 function titleCase(s: string): string {
   return s
     .replace(/[_-]+/g, " ")

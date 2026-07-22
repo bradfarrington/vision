@@ -173,6 +173,12 @@ the customer record; reuse it for leads/contracts rather than forking.
   RLS, same viewer, and they still appear on the Documents tab. `ON DELETE SET NULL`: deleting a
   note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field, and
   rename them in place with the shared `renameDocument`.
+- **Every note and document carries a per-tenant reference** — `N-<n>` / `D-<n>`, allocated by the
+  shared `next_reference` counter (`documents.document_number`, `lead_notes.note_number`; helpers
+  `noteRef`/`documentRef` in `src/lib/leads.ts`). Shown on note meta lines, document rows, and in
+  the viewer header beside the file name — where a note attachment also shows "Note N-18", so a
+  previewed file always says where it came from. Anything else that creates notes/documents MUST
+  allocate its number the same way.
 - **Never store the same bytes twice.** Files are hashed (SHA-256 → `documents.content_hash`),
   computed in the browser before upload so a duplicate costs one small query, not a wasted upload.
   If the identical file is already on the customer, the user picks: attach the existing one
@@ -267,7 +273,9 @@ fork per-entity copies.
   **`20260721101000_documents_storage.sql` (documents bucket + storage RLS),
   `20260721101100_document_categories.sql` (category defaults) and
   `20260722090000_note_links_versions_attachments.sql` (note links/versions/attachments) and
-  `20260722091000_document_dedupe.sql` (content hash + dedupe indexes) still need applying** — document upload/view won't work until the storage one is run in the SQL
+  `20260722091000_document_dedupe.sql` (content hash + dedupe indexes) and
+  `20260722092000_document_note_numbers.sql` (D-/N- reference numbers + backfill) still need
+  applying** — document upload/view won't work until the storage one is run in the SQL
   editor, and the Notes tab will error until the note one is. After applying the note migration,
   **reload the PostgREST schema cache** (Supabase dashboard → API → restart, or
   `notify pgrst, 'reload schema';`) or the new `updated_by`/`note_id` embeds fail to resolve.

@@ -98,9 +98,13 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     });
   if (upErr) return { error: `Upload failed: ${upErr.message}` };
 
+  // Per-tenant reference (D-<n>) — the counter derives the tenant from the JWT.
+  const { data: documentNumber } = await supabase.rpc("next_reference", { p_name: "document" });
+
   const db = supabase as any;
   const { error: insErr } = await db.from("documents").insert({
     company_id: companyId,
+    document_number: documentNumber != null ? Number(documentNumber) : null,
     [OWNER_FK[ownerType]]: ownerId,
     // Always link the owning customer so the doc is reachable from the customer
     // record too (customer owner → same id; lead/contract → its customer).
@@ -190,8 +194,12 @@ export async function attachExistingDocument(args: {
   if (readErr) return { error: readErr.message };
   if (!src) return { error: "That file is no longer on the record." };
 
+  // A shared object still gets its own reference — it's a distinct attachment.
+  const { data: documentNumber } = await supabase.rpc("next_reference", { p_name: "document" });
+
   const { error } = await db.from("documents").insert({
     company_id: companyId,
+    document_number: documentNumber != null ? Number(documentNumber) : null,
     [OWNER_FK[args.ownerType as DocumentOwnerType]]: args.ownerId,
     customer_id: src.customer_id,
     context: args.ownerType,

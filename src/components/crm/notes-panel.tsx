@@ -19,6 +19,7 @@ import { Combo } from "./combo";
 import { useDialogs } from "./dialogs";
 import { Icon } from "./icon";
 import { InlineViewer, FullscreenViewer, type ViewerDoc } from "./document-viewer";
+import { documentRef, noteRef } from "@/lib/leads";
 
 // ---------------------------------------------------------------------------
 // Customer notes panel — compose, link, attach, edit, and read back history.
@@ -57,7 +58,16 @@ export function NotesPanel({
 
   const preview = documents.find((d) => d.id === previewId) ?? null;
   const previewDoc: ViewerDoc | null = preview
-    ? { id: preview.id, name: preview.name, file_name: preview.file_name, file_type: preview.file_type }
+    ? {
+        id: preview.id,
+        name: preview.name,
+        file_name: preview.file_name,
+        file_type: preview.file_type,
+        reference: documentRef(preview.number),
+        // Which note the file is attached to, so the preview always says where
+        // it came from.
+        source: preview.noteId ? `Note ${noteRef(preview.noteNumber)}` : null,
+      }
     : null;
 
   // The PDF preview is a cross-origin iframe; once focused it eats the first
@@ -451,6 +461,9 @@ function NoteRow({
       )}
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#a1a1aa]">
+        <span className="font-mono text-[10.5px] font-semibold text-[#71717a]">
+          {noteRef(note.number)}
+        </span>
         <span>
           {note.author ?? "Unknown"} · {fmtDateTime(note.createdAt)}
         </span>
@@ -579,6 +592,9 @@ function Attachment({
       <input
         autoFocus
         defaultValue={doc.name}
+        // Sized from the name so the chip keeps its width while renaming
+        // instead of collapsing to the input's default size.
+        size={Math.max(doc.name.length + 2, 12)}
         onBlur={(e) => commitRename(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -588,7 +604,7 @@ function Attachment({
             setRenaming(false);
           }
         }}
-        className="rounded-full border border-[var(--accent-blue)] bg-white px-2.5 py-1 text-[11.5px] text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+        className="max-w-full rounded-full border border-[var(--accent-blue)] bg-white px-2.5 py-1 text-[11.5px] text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
       />
     );
   }

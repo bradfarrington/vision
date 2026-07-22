@@ -18,6 +18,7 @@ import { Icon } from "./icon";
 import { Combo } from "./combo";
 import { useDialogs } from "./dialogs";
 import { InlineViewer, FullscreenViewer, type ViewerDoc } from "./document-viewer";
+import { documentRef, noteRef } from "@/lib/leads";
 
 type CategoryOption = { id: string; label: string };
 
@@ -53,7 +54,14 @@ export function DocumentsPanel({
 
   const selected = documents.find((d) => d.id === selectedId) ?? null;
   const selectedViewer: ViewerDoc | null = selected
-    ? { id: selected.id, name: selected.name, file_name: selected.file_name, file_type: selected.file_type }
+    ? {
+        id: selected.id,
+        name: selected.name,
+        file_name: selected.file_name,
+        file_type: selected.file_type,
+        reference: documentRef(selected.number),
+        source: selected.noteId ? `Note ${noteRef(selected.noteNumber)}` : null,
+      }
     : null;
 
   async function handleFiles(fileList: FileList | File[]) {
@@ -367,8 +375,11 @@ function DocRow({
         )}
 
         <p className="mt-0.5 truncate text-[11px] text-[#a1a1aa]">
+          <span className="font-mono font-semibold text-[#71717a]">{documentRef(doc.number)}</span>
+          {" · "}
           {doc.uploader ?? "—"} · {longDate(doc.created_at)}
           {doc.file_size ? ` · ${fileSize(doc.file_size)}` : ""}
+          {doc.noteId ? ` · from note ${noteRef(doc.noteNumber)}` : ""}
         </p>
 
         {/* Category picker */}

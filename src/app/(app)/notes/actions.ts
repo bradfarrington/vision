@@ -48,10 +48,14 @@ export async function addNote(input: {
   } = await supabase.auth.getUser();
   const db = supabase as any;
 
+  // Per-tenant reference (N-<n>) — the counter derives the tenant from the JWT.
+  const { data: noteNumber } = await supabase.rpc("next_reference", { p_name: "note" });
+
   const ins = await db
     .from("lead_notes")
     .insert({
       company_id: companyId,
+      note_number: noteNumber != null ? Number(noteNumber) : null,
       customer_id: input.customerId ?? null,
       lead_id: input.leadId ?? null,
       contract_id: input.contractId ?? null,

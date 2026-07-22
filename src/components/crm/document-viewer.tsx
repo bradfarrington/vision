@@ -10,6 +10,10 @@ export type ViewerDoc = {
   name: string;
   file_name: string;
   file_type: string | null;
+  /** Human reference, e.g. "D-104" — shown beside the name. */
+  reference?: string | null;
+  /** Where the file came from, e.g. "Note N-18" or "Lead L-2431". */
+  source?: string | null;
 };
 
 type Kind = "image" | "pdf" | "text" | "other";
@@ -229,7 +233,19 @@ function InlineBody({ doc, onFullscreen }: { doc: ViewerDoc; onFullscreen: () =>
     <div className="flex h-full min-h-[600px] flex-1 flex-col overflow-hidden rounded-xl border border-[#e7e7ea] bg-white">
       <div className="flex items-center gap-2 border-b border-[#f4f4f5] px-3 py-2">
         <Icon name="file" size={15} strokeWidth={1.75} className="shrink-0 text-[var(--accent-blue)]" />
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-[#0a0a0a]">{doc.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-[#0a0a0a]">
+          {doc.name}
+          {doc.reference && (
+            <span className="ml-1.5 font-mono text-[11px] font-medium text-[#a1a1aa]">
+              {doc.reference}
+            </span>
+          )}
+          {doc.source && (
+            <span className="ml-1.5 rounded-full bg-[var(--accent-tint)] px-1.5 py-0.5 text-[10.5px] font-semibold text-[var(--accent-active)]">
+              {doc.source}
+            </span>
+          )}
+        </span>
         {zoomable && <ZoomBar zoom={zoom} setZoom={setZoom} />}
         <button
           type="button"
@@ -288,7 +304,19 @@ function FsOverlay({ doc, onClose }: { doc: ViewerDoc; onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm">
       <div className="flex items-center gap-3 px-4 py-3 text-white">
         <Icon name="file" size={16} strokeWidth={1.75} className="text-white/70" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{doc.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+          {doc.name}
+          {doc.reference && (
+            <span className="ml-1.5 font-mono text-[11.5px] font-medium text-white/60">
+              {doc.reference}
+            </span>
+          )}
+          {doc.source && (
+            <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[11px] font-semibold text-white/90">
+              {doc.source}
+            </span>
+          )}
+        </span>
         {zoomable && <ZoomBar zoom={zoom} setZoom={setZoom} dark />}
         <button
           type="button"

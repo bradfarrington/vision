@@ -71,6 +71,8 @@ export function ownerRevalidatePath(ownerType: DocumentOwnerType, ownerId: strin
 
 export type DocumentItem = {
   id: string;
+  /** Per-tenant reference number, shown as D-<n>. */
+  number: number | null;
   name: string; // display name (renameable)
   file_name: string; // original uploaded filename
   file_type: string | null; // MIME type
@@ -82,15 +84,18 @@ export type DocumentItem = {
   uploader: string | null; // resolved display name
   /** Set when the file was attached to a note (it's still a normal document). */
   noteId: string | null;
+  /** The reference number of that note, for "from N-18" labels. */
+  noteNumber: number | null;
 };
 
 // Columns selected for a document row, plus the uploader name join. Kept here so
 // getCustomerRecord (and future lead/contract loaders) select an identical shape.
 export const DOCUMENT_SELECT =
-  "id, name, file_name, file_type, file_size, file_url, category, created_at, note_id, uploaded_by, uploader:uploaded_by(first_name, last_name)";
+  "id, document_number, name, file_name, file_type, file_size, file_url, category, created_at, note_id, note:note_id(note_number), uploaded_by, uploader:uploaded_by(first_name, last_name)";
 
 type RawDocRow = {
   id: string;
+  document_number: number | null;
   name: string;
   file_name: string;
   file_type: string | null;
@@ -99,6 +104,7 @@ type RawDocRow = {
   category: string | null;
   created_at: string;
   note_id: string | null;
+  note: { note_number: number | null } | null;
   uploaded_by: string | null;
   uploader: { first_name: string | null; last_name: string | null } | null;
 };
@@ -107,6 +113,7 @@ type RawDocRow = {
 export function mapDocumentRow(row: RawDocRow): DocumentItem {
   return {
     id: row.id,
+    number: row.document_number ?? null,
     name: row.name,
     file_name: row.file_name,
     file_type: row.file_type,
@@ -116,6 +123,7 @@ export function mapDocumentRow(row: RawDocRow): DocumentItem {
     created_at: row.created_at,
     uploaded_by: row.uploaded_by,
     noteId: row.note_id ?? null,
+    noteNumber: row.note?.note_number ?? null,
     uploader: row.uploader
       ? [row.uploader.first_name, row.uploader.last_name].filter(Boolean).join(" ").trim() || null
       : null,

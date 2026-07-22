@@ -33,6 +33,8 @@ export type NoteRevision = {
 
 export type NoteItem = {
   id: string;
+  /** Per-tenant reference number, shown as N-<n>. */
+  number: number | null;
   content: string;
   category: string | null;
   createdAt: string;
@@ -47,7 +49,7 @@ export type NoteItem = {
 // Selected columns for a note row incl. author/editor joins. Shared so every
 // loader returns an identical shape.
 export const NOTE_SELECT =
-  "id, content, category, created_at, updated_at, lead_id, contract_id, " +
+  "id, note_number, content, category, created_at, updated_at, lead_id, contract_id, " +
   "author:created_by(first_name, last_name), editor:updated_by(first_name, last_name)";
 
 type NameJoin = { first_name: string | null; last_name: string | null } | null;
@@ -61,6 +63,7 @@ function personName(p: NameJoin): string | null {
 export function mapNoteRow(row: any): NoteItem {
   return {
     id: row.id,
+    number: row.note_number ?? null,
     content: row.content,
     category: row.category ?? null,
     createdAt: row.created_at,
