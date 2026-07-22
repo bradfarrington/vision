@@ -417,7 +417,16 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   is shareable/back-button-friendly — only the column layout is a saved preference. Both popovers use
   `useFloatingMenu` (fixed, in-tree), NOT the base-ui `Popover` (it portals to `document.body`, which
   drops the tenant accent — see § Popover menus).
-- **The filter set spans the customer fields, applied server-side against an ALLOWLIST.** A `FILTERS`
+- **An ADVANCED value-filter builder** (added 2026-07-22, modelled on the old AdminBase "Filter
+  Customers" box) sits atop the Filters popover: pick any text field + an operator (Contains ·
+  Equals · Begins with · Ends with · Is empty · Has a value) + a value, "Add condition", repeat.
+  Conditions show as removable chips and are **ANDed** — "last_name contains Smith" + "town equals
+  Tamworth" narrows to both. They ride in ONE `fq` URL param (JSON array of `{f,op,v}`), applied at
+  the DB by `getCustomers` (`ilike`/`is null`, LIKE metachars escaped) against the `VALUE_FILTER_COLUMNS`
+  allowlist — so it scales to thousands of rows with correct paging, and the field name is never
+  interpolated. The client field list mirrors that allowlist; labels come from the column registry.
+  (Conditions AND only for now — OR across conditions is the follow-on if asked.)
+- **The quick filter set spans the customer fields, applied server-side against an ALLOWLIST.** A `FILTERS`
   registry drives the popover (grouped; selects = pick a value, bools = Any/Yes/No); each writes an
   `f_<column>` URL param. `getCustomers` reads them into `columnFilters` and applies only columns in
   `SELECT_FILTER_COLUMNS` (`.eq` value) / `BOOL_FILTER_COLUMNS` (`.eq` true/false) — never an

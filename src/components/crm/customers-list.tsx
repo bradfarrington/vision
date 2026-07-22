@@ -590,24 +590,70 @@ const FILTERS: FilterDef[] = [
 ];
 const FILTER_GROUPS = ["Activity", "Identity", "Contact", "Address", "Marketing", "Flags", "Account"];
 
+// Advanced value-filter builder — field + operator + value, ANDed. Field list
+// mirrors the server's VALUE_FILTER_COLUMNS allowlist; labels come from the
+// column registry so they read the same as the headers.
+const VALUE_FIELD_KEYS = [
+  "first_name", "last_name", "company_name", "salutation",
+  "email", "phone", "mobile", "mobile_2", "home_telephone", "work_telephone", "fax_alt_no",
+  "house_name", "house_number", "street", "locality", "town", "county", "postcode", "what_3_words",
+  "customer_type", "property_type", "payment_terms", "sales_manager", "marketing_code",
+  "vat_no", "cis_reg", "default_account_reference", "invoice_name", "office_ref_1", "office_ref_2",
+  "directions", "flash_note", "opted_in_by",
+];
+const fieldLabel = (k: string) => COLUMN_MAP.get(k)?.label ?? k;
+const VALUE_FIELDS = VALUE_FIELD_KEYS.map((k) => ({ key: k, label: fieldLabel(k) })).sort((a, b) =>
+  a.label.localeCompare(b.label),
+);
+
+const OPERATORS: { op: string; label: string; needsValue: boolean }[] = [
+  { op: "contains", label: "Contains", needsValue: true },
+  { op: "equals", label: "Equals", needsValue: true },
+  { op: "begins", label: "Begins with", needsValue: true },
+  { op: "ends", label: "Ends with", needsValue: true },
+  { op: "empty", label: "Is empty", needsValue: false },
+  { op: "notempty", label: "Has a value", needsValue: false },
+];
+const opLabel = (op: string) => OPERATORS.find((o) => o.op === op)?.label ?? op;
+const opNeedsValue = (op: string) => OPERATORS.find((o) => o.op === op)?.needsValue ?? true;
+
+type ValueCond = { f: string; op: string; v: string };
+
+function parseConditions(raw: string | null): ValueCond[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is ValueCond =>
+        c && typeof c.f === "string" && typeof c.op === "string" && typeof c.v === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 export function FiltersButton({ filterOptions }: { filterOptions: Record<string, string[]> }) {
   const { setParams, searchParams } = useSetParams();
   const live = searchParams.get("live") === "1";
+  const conditions = parseConditions(searchParams.get("fq"));
   const [openKey, setOpenKey] = useState<string | null>(null);
 
   const activeCount =
-    (live ? 1 : 0) + FILTERS.filter((f) => (searchParams.get(`f_${f.key}`) ?? "") !== "").length;
+    (live ? 1 : 0) +
+    conditions.length +
+    FILTERS.filter((f) => (searchParams.get(`f_${f.key}`) ?? "") !== "").length;
 
   const clearAll = () => {
-    const updates: Record<string, null> = { live: null };
+    const updates: Record<string, null> = { live: null, fq: null };
     for (const f of FILTERS) updates[`f_${f.key}`] = null;
     setParams(updates);
   };
 
   return (
-    <Popover label="Filters" icon="filters" badge={activeCount || undefined} width={276}>
+    <Popover label="Filters" icon="filters" badge={activeCount || undefined} width={316}>
       {() => (
-        <div className="flex max-h-[min(76vh,480px)] w-[276px] flex-col">
+        <div className="flex max-h-[min(80vh,520px)] w-[316px] flex-col">
           <div className="flex items-center justify-between border-b border-[#f4f4f5] px-3 py-2.5">
             <span className="text-[13px] font-bold text-[#0a0a0a]">Filters</span>
             {activeCount > 0 && (
@@ -622,6 +668,12 @@ export function FiltersButton({ filterOptions }: { filterOptions: Record<string,
           </div>
 
           <div className="min-h-0 overflow-y-auto px-2.5 py-1.5">
+            <ValueFilterBuilder
+              conditions={conditions}
+              onChange={(next) => setParams({ fq: next.length ? JSON.stringify(next) : null })}
+            />
+            <div className="my-1.5 border-t border-[#f4f4f5]" />
+            <SectionLabel>Quick filters</SectionLabel>
             {FILTER_GROUPS.map((group) => {
               const inGroup = FILTERS.filter((f) => f.group === group);
               const showLead = group === "Activity";
@@ -664,6 +716,206 @@ export function FiltersButton({ filterOptions }: { filterOptions: Record<string,
         </div>
       )}
     </Popover>
+  );
+}
+
+function ValueFilterBuilder({
+  conditions,
+  onChange,
+}: {
+  conditions: ValueCond[];
+  onChange: (c: ValueCond[]) => void;
+}) {
+  const [field, setField] = useState(VALUE_FIELDS[0].key);
+  const [op, setOp] = useState("contains");
+  const [value, setValue] = useState("");
+  const [open, setOpen] = useState<null | "field" | "op">(null);
+  const [fieldQuery, setFieldQuery] = useState("");
+
+  const needsValue = opNeedsValue(op);
+  const canAdd = !needsValue || value.trim().length > 0;
+
+  const add = () => {
+    if (!canAdd) return;
+    onChange([...conditions, { f: field, op, v: needsValue ? value.trim() : "" }]);
+    setValue("");
+    setOpen(null);
+  };
+  const removeAt = (i: number) => onChange(conditions.filter((_, idx) => idx !== i));
+
+  const fq = fieldQuery.trim().toLowerCase();
+  const fieldMatches = VALUE_FIELDS.filter((f) => !fq || f.label.toLowerCase().includes(fq));
+
+  return (
+    <div className="pt-1">
+      <SectionLabel>Advanced · match a field</SectionLabel>
+
+      {conditions.length > 0 && (
+        <div className="mb-2 flex flex-col gap-1">
+          {conditions.map((c, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1.5 rounded-md bg-[var(--accent-tint)] px-2 py-1"
+            >
+              <span className="min-w-0 flex-1 truncate text-[12px] text-[#3f3f46]">
+                <span className="font-semibold">{fieldLabel(c.f)}</span> {opLabel(c.op).toLowerCase()}
+                {opNeedsValue(c.op) && <span className="text-[#0a0a0a]"> “{c.v}”</span>}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeAt(i)}
+                aria-label="Remove condition"
+                className="shrink-0 text-[13px] leading-none text-[#a1a1aa] hover:text-[#d64545]"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1.5 px-1">
+        <InlinePicker
+          label={fieldLabel(field)}
+          open={open === "field"}
+          onToggle={() => setOpen(open === "field" ? null : "field")}
+        >
+          <div className="border-b border-[#f4f4f5] px-2 py-1.5">
+            <input
+              autoFocus
+              value={fieldQuery}
+              onChange={(e) => setFieldQuery(e.target.value)}
+              placeholder="Search fields…"
+              className="w-full bg-transparent text-[13px] text-[#3f3f46] placeholder:text-[#a1a1aa] focus:outline-none"
+            />
+          </div>
+          {fieldMatches.map((f) => (
+            <PickerRow
+              key={f.key}
+              label={f.label}
+              active={f.key === field}
+              onClick={() => {
+                setField(f.key);
+                setOpen(null);
+                setFieldQuery("");
+              }}
+            />
+          ))}
+          {fieldMatches.length === 0 && (
+            <p className="px-2 py-1.5 text-[12px] text-[#a1a1aa]">No fields.</p>
+          )}
+        </InlinePicker>
+
+        <div className="flex gap-1.5">
+          <InlinePicker
+            label={opLabel(op)}
+            open={open === "op"}
+            onToggle={() => setOpen(open === "op" ? null : "op")}
+            className="w-[132px] shrink-0"
+          >
+            {OPERATORS.map((o) => (
+              <PickerRow
+                key={o.op}
+                label={o.label}
+                active={o.op === op}
+                onClick={() => {
+                  setOp(o.op);
+                  setOpen(null);
+                }}
+              />
+            ))}
+          </InlinePicker>
+          {needsValue && (
+            <input
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+              placeholder="Value"
+              className="min-w-0 flex-1 rounded-md border border-[#e7e7ea] px-2 py-1.5 text-[13px] text-[#3f3f46] focus:border-[var(--accent-blue)] focus:outline-none"
+            />
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={add}
+          disabled={!canAdd}
+          className={cn(
+            "flex items-center justify-center gap-1 rounded-md border py-1.5 text-[12.5px] font-semibold transition-colors",
+            canAdd
+              ? "border-[var(--accent-blue)] text-[var(--accent-blue)] hover:bg-[var(--accent-tint)]"
+              : "cursor-not-allowed border-[#e7e7ea] text-[#a1a1aa]",
+          )}
+        >
+          + Add condition
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InlinePicker({
+  label,
+  open,
+  onToggle,
+  className,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("relative", className)}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-1 rounded-md border border-[#e7e7ea] bg-white px-2 py-1.5 text-[13px] text-[#3f3f46] hover:bg-[#fafafa]"
+      >
+        <span className="min-w-0 truncate">{label}</span>
+        <Icon
+          name="chevron-down"
+          size={11}
+          className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")}
+        />
+      </button>
+      {open && (
+        <div className="mt-1 max-h-[200px] overflow-y-auto rounded-md border border-[#e7e7ea] bg-white py-1 shadow-sm">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PickerRow({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-1 px-2 py-1.5 text-left text-[13px] hover:bg-[#fafafa]",
+        active ? "font-medium text-[var(--accent-blue)]" : "text-[#3f3f46]",
+      )}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {active && <span className="text-[var(--accent-blue)]">✓</span>}
+    </button>
   );
 }
 

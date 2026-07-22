@@ -30,6 +30,25 @@ export const BOOL_FILTER_COLUMNS = [
   "business_address",
 ] as const;
 
+// Text customer columns the advanced value-filter builder may query. Allowlisted
+// — the column name is never interpolated from input, and the value is bound by
+// PostgREST (plus LIKE metacharacters are escaped).
+export const VALUE_FILTER_COLUMNS = new Set<string>([
+  "first_name", "last_name", "company_name", "salutation",
+  "email", "phone", "mobile", "mobile_2", "home_telephone", "work_telephone", "fax_alt_no",
+  "house_name", "house_number", "street", "locality", "town", "county", "postcode", "what_3_words",
+  "customer_type", "property_type", "payment_terms", "sales_manager", "marketing_code",
+  "vat_no", "cis_reg", "default_account_reference", "invoice_name", "office_ref_1", "office_ref_2",
+  "directions", "flash_note", "opted_in_by",
+]);
+
+export type ValueCondition = { f: string; op: string; v: string };
+
+// Escape LIKE metacharacters so a user's % or _ is matched literally.
+function escapeLike(v: string): string {
+  return v.replace(/[\\%_]/g, "\\$&");
+}
+
 // Real customer columns the list may be ORDERED by (allowlisted — never an
 // interpolated name). Computed columns (lead/contract counts, last activity) and
 // the composite address aren't here; the client's Name column maps to last_name.
@@ -97,6 +116,8 @@ export type CustomerFilters = {
   page?: number;
   /** Allowlisted customer-column filters, keyed by column name (see *_FILTER_COLUMNS). */
   columnFilters?: Record<string, string>;
+  /** Advanced field/operator/value conditions, ANDed together. */
+  valueFilters?: ValueCondition[];
   /** Column to order by (allowlisted; ignored otherwise) and direction. */
   sort?: string;
   dir?: "asc" | "desc";
@@ -177,6 +198,21 @@ export async function getCustomers(
   for (const col of BOOL_FILTER_COLUMNS) {
     const v = cf[col];
     if (v === "1" || v === "0") query = query.eq(col, v === "1");
+  }
+
+  // Advanced field/operator/value conditions — each ANDs onto the query, so
+  // "last_name contains Smith" + "town equals Tamworth" narrows to both.
+  for (const c of filters.valueFilters ?? []) {
+    if (!VALUE_FILTER_COLUMNS.has(c.f)) continue;
+    const v = (c.v ?? "").trim();
+    switch (c.op) {
+      case "contains": if (v) query = query.ilike(c.f, `%${escapeLike(v)}%`); break;
+      case "equals": if (v) query = query.ilike(c.f, escapeLike(v)); break;
+      case "begins": if (v) query = query.ilike(c.f, `${escapeLike(v)}%`); break;
+      case "ends": if (v) query = query.ilike(c.f, `%${escapeLike(v)}`); break;
+      case "empty": query = query.is(c.f, null); break;
+      case "notempty": query = query.not(c.f, "is", null); break;
+    }
   }
 
   const { data, count, error } = await query;

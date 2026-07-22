@@ -4,6 +4,7 @@ import {
   getCustomers,
   latestLeadActivity,
   CUSTOMERS_PAGE_SIZE,
+  type ValueCondition,
 } from "@/lib/data/customers";
 import { getUserPref } from "@/lib/data/user-layouts";
 import { Icon, btnPrimary } from "@/components/crm/primitives";
@@ -22,6 +23,23 @@ import {
 
 type SearchParams = Promise<Record<string, string | undefined>>;
 
+/** Parse the `fq` param (JSON array of {f,op,v}); tolerate anything malformed. */
+function parseValueFilters(raw: string | undefined): ValueCondition[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (c): c is ValueCondition =>
+          c && typeof c.f === "string" && typeof c.op === "string" && typeof c.v === "string",
+      )
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -35,6 +53,10 @@ export default async function CustomersPage({
     if (k.startsWith("f_") && typeof v === "string" && v !== "") columnFilters[k.slice(2)] = v;
   }
 
+  // Advanced value conditions ride in one `fq` param as a JSON array; parse
+  // defensively (getCustomers validates each field against its allowlist).
+  const valueFilters = parseValueFilters(sp.fq);
+
   // Default arrangement is customer number ascending: the sidebar link to
   // /customers carries no query, so leaving and returning always lands here.
   const sort = sp.sort ?? "customer_number";
@@ -45,6 +67,7 @@ export default async function CustomersPage({
       hasLiveLead: sp.live === "1",
       page: sp.page ? Number(sp.page) : 1,
       columnFilters,
+      valueFilters,
       sort,
       dir,
     }),
