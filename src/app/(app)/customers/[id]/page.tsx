@@ -503,22 +503,24 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
       ) : (
-        recent.map((n, i) => (
+        recent.map((n) => (
           <TabJump
             key={n.id}
             to="Notes"
-            className={`-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
-              i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
-            }`}
+            className="-mx-2 block w-[calc(100%+1rem)] rounded px-2 text-left hover:bg-[#fafafa]"
           >
             {/* Reference, author and date only — the note text itself lives on
                 the Notes tab. A snippet is the one thing here that grows with
-                the data, and two clamped lines cost more height than the row. */}
-            {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
-              {n.author ?? "Unknown"}
-            </span>
-            <span className="shrink-0 text-[11px] text-[#a1a1aa]">{longDate(n.createdAt)}</span>
+                the data, and two clamped lines cost more height than the row.
+                The rule sits on the inner row so it measures the card's content
+                width, like the Contact/Identity rows — not the hover box. */}
+            <div className="flex items-center gap-2.5 border-b border-[#f4f4f5] py-2">
+              {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                {n.author ?? "Unknown"}
+              </span>
+              <span className="shrink-0 text-[11px] text-[#a1a1aa]">{longDate(n.createdAt)}</span>
+            </div>
           </TabJump>
         ))
       )}
@@ -549,13 +551,9 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
         </p>
       ) : (
         <FitRows>
-          {contracts.map((k, i) => {
+          {contracts.map((k) => {
             const row = (
-              <div
-                className={`flex items-center gap-2 py-2 ${
-                  i === contracts.length - 1 ? "" : "border-b border-[#f4f4f5]"
-                }`}
-              >
+              <div className="flex items-center gap-2 border-b border-[#f4f4f5] py-2">
                 <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
                 <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
                   {k.contract_type ?? "Contract"}
@@ -607,15 +605,13 @@ function LeadsCard({ c }: { c: CustomerRecord }) {
         </p>
       ) : (
         <FitRows>
-          {leads.map((l, i) => (
+          {leads.map((l) => (
             <Link
               key={l.id}
               href={`/leads/${l.id}`}
-              className={`-mx-2 block rounded px-2 hover:bg-[#fafafa] ${
-                i === leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
-              }`}
+              className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
             >
-              <div className="flex items-center gap-2 py-2">
+              <div className="flex items-center gap-2 border-b border-[#f4f4f5] py-2">
                 <RefChip>{leadRef(l.lead_number)}</RefChip>
                 <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
                   {l.product_type ?? l.product_interest_1 ?? "Lead"}
@@ -641,21 +637,21 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No documents yet.</p>
       ) : (
-        recent.map((d, i) => (
+        recent.map((d) => (
           <TabJump
             key={d.id}
             to="Documents"
-            className={`-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
-              i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
-            }`}
+            className="-mx-2 block w-[calc(100%+1rem)] rounded px-2 text-left hover:bg-[#fafafa]"
           >
-            {d.number != null && <RefChip>{documentRef(d.number)}</RefChip>}
-            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
-              {d.name}
-            </span>
-            {d.category && (
-              <span className="shrink-0 text-[11px] text-[#a1a1aa]">{d.category}</span>
-            )}
+            <div className="flex items-center gap-2.5 border-b border-[#f4f4f5] py-2">
+              {d.number != null && <RefChip>{documentRef(d.number)}</RefChip>}
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                {d.name}
+              </span>
+              {d.category && (
+                <span className="shrink-0 text-[11px] text-[#a1a1aa]">{d.category}</span>
+              )}
+            </div>
           </TabJump>
         ))
       )}
