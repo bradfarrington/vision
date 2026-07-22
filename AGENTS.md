@@ -173,12 +173,17 @@ the customer record; reuse it for leads/contracts rather than forking.
   RLS, same viewer, and they still appear on the Documents tab. `ON DELETE SET NULL`: deleting a
   note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field, and
   rename them in place with the shared `renameDocument`.
-- **Every note and document carries a per-tenant reference** — `N-<n>` / `D-<n>`, allocated by the
-  shared `next_reference` counter (`documents.document_number`, `lead_notes.note_number`; helpers
+- **Every note and document carries a per-tenant reference** — `NOTE-0018` / `DOC-0104`
+  (zero-padded to 4, then grows), allocated by the shared `next_reference` counter (`documents.document_number`, `lead_notes.note_number`; helpers
   `noteRef`/`documentRef` in `src/lib/leads.ts`). Shown on note meta lines, document rows, and in
-  the viewer header beside the file name — where a note attachment also shows "Note N-18", so a
-  previewed file always says where it came from. Anything else that creates notes/documents MUST
+  the viewer header beside the file name — where a note attachment also shows its `NOTE-…` chip, so
+  a previewed file always says where it came from. Anything else that creates notes/documents MUST
   allocate its number the same way.
+- **References are allocated forward and never reused.** Deleting a note or document does NOT free
+  its number and the counter never rewinds — a reference is an identity, not a count, and recycling
+  one silently repoints every email/job sheet/history entry that quotes it. Gaps are expected and
+  fine (`next_reference` is gap-tolerant by design). If a screen wants "3rd note on this customer",
+  that is a positional label computed at render time, NOT the reference.
 - **Attaching to a note offers "Choose file" (already on the record) or "Upload".** Choosing an
   existing document is the duplicate-free path — `attachExistingDocument` shares the storage object
   and the name/category/reference carry across. Prefer offering the picker anywhere files can be

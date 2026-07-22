@@ -74,7 +74,7 @@ export function NotesPanel({
         reference: documentRef(preview.number),
         // Which note the file is attached to, so the preview always says where
         // it came from.
-        source: preview.noteId ? `Note ${noteRef(preview.noteNumber)}` : null,
+        source: preview.noteId ? noteRef(preview.noteNumber) : null,
       }
     : null;
 

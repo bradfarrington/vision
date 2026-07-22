@@ -70,14 +70,18 @@ export function contractRef(contractNumber: number | null | undefined): string {
   return contractNumber != null ? `C-${contractNumber}` : "C-—";
 }
 
-/** Human reference for a document: D-104. */
+/** Human reference for a document: DOC-0104. Zero-padded to 4, then grows. */
 export function documentRef(documentNumber: number | null | undefined): string {
-  return documentNumber != null ? `D-${documentNumber}` : "D-—";
+  return documentNumber != null ? `DOC-${pad4(documentNumber)}` : "DOC-————";
 }
 
-/** Human reference for a note: N-18. */
+/** Human reference for a note: NOTE-0018. */
 export function noteRef(noteNumber: number | null | undefined): string {
-  return noteNumber != null ? `N-${noteNumber}` : "N-—";
+  return noteNumber != null ? `NOTE-${pad4(noteNumber)}` : "NOTE-————";
+}
+
+function pad4(n: number): string {
+  return String(n).padStart(4, "0");
 }
 
 function titleCase(s: string): string {

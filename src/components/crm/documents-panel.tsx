@@ -60,7 +60,7 @@ export function DocumentsPanel({
         file_name: selected.file_name,
         file_type: selected.file_type,
         reference: documentRef(selected.number),
-        source: selected.noteId ? `Note ${noteRef(selected.noteNumber)}` : null,
+        source: selected.noteId ? noteRef(selected.noteNumber) : null,
       }
     : null;
 
@@ -379,7 +379,7 @@ function DocRow({
           {" · "}
           {doc.uploader ?? "—"} · {longDate(doc.created_at)}
           {doc.file_size ? ` · ${fileSize(doc.file_size)}` : ""}
-          {doc.noteId ? ` · from note ${noteRef(doc.noteNumber)}` : ""}
+          {doc.noteId ? ` · from ${noteRef(doc.noteNumber)}` : ""}
         </p>
 
         {/* Category picker */}
