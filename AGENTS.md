@@ -298,11 +298,17 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   stack. What gives way when the window is short is decided by which card it is:
   - **Field cards are `shrink-0` (`OV_CARD`)** — Identity and Flags are editable ONLY on the
     overview, so losing a row would make that field unreachable. They always render in full.
-  - **List cards shrink (`OV_LIST_CARD` + `FitRows`)** — Contact, Address, Recent documents, Recent
+  - **List cards shrink (`OV_LIST_CARD` + `FitRows`)** — Contact, Recent documents, Recent
     notes, Contracts, Leads. `FitRows` (`components/crm/fit-rows.tsx`) measures its box and renders
     only the rows whose bottom clears it; the rest are hidden with `visibility` (NOT `display`, so
     the measurement can't oscillate) and the parent clips, so no half-row ever shows. Every one of
     them carries a total count + a jump, so nothing dropped is unreachable.
+    - **The Address card is NOT `fit`** (changed 2026-07-22). FitRows trims from the bottom, and
+      access notes are its last row — so a gate code / access instruction was the FIRST thing hidden,
+      and it varied per customer with how tall the rest of the column was. Access notes are
+      safety-relevant, so the Address card renders in full; its content is bounded anyway (finite
+      address lines + access clamped to 2 lines). The lesson: don't put a must-see field last inside
+      a FitRows card.
   This is why the row caps alone weren't enough: three notes fit a 27" monitor and not a laptop, so
   the count has to be decided at runtime. **If you add a card, decide which kind it is** — a card of
   fields that live nowhere else must be `shrink-0`; anything mirroring a tab should shrink.
@@ -436,6 +442,35 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   can't be a `customers` predicate without an inner join, so it stays a post-filter with the known
   caveat that the count reflects the pre-filter set. Add new filters by extending both the client
   `FILTERS` registry and the server allowlist.
+- **Default order is `customer_number` ascending**, applied when no `sort` param is present (the
+  sidebar link is bare) — so a fresh visit / after "Clear all" lands there. Any column the user
+  actively sorts overrides it.
+- **List rows are ONE line.** The Address column is the street line only (house/number + street);
+  Town and Postcode are their OWN columns (in the defaults) rather than a second address line —
+  discrete columns sort/filter/align, a mashed-together address truncates and can't. Last activity is
+  one line too (label + muted date). Name-type columns (Name, Title, First/Last name incl. 2nd,
+  Salutation, Company) render bold + near-black so a person's name reads as one identity wherever its
+  parts show; non-name Identity fields (Type, Cust No., Property type) stay regular. No avatars in the
+  list.
+- **View state is remembered PER SESSION, per list.** A list's URL state (sort · filters · search ·
+  page) is saved to `sessionStorage` keyed by route (`ViewStateSaver` mounted on the page), and the
+  sidebar item + the record breadcrumb restore it via `RememberedLink` — so leaving and returning
+  lands exactly where you left off instead of resetting. `RememberedLink` keeps the bare href for SSR
+  (no hydration mismatch, middle-click still works) and only restores on a plain click. "Clear all"
+  removes the saved entry, so it falls back to the default (customer_number asc). This is
+  session/tab-scoped by design; a DB-backed per-user default would be the cross-device upgrade. Reuse
+  `ViewStateSaver`/`RememberedLink` for `/leads` when its grid lands.
+
+## Phone fields — Mobile + Home — decided 2026-07-22
+
+- **A customer's numbers are Mobile + Home** (with Work kept on the full record for commercial
+  customers, off the quick-create form). The generic **`phone`** field was retired as a
+  capture/display field: it had no defined meaning, overlapped Mobile/Home, and imported data had
+  put mobile numbers in it — so the list's Phone and Mobile columns showed identical values and the
+  column picker read as duplicated. Dropped from the New Customer form and from the list column
+  registry + advanced-filter fields; **the `customers.phone` DB column is KEPT** so legacy/imported
+  numbers aren't lost — just not captured or surfaced. (The record's main-contact still carries its
+  own contact-level phone on `customer_contacts` — a separate concern, left as-is.)
 
 ## Bento layout is the house style — decided 2026-07-22
 
@@ -805,6 +840,14 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   exists for owners that don't batch-load.
 
 ### Gotchas for future work
+- **Tailwind preflight resets `button, select { text-transform: none }`.** A `uppercase` (or other
+  text-transform) on a container does NOT reach text inside a `<button>` descendant — it must sit on
+  the button itself. This bit the list headers the moment they became sortable `<button>`s; the
+  header row's `uppercase` stopped applying until it was added to the button.
+- **Don't pipe a build/verify command through `tail`/`head` before `&&`-ing the next step** — the
+  pipeline's exit code is the pager's (0), so a failing `next build` looks like it passed and a broken
+  commit can get pushed (this happened once on `main`). Capture the exit code directly
+  (`next build > log 2>&1; echo $?`) or check `git`/CI separately.
 - **A loader must never let a pending migration blank a record.** Schema here is applied by hand,
   so a select that names a not-yet-existing column has its WHOLE query rejected by PostgREST and
   the screen renders as if the customer had no notes/documents (this happened with
