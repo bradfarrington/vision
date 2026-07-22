@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { loadViewState } from "@/components/crm/view-state";
 import { BOTTOM_NAV, MAIN_NAV, type NavItem } from "./nav";
 
 // 76px icon rail transcribed from VisionSidebar.dc.html: 44px circular items,
@@ -32,9 +33,24 @@ export function Sidebar() {
 }
 
 function RailLink({ item, active }: { item: NavItem; active: boolean }) {
+  const router = useRouter();
+  // Restore a list screen's remembered view (filters/sort) instead of the bare
+  // route. Only fires when there is saved state for this destination; a plain
+  // click on any other nav item behaves normally.
+  const onClick = (e: React.MouseEvent) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    const saved = loadViewState(item.href);
+    if (saved) {
+      e.preventDefault();
+      router.push(`${item.href}?${saved}`);
+    }
+  };
   return (
     <Link
       href={item.href}
+      onClick={onClick}
       title={item.label}
       aria-label={item.label}
       aria-current={active ? "page" : undefined}

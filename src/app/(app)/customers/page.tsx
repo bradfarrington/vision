@@ -16,6 +16,7 @@ import {
   FiltersButton,
   type CustomerRowView,
 } from "@/components/crm/customers-list";
+import { ViewStateSaver } from "@/components/crm/view-state";
 
 // Customers list — transcribed from `Vision CRM Screens.dc.html` screen 02.
 // Search / filters / pagination are URL-driven so the server re-queries; the
@@ -83,6 +84,9 @@ export default async function CustomersPage({
 
   return (
     <CustomerColumnsProvider saved={columnPref}>
+      {/* Remembers this list's filters/sort for the session so returning here
+          restores them instead of resetting to the default. */}
+      <ViewStateSaver />
       {/* saved carries { order, widths } — the provider sanitises the shape. */}
       <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] py-[22px]">
         {/* Header */}

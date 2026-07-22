@@ -113,7 +113,7 @@ const COLUMNS: Column[] = [
   // Address
   {
     key: "address",
-    label: "Installation address",
+    label: "Address",
     group: "Address",
     w: ADDR,
     cell: (v) => (

@@ -58,6 +58,7 @@ import { FitRows } from "@/components/crm/fit-rows";
 import { BentoBoard } from "@/components/crm/bento-board";
 import { getUserLayout, getUserOrder } from "@/lib/data/user-layouts";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
+import { RememberedLink } from "@/components/crm/view-state";
 
 // Customer detail — the full contact record across tabs, every field editable
 // inline (click a value to edit; Enter/blur saves).
@@ -94,7 +95,7 @@ export default async function CustomerDetailPage({
   return (
     <div className="flex flex-1 flex-col gap-2.5 overflow-hidden px-[26px] py-[18px]">
       <div className="text-[12.5px] text-[#71717a]">
-        <Link href="/customers" className="hover:text-[#3f3f46]">Customers</Link>
+        <RememberedLink href="/customers" className="hover:text-[#3f3f46]">Customers</RememberedLink>
         <span className="mx-1 text-[#d4d4d8]">/</span>
         <span className="font-semibold text-[#0a0a0a]">{c.displayName}</span>
       </div>
