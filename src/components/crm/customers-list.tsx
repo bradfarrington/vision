@@ -821,7 +821,7 @@ export function CustomerTable({
       <div className="min-h-0 flex-1 overflow-auto">
         <div style={{ minWidth: "min-content" }}>
           <div
-            className="sticky top-0 z-10 grid items-stretch border-b border-[#e7e7ea] bg-[#fafafa] text-[12px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]"
+            className="sticky top-0 z-10 grid items-stretch border-b border-[#e7e7ea] bg-[#fafafa] text-[11px] font-semibold uppercase tracking-[0.04em] text-[#a1a1aa]"
             style={{ gridTemplateColumns: grid }}
           >
             <span className="flex items-center justify-center py-2.5">
