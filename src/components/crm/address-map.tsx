@@ -21,28 +21,100 @@ import {
 // ---------------------------------------------------------------------------
 // AddressMap — the real map, used everywhere an address is shown.
 //
-// Renderer is MapLibre GL over OpenStreetMap vector tiles: no API key, no
-// account, no per-view billing, and nothing to configure before it works on a
-// fresh clone. The tile style is env-overridable (`NEXT_PUBLIC_MAP_STYLE_URL`),
-// so moving to a paid or self-hosted tile host later is one environment
-// variable and no code change.
+// TWO renderers, chosen by whether an embed key is configured:
 //
-// MapLibre is ~200KB gzipped, so it is imported DYNAMICALLY inside the effect
-// rather than at module scope — a screen that never shows a map never ships the
-// renderer, and the customer record only pays for it when the Address tab is
-// opened.
+//   Google Maps Embed API (primary) — `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` set.
+//     One provider for the road map, satellite and street view, all of it free
+//     and unmetered. This is what the fullscreen overlay's three-way toggle
+//     runs on.
+//
+//   MapLibre GL + OpenStreetMap (fallback) — no key.
+//     Keeps the app working on a fresh clone, on a preview deploy with no env
+//     vars, and anywhere the key has not been provisioned yet. Without it, a
+//     missing key means no map at all rather than a slightly plainer one.
+//     ~200KB gzipped, so it is imported DYNAMICALLY inside the effect — a
+//     deployment on the Google path never downloads it.
+//
+// Do not "simplify" by deleting the fallback unless you are content for an
+// unset env var to be a blank card.
 // ---------------------------------------------------------------------------
 
 const DEFAULT_STYLE = "https://tiles.openfreemap.org/styles/positron";
 const STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
 
-// Street view inside the app needs Google's Maps EMBED API — the tier that is
-// free and unmetered, unlike the Static API which bills per thumbnail. The key
-// is public by necessity (it is an iframe URL the browser requests), so it MUST
-// be locked to this app's domains with an HTTP-referrer restriction in Google
-// Cloud, and restricted to the Maps Embed API alone. Without it the app falls
-// back to the free link-out, so street view degrades rather than breaks.
+// ---------------------------------------------------------------------------
+// Google Maps EMBED API — the primary renderer when a key is configured.
+//
+// The Embed API is FREE AND UNMETERED for every mode it supports (roadmap,
+// satellite, street view), which is what makes "just use Google for all of it"
+// viable — the Maps JavaScript API would bill per map load, and a map load
+// happens on every record view forever. Do not swap these iframes for the JS
+// SDK without pricing that out first.
+//
+// What it costs us, and these are real:
+//   * the marker is Google's red pin. It CANNOT be the tenant accent — an
+//     iframe is not ours to style. `PIN_SVG` only applies to the MapLibre path.
+//   * Google's logo and Terms links sit on the canvas and are contractually
+//     unhideable. Larger than the OSM credit they replace.
+//   * nothing in the iframe is programmable, so a future drag-to-pin cannot be
+//     built on it — that needs the (metered) JS API or the MapLibre path.
+//
+// The key is public by necessity (the browser fetches the iframe), so it MUST
+// be restricted in Google Cloud to the Maps Embed API and to this app's domains
+// by HTTP referrer.
 const EMBED_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+
+/** Which renderer this deployment gets. See MapCanvas for the fallback's role. */
+const USE_GOOGLE = !!EMBED_KEY;
+
+type GoogleView = "roadmap" | "satellite" | "streetview";
+
+const GOOGLE_VIEW_LABEL: Record<GoogleView, string> = {
+  roadmap: "Map",
+  satellite: "Satellite",
+  streetview: "Street view",
+};
+
+function googleEmbedSrc(view: GoogleView, lat: number, lng: number, zoom: number): string {
+  if (view === "streetview") {
+    // `heading` is deliberately unset: given a bare location Google aims the
+    // camera from the nearest panorama TOWARDS that point, i.e. at the front of
+    // the building. Supplying our own needs the bearing from road to house,
+    // which we do not know, and would face a hedge as often as the property.
+    return `https://www.google.com/maps/embed/v1/streetview?key=${EMBED_KEY}&location=${lat},${lng}&fov=90`;
+  }
+  // `place` rather than `view` — it is the mode that drops a marker.
+  return `https://www.google.com/maps/embed/v1/place?key=${EMBED_KEY}&q=${lat},${lng}&zoom=${zoom}&maptype=${view}`;
+}
+
+function GoogleEmbed({
+  view,
+  lat,
+  lng,
+  zoom,
+  title,
+}: {
+  view: GoogleView;
+  lat: number;
+  lng: number;
+  zoom: number;
+  title: string;
+}) {
+  const src = googleEmbedSrc(view, lat, lng, zoom);
+  return (
+    <iframe
+      // Keyed by src: changing an iframe's hash/query does not always reload it.
+      key={src}
+      src={src}
+      title={title}
+      loading="lazy"
+      allowFullScreen
+      // Google's referrer key restriction needs the origin to survive the request.
+      referrerPolicy="no-referrer-when-downgrade"
+      className="h-full w-full border-0"
+    />
+  );
+}
 
 /**
  * How far in to zoom for each quality of match — never further than we actually
@@ -256,23 +328,41 @@ export function AddressMap({
       >
         {showMap ? (
           <>
-            <MapCanvas
-              lat={coords.lat}
-              lng={coords.lng}
-              zoom={zoom}
-              interactive={interactive}
-              onTileError={() => setTileError(key)}
-            />
+            {USE_GOOGLE ? (
+              <GoogleEmbed
+                view="roadmap"
+                lat={coords.lat}
+                lng={coords.lng}
+                zoom={zoom}
+                title="Map"
+              />
+            ) : (
+              <MapCanvas
+                lat={coords.lat}
+                lng={coords.lng}
+                zoom={zoom}
+                interactive={interactive}
+                onTileError={() => setTileError(key)}
+              />
+            )}
+
+            {/* The card map is a PREVIEW, and on the Google path it has to be:
+                an iframe's wheel handling is not ours to disable, so an
+                uncovered embed would swallow the tab panel's scroll. A
+                transparent lid takes the pointer events, which both restores
+                normal page scrolling and makes the whole thumbnail the button
+                that opens the real thing. */}
             {allowFullscreen && (
-              // Top-LEFT: the zoom control owns the top-right corner.
               <button
                 type="button"
                 onClick={() => setFullscreen(true)}
                 aria-label="Expand map"
                 title="Expand map"
-                className="absolute left-2.5 top-2.5 inline-flex size-7 items-center justify-center rounded-md border border-[#e7e7ea] bg-white/95 text-[#3f3f46] shadow-[0_1px_3px_rgba(10,10,10,0.12)] transition-colors hover:text-[var(--accent-blue)]"
+                className="absolute inset-0 cursor-pointer"
               >
-                <Icon name="maximize" size={14} strokeWidth={2} />
+                <span className="absolute left-2.5 top-2.5 inline-flex size-7 items-center justify-center rounded-md border border-[#e7e7ea] bg-white/95 text-[#3f3f46] shadow-[0_1px_3px_rgba(10,10,10,0.12)] transition-colors hover:text-[var(--accent-blue)]">
+                  <Icon name="maximize" size={14} strokeWidth={2} />
+                </span>
               </button>
             )}
           </>
@@ -288,7 +378,9 @@ export function AddressMap({
       {/* Links only. Precision is never narrated — it quietly sets the zoom. */}
       {showFooter && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
-          <MapCredit />
+          {/* Google carries its own attribution on the canvas; the OSM credit
+              is only owed on the MapLibre path. */}
+          {!USE_GOOGLE && <MapCredit />}
           <span className="ml-auto flex items-center gap-3">
             {coords && <StreetViewLink lat={coords.lat} lng={coords.lng} />}
             {line && <DirectionsLink line={line} />}
@@ -339,7 +431,7 @@ function FullscreenMap({
   onTileError: () => void;
   onClose: () => void;
 }) {
-  const [view, setView] = useState<"map" | "street">("map");
+  const [view, setView] = useState<GoogleView>("roadmap");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -355,13 +447,13 @@ function FullscreenMap({
         <Icon name="map-pin" size={16} strokeWidth={1.75} className="text-white/70" />
         <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{line}</span>
 
-        {/* Street view is a VIEW of this location, not a trip somewhere else —
-            so it toggles in place rather than sitting beside Directions as
-            another link out. Without an embed key there is nothing to toggle
-            to, and the link-out below stands in for it. */}
-        {EMBED_KEY && (
+        {/* Satellite and street view are VIEWS of this location, not trips
+            somewhere else — so they toggle in place rather than sitting beside
+            Directions as more links out. Without an embed key there is nothing
+            to toggle to, and the link-out stands in for street view. */}
+        {USE_GOOGLE ? (
           <div className="flex items-center rounded-lg border border-white/20 bg-white/5 p-0.5">
-            {(["map", "street"] as const).map((v) => (
+            {(["roadmap", "satellite", "streetview"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -370,13 +462,13 @@ function FullscreenMap({
                   view === v ? "bg-white text-[#0a0a0a]" : "text-white/80 hover:text-white"
                 }`}
               >
-                {v === "map" ? "Map" : "Street view"}
+                {GOOGLE_VIEW_LABEL[v]}
               </button>
             ))}
           </div>
+        ) : (
+          <StreetViewLink lat={lat} lng={lng} dark />
         )}
-
-        {!EMBED_KEY && <StreetViewLink lat={lat} lng={lng} dark />}
         {line && <DirectionsLink line={line} dark />}
         {what3words && <What3WordsLink words={what3words} dark />}
         <button
@@ -390,60 +482,27 @@ function FullscreenMap({
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        {view === "street" && EMBED_KEY ? (
-          <StreetViewPane lat={lat} lng={lng} />
+        {USE_GOOGLE ? (
+          <GoogleEmbed
+            view={view}
+            lat={lat}
+            lng={lng}
+            // Satellite is the "what does the plot actually look like" view, so
+            // it opens a step tighter than the road map.
+            zoom={view === "satellite" ? Math.min(zoom + 1, 20) : zoom}
+            title={GOOGLE_VIEW_LABEL[view]}
+          />
         ) : (
           <>
             <MapCanvas lat={lat} lng={lng} zoom={zoom} scrollZoom onTileError={onTileError} />
             {/* The credit follows the map wherever it goes — the card's footer
-                line is not on screen here, so it has to be restated. Street
-                view is Google's, and carries its own. */}
+                line is not on screen here, so it has to be restated. */}
             <span className="pointer-events-auto absolute bottom-2 left-3">
               <MapCredit dark />
             </span>
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-/**
- * Navigable Street View, embedded.
- *
- * Google's Maps Embed API — the tier that is **free and unmetered**, unlike the
- * Street View Static API which bills per thumbnail. The pano is fully
- * interactive: look around, and walk up and down the street with the arrows, so
- * a surveyor can get to the front of the property even when the nearest
- * panorama is a few doors down.
- *
- * `heading` is deliberately NOT set. Given a bare location, Google aims the
- * camera from the nearest panorama TOWARDS that point — which is the front of
- * the building. Passing a heading of our own would need the bearing from the
- * road to the house, which we do not know, and would face the camera at a
- * hedge as often as at the property.
- *
- * Coverage is not pre-checked (that needs the keyed metadata endpoint), so
- * where Google has no imagery this shows their "no imagery" state. The link out
- * to full Google Maps is there as the escape hatch.
- */
-function StreetViewPane({ lat, lng }: { lat: number; lng: number }) {
-  const src = `https://www.google.com/maps/embed/v1/streetview?key=${EMBED_KEY}&location=${lat},${lng}&fov=90`;
-  return (
-    <div className="relative h-full w-full">
-      <iframe
-        key={src}
-        src={src}
-        title="Street view"
-        loading="lazy"
-        allowFullScreen
-        // Google's referrer restrictions need the origin to survive the request.
-        referrerPolicy="no-referrer-when-downgrade"
-        className="h-full w-full border-0"
-      />
-      <span className="absolute bottom-2 right-3">
-        <StreetViewLink lat={lat} lng={lng} dark />
-      </span>
     </div>
   );
 }
