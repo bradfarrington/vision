@@ -67,7 +67,9 @@ const SORTABLE_COLUMNS = new Set<string>([
   "office_ref_1", "office_ref_2", "created_at",
 ]);
 
-export const CUSTOMERS_PAGE_SIZE = 9;
+// Chunk size for the list's infinite scroll — big enough to fill a tall
+// container on first load, small enough to keep each fetch cheap at scale.
+export const CUSTOMERS_PAGE_SIZE = 40;
 
 export type CustomerLead = {
   id: string;

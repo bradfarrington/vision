@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -21,11 +21,12 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { CountPill, Icon } from "@/components/crm/primitives";
-import { Pagination, useSetParams } from "@/components/crm/list-controls";
+import { useSetParams } from "@/components/crm/list-controls";
 import { useFloatingMenu } from "@/components/crm/floating-menu";
 import { resetUserLayout, saveUserPref } from "@/app/(app)/preferences/actions";
+import { loadCustomerRows } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
-import type { ActivityLine, CustomerRow } from "@/lib/data/customers";
+import type { ActivityLine, CustomerFilters, CustomerRow } from "@/lib/data/customers";
 
 // The customer list: every field is a column that can be shown, reordered,
 // RESIZED and SORTED — all per user. Columns (which, order, widths) save to
@@ -1043,21 +1044,16 @@ function RadioRow({
 
 // ---------------------------------------------------------------------------
 export function CustomerTable({
-  views,
+  initialViews,
   total,
-  page,
-  pageCount,
-  from,
-  to,
+  filters,
   sort,
   dir,
 }: {
-  views: CustomerRowView[];
+  initialViews: CustomerRowView[];
   total: number;
-  page: number;
-  pageCount: number;
-  from: number;
-  to: number;
+  /** The resolved query, so the table can fetch further chunks itself. */
+  filters: CustomerFilters;
   sort: string | null;
   dir: "asc" | "desc";
 }) {
@@ -1067,9 +1063,59 @@ export function CustomerTable({
   // rows fill the width and borders span) · 40px chevron.
   const grid = `44px ${cols.map((c) => `${widthOf(widths, c)}px`).join(" ")} minmax(16px,1fr) 40px`;
 
+  // Continuous scroll: the first chunk is server-rendered; more are appended as
+  // the sentinel scrolls into view. A changed query re-mounts this component
+  // (keyed on the query in the page), so state always starts from a fresh chunk.
+  const [rows, setRows] = useState(initialViews);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(initialViews.length < total);
+  const [loading, startLoading] = useTransition();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Latest values for the observer callback without re-subscribing each render.
+  const stateRef = useRef({ page, hasMore, loading });
+  stateRef.current = { page, hasMore, loading };
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root) return;
+
+    function loadMore() {
+      const { page: cur, hasMore: more, loading: busy } = stateRef.current;
+      if (!more || busy) return;
+      const next = cur + 1;
+      startLoading(async () => {
+        const res = await loadCustomerRows(filters, next);
+        // De-dupe on id in case a row shifted across the chunk boundary.
+        setRows((prev) => {
+          const seen = new Set(prev.map((r) => r.c.id));
+          return [...prev, ...res.views.filter((r) => !seen.has(r.c.id))];
+        });
+        setPage(next);
+        setHasMore(res.hasMore);
+      });
+    }
+
+    // `rootMargin` starts the next fetch a little before the sentinel is reached,
+    // so scrolling feels seamless. It also fires on mount if the first chunk
+    // doesn't fill the container, loading until it does (or nothing remains).
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { root, rootMargin: "400px 0px" },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+    // filters is stable per mount (the page re-mounts on query change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e7e7ea]">
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <div style={{ minWidth: "min-content" }}>
           <div
             className="sticky top-0 z-10 grid items-stretch border-b border-[#e7e7ea] bg-[#fafafa] text-[11px] font-semibold uppercase tracking-[0.04em] text-[#a1a1aa]"
@@ -1085,10 +1131,16 @@ export function CustomerTable({
             <span />
           </div>
 
-          {views.length === 0 ? (
+          {rows.length === 0 ? (
             <EmptyState />
           ) : (
-            views.map((v) => <Row key={v.c.id} v={v} cols={cols} grid={grid} />)
+            rows.map((v) => <Row key={v.c.id} v={v} cols={cols} grid={grid} />)
+          )}
+
+          {/* Load-more sentinel; the observer starts the next fetch as it nears. */}
+          <div ref={sentinelRef} />
+          {loading && (
+            <div className="py-4 text-center text-[12px] text-[#a1a1aa]">Loading more…</div>
           )}
         </div>
       </div>
@@ -1097,9 +1149,10 @@ export function CustomerTable({
         <span>
           {total === 0
             ? "No customers"
-            : `Showing ${from}–${to} of ${total.toLocaleString("en-GB")}`}
+            : hasMore
+              ? `Showing ${rows.length.toLocaleString("en-GB")} of ${total.toLocaleString("en-GB")}`
+              : `${total.toLocaleString("en-GB")} customer${total === 1 ? "" : "s"}`}
         </span>
-        <Pagination page={page} pageCount={pageCount} />
       </div>
     </div>
   );

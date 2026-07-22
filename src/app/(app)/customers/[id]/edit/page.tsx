@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getCustomer } from "@/lib/data/customers";
+import { getTenantOptionLists } from "@/lib/data/customer-record";
 import { CustomerForm } from "@/components/crm/customer-form";
 
 export default async function EditCustomerPage({
@@ -10,7 +11,10 @@ export default async function EditCustomerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const customer = await getCustomer(id);
+  const [customer, lookups] = await Promise.all([
+    getCustomer(id),
+    getTenantOptionLists(["title", "locality", "town", "county"]),
+  ]);
   if (!customer) notFound();
 
   return (
@@ -29,6 +33,7 @@ export default async function EditCustomerPage({
       <CustomerForm
         cancelHref={`/customers/${customer.id}`}
         heading={`Edit ${customer.displayName}`}
+        lookups={lookups}
         initial={{
           id: customer.id,
           customer_type: customer.customerType,

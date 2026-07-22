@@ -3,7 +3,7 @@ import Link from "next/link";
 import {
   getCustomers,
   latestLeadActivity,
-  CUSTOMERS_PAGE_SIZE,
+  type CustomerFilters,
   type ValueCondition,
 } from "@/lib/data/customers";
 import { getUserPref } from "@/lib/data/user-layouts";
@@ -62,25 +62,28 @@ export default async function CustomersPage({
   // /customers carries no query, so leaving and returning always lands here.
   const sort = sp.sort ?? "customer_number";
   const dir = sp.dir === "desc" ? "desc" : "asc";
-  const [{ rows, total, page, pageCount, filterOptions }, columnPref] = await Promise.all([
-    getCustomers({
-      search: sp.search,
-      hasLiveLead: sp.live === "1",
-      page: sp.page ? Number(sp.page) : 1,
-      columnFilters,
-      valueFilters,
-      sort,
-      dir,
-    }),
+  // The list scrolls continuously — the first chunk renders server-side, and
+  // CustomerTable fetches further chunks (via loadCustomerRows) as it scrolls.
+  const filters: CustomerFilters = {
+    search: sp.search,
+    hasLiveLead: sp.live === "1",
+    columnFilters,
+    valueFilters,
+    sort,
+    dir,
+  };
+  const [{ rows, total, filterOptions }, columnPref] = await Promise.all([
+    getCustomers({ ...filters, page: 1 }),
     getUserPref("customers_columns"),
   ]);
-
-  const from = total === 0 ? 0 : (page - 1) * CUSTOMERS_PAGE_SIZE + 1;
-  const to = Math.min(page * CUSTOMERS_PAGE_SIZE, total);
 
   // Derive each row's "last activity" here (the helper lives with the server
   // data layer), so the client table renders without re-importing server code.
   const views: CustomerRowView[] = rows.map((c) => ({ c, activity: latestLeadActivity(c) }));
+
+  // Re-mount the table (resetting its scroll list) whenever the query changes,
+  // so a new sort/filter/search starts from a fresh first chunk.
+  const viewKey = JSON.stringify({ search: sp.search, live: sp.live, columnFilters, valueFilters, sort, dir });
 
   return (
     <CustomerColumnsProvider saved={columnPref}>
@@ -100,9 +103,6 @@ export default async function CustomersPage({
           <div className="ml-auto flex items-center gap-2.5">
             <ColumnsButton />
             <FiltersButton filterOptions={filterOptions} />
-            <button className="inline-flex items-center gap-[7px] rounded-lg border border-[#e7e7ea] bg-white px-3 py-2 text-[13px] font-semibold text-[#3f3f46] transition-colors hover:bg-[#fafafa]" type="button">
-              <Icon name="export" size={13} /> Export
-            </button>
             <Link href="/customers/new" className={btnPrimary}>
               <Icon name="plus" size={13} strokeWidth={2.2} /> New Customer
             </Link>
@@ -115,12 +115,10 @@ export default async function CustomersPage({
         </div>
 
         <CustomerTable
-          views={views}
+          key={viewKey}
+          initialViews={views}
           total={total}
-          page={page}
-          pageCount={pageCount}
-          from={from}
-          to={to}
+          filters={filters}
           sort={sort}
           dir={dir}
         />

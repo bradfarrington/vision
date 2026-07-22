@@ -2,6 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 
 export type StaffOption = { id: string; label: string };
 
+/** "brad farrington" → "Brad Farrington". Names are shown Title Case everywhere. */
+export function titleCaseName(s: string): string {
+  return s
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 /**
  * Sales staff for the Sales manager / Salesperson pickers. Sourced from
  * staff_members (NOT auth users) — a staff member may or may not have a CRM
@@ -20,6 +29,8 @@ export async function getSalesStaff(): Promise<StaffOption[]> {
     .filter((s) => s.role === "sales" || (Array.isArray(s.roles) && s.roles.includes("sales")))
     .map((s) => ({
       id: s.id,
-      label: [s.first_name, s.last_name].filter(Boolean).join(" ").trim() || "Staff member",
+      label:
+        titleCaseName([s.first_name, s.last_name].filter(Boolean).join(" ").trim()) ||
+        "Staff member",
     }));
 }

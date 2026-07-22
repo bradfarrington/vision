@@ -7,6 +7,15 @@ import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { addNote } from "@/app/(app)/notes/actions";
 import { searchCustomersForLink } from "@/lib/data/customer-record";
+import {
+  getCustomers,
+  latestLeadActivity,
+  CUSTOMERS_PAGE_SIZE,
+  type CustomerFilters,
+  type CustomerRow,
+  type ActivityLine,
+} from "@/lib/data/customers";
+import { titleCaseName } from "@/lib/data/staff";
 import type { Database } from "@/lib/supabase/types";
 
 type CustomerInsert = Database["public"]["Tables"]["customers"]["Insert"];
@@ -14,18 +23,44 @@ type CustomerUpdate = Database["public"]["Tables"]["customers"]["Update"];
 
 export type CustomerFormState = { error?: string };
 
-// Fields the form owns. Empty strings are normalised to null so we don't store
-// blank text where the schema expects absent values.
+/**
+ * Load one more chunk of customer rows for the list's infinite scroll. Returns
+ * rows pre-shaped for the table (with each row's derived "last activity"), the
+ * exact total, and whether more remain. Same allowlisted filter/sort path as the
+ * initial server render, so paging stays correct and injection-safe.
+ */
+export async function loadCustomerRows(
+  filters: CustomerFilters,
+  page: number,
+): Promise<{
+  views: { c: CustomerRow; activity: ActivityLine }[];
+  total: number;
+  hasMore: boolean;
+}> {
+  const { rows, total } = await getCustomers({ ...filters, page });
+  const views = rows.map((c) => ({ c, activity: latestLeadActivity(c) }));
+  return { views, total, hasMore: page * CUSTOMERS_PAGE_SIZE < total };
+}
+
+// Fields the form may submit. Empty strings are normalised to null so we don't
+// store blank text where the schema expects absent values. The form renders a
+// subset of these depending on mode (create shows the full set; the legacy edit
+// screen shows only the basics), so `collect()` patches ONLY the fields actually
+// present in the payload — a field the form didn't render must never be nulled.
 const TEXT_FIELDS = [
   "customer_type",
   "title",
   "first_name",
   "last_name",
+  "first_name_2",
+  "last_name_2",
   "company_name",
   "email",
   "phone",
   "mobile",
+  "mobile_2",
   "home_telephone",
+  "work_telephone",
   "house_name",
   "house_number",
   "street",
@@ -34,12 +69,55 @@ const TEXT_FIELDS = [
   "county",
   "postcode",
   "what_3_words",
+  "directions",
   "notes",
+  "invoice_name",
+  "invoice_address_1",
+  "invoice_address_2",
+  "invoice_address_3",
+  "invoice_address_4",
+  "invoice_postcode",
+  "invoice_tel",
+  "payment_terms",
+  "sales_manager",
+  "vat_no",
+  "default_account_reference",
+  "marketing_code",
+  "opted_in_by",
+  "flash_note",
 ] as const;
 
-function collect(formData: FormData): Record<string, string | null> {
-  const out: Record<string, string | null> = {};
+// Tristate flags/consent: blank = never asked/assessed (null), which is
+// materially different from a recorded No — same rule as the record's editors.
+const TRISTATE_FIELDS = [
+  "email_opt_in",
+  "sms_opt_in",
+  "phone_opt_in",
+  "letter_opt_in",
+  "do_not_contact",
+  "bad_payer",
+  "customer_moved_away",
+] as const;
+
+const DATE_FIELDS = ["opt_in_date"] as const;
+
+type CollectedValue = string | boolean | null;
+
+function collect(formData: FormData): Record<string, CollectedValue> {
+  const out: Record<string, CollectedValue> = {};
   for (const field of TEXT_FIELDS) {
+    if (!formData.has(field)) continue;
+    const raw = formData.get(field);
+    const value = typeof raw === "string" ? raw.trim() : "";
+    out[field] = value === "" ? null : value;
+  }
+  for (const field of TRISTATE_FIELDS) {
+    if (!formData.has(field)) continue;
+    const raw = formData.get(field);
+    out[field] = raw === "true" ? true : raw === "false" ? false : null;
+  }
+  for (const field of DATE_FIELDS) {
+    if (!formData.has(field)) continue;
     const raw = formData.get(field);
     const value = typeof raw === "string" ? raw.trim() : "";
     out[field] = value === "" ? null : value;
@@ -54,15 +132,20 @@ export async function saveCustomer(
 ): Promise<CustomerFormState> {
   const id = formData.get("id");
   const data = collect(formData);
+  // Narrow the text fields the checks below read (never booleans/dates).
+  const str = (v: CollectedValue | undefined): string | null =>
+    typeof v === "string" ? v : null;
+  const firstName = str(data.first_name);
+  const lastName = str(data.last_name);
 
   // Salutation defaults to Title + surname (how we address them).
-  data.salutation = [data.title, data.last_name].filter(Boolean).join(" ").trim() || null;
+  data.salutation = [str(data.title), lastName].filter(Boolean).join(" ").trim() || null;
 
-  const isCommercial = (data.customer_type ?? "").toLowerCase() === "commercial";
-  if (!data.first_name || !data.last_name) {
+  const isCommercial = (str(data.customer_type) ?? "").toLowerCase() === "commercial";
+  if (!firstName || !lastName) {
     return { error: "First and last name are required." };
   }
-  if (isCommercial && !data.company_name) {
+  if (isCommercial && !str(data.company_name)) {
     return { error: "Company name is required for commercial customers." };
   }
 
@@ -99,9 +182,9 @@ export async function saveCustomer(
     customerId = inserted.id;
     // Mirror the first person into a (default) linked contact.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await syncPersonContact(supabase as any, companyId, customerId, "primary", data.first_name, data.last_name, {
-      email: data.email,
-      phone: data.phone ?? data.mobile,
+    await syncPersonContact(supabase as any, companyId, customerId, "primary", firstName, lastName, {
+      email: str(data.email),
+      phone: str(data.phone) ?? str(data.mobile),
     });
   }
 
@@ -652,7 +735,7 @@ export async function addSalesStaff(name: string): Promise<{ label?: string; err
   const companyId = await getCompanyId();
   if (!companyId) return { error: "No tenant in session." };
 
-  const parts = clean.split(/\s+/);
+  const parts = titleCaseName(clean).split(/\s+/);
   const first = parts[0];
   const last = parts.slice(1).join(" ");
 
@@ -668,7 +751,7 @@ export async function addSalesStaff(name: string): Promise<{ label?: string; err
   });
   if (error) return { error: error.message };
   revalidatePath("/customers", "layout");
-  return { label: clean };
+  return { label: titleCaseName(clean) };
 }
 
 /**

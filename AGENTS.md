@@ -402,8 +402,8 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
     are px (the grid switched from `fr` tracks to fixed px + a trailing `minmax(16px,1fr)` spacer so
     rows fill the width and borders span). `commitWidth` merges the final px explicitly, so a
     mid-drag stale closure can't corrupt the saved object; only the dragged column changes.
-  - **Sorting is SERVER-SIDE, single-column, via `sort`/`dir` URL params** (so it orders across every
-    page, not just the 9 on screen, and is shareable). Click a header → asc, click again → desc,
+  - **Sorting is SERVER-SIDE, single-column, via `sort`/`dir` URL params** (so it orders across the
+    whole set, not just the rows loaded so far, and is shareable). Click a header → asc, click again → desc,
     click another → that column. `getCustomers` orders by an ALLOWLISTED column (`SORTABLE_COLUMNS`,
     never interpolated) with `id` as a stable tiebreaker; computed/composite columns (counts, last
     activity, address) aren't sortable, Name maps to `last_name`. Resize handle stops its click
@@ -460,6 +460,65 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   removes the saved entry, so it falls back to the default (customer_number asc). This is
   session/tab-scoped by design; a DB-backed per-user default would be the cross-device upgrade. Reuse
   `ViewStateSaver`/`RememberedLink` for `/leads` when its grid lands.
+
+## The customers list scrolls continuously — no pagination — decided 2026-07-22
+
+The `/customers` list is **one continuously-scrolling list, not paged**. The fixed 9-per-page
+pagination was removed on sight: it wasted the whole lower half of the container and pushed a freshly
+created customer (highest `customer_number`, default sort ascending) onto page 2 where it looked
+missing.
+
+- **The first chunk renders server-side; further chunks stream in as you scroll.** `CUSTOMERS_PAGE_SIZE`
+  is now the **chunk size (40)**, not a page size — big enough to fill a tall container on first paint,
+  small enough that each fetch stays cheap at thousands of rows. `CustomerTable` appends chunks via the
+  **`loadCustomerRows(filters, page)`** server action (same allowlisted filter/sort path as the initial
+  render, so paging stays correct and injection-safe), watching a bottom **sentinel** with an
+  `IntersectionObserver` (`root` = the scroller, `rootMargin: 400px` so the next fetch starts before the
+  user reaches the end). Rows de-dupe on `id` across the chunk boundary.
+- **A changed query re-mounts the table.** The page passes `key={viewKey}` (a JSON signature of
+  search/filters/sort/dir) to `CustomerTable`, so a new sort/filter/search resets the scroll list to a
+  fresh first chunk instead of appending onto stale rows. Filters/sort stay URL-driven and server-applied.
+- **No `page`/`pageCount`/`from`/`to` and no `Pagination` control** on this list any more. The footer
+  reads `Showing N of TOTAL` while more remain, then `TOTAL customers`. **Don't reintroduce paging here;**
+  when `/leads` gets its table, give it the same infinite scroll.
+- **There is no Export button** on the list header (removed 2026-07-22 — it was a non-wired placeholder).
+
+## New Customer wizard — built 2026-07-22
+
+`/customers/new` is a **staged, survey-style wizard** (`src/components/crm/customer-form.tsx`), not the
+old single flat form. It captures the full customer field set the record holds, grouped into steps:
+**Identity → Contact → Address → Billing (optional) → Marketing (optional) → Review**.
+
+- **One controlled state object; every value rides as a hidden `<input>` so the native `<form action>`
+  submits the whole record at once.** The visible step UI only edits state — so copy-across buttons, the
+  Review summary, and jumping back all work without losing entries. `useActionState(saveCustomer)` still
+  drives the submit.
+- **The final Create action lives IN the Review card, never in the fixed top bar.** The last "Continue"
+  click lands you on Review, and a reflex second click in the same spot must not create the customer
+  before it's read (this was the reported bug). The top bar carries Cancel/Back/Continue only; Enter is
+  swallowed on every non-textarea field so a keystroke can't submit early.
+- **Copy-across buttons** avoid re-typing: on Billing, **"Same as main address"** fills the invoice
+  name/address/postcode/tel from the customer + main address. Any future step with a duplicate-entry risk
+  should get the same affordance.
+- **The save action patches ONLY the fields actually submitted.** `saveCustomer.collect()` skips any key
+  not present in the payload (`formData.has`), typed by set (text / tristate `true|false|null` / date).
+  This is what lets the **legacy `/customers/[id]/edit` screen** (unlinked; the record edits inline now)
+  keep rendering just its basic fields without nulling everything else — it submits `BASIC_KEYS` only.
+- **Lookups + date picker are the real ones** (`Combo` / `DatePicker`), so the wizard writes clean
+  tenant-editable values, not free text. **Town and County are tenant-editable lookups too now**
+  (`list_key` `town` / `county`), same as Locality — pages that render them fetch those lists
+  (`getTenantOptionLists`). Consent/flags use a blank / Yes / No tristate (blank = not asked).
+
+## UI label casing — Title Case — decided 2026-07-22
+
+**Any multi-word field/UI label is Title Case** ("First Name", "House Number", "Payment Terms",
+"Do Not Contact"), matching the record's field rows and the Title-Case tab labels. Sentence-case labels
+were a slip in the first cut of the wizard. Brand tokens keep their own casing (`what3words`), and
+question-style step headings stay sentences ("Who is the customer?").
+
+- **People's names are shown Title Case everywhere**, regardless of how they were typed/imported.
+  `titleCaseName()` (`src/lib/data/staff.ts`) normalises on display in `getSalesStaff()` and on write in
+  `addSalesStaff()`, so "brad farrington" lists as "Brad Farrington".
 
 ## Phone fields — Mobile + Home — decided 2026-07-22
 
@@ -875,5 +934,6 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.
-- **New Customer / New Lead forms still use plain inputs** — not yet brought in line with the inline
+- **The New Lead form still uses plain inputs** — not yet brought in line with the inline
   lookups/date-picker. Lead detail fields (source, product type, salesperson) not yet lookup-ified.
+  (The **New Customer** form was rebuilt as a staged wizard on 2026-07-22 — see § New Customer wizard.)

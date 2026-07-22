@@ -59,7 +59,7 @@ const PATHS: Record<IconName, string[]> = {
   "arrow-right": ["M5 12h14M13 6l6 6-6 6"],
   pencil: ["M12 20h9", "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"],
   star: ["M12 2l2.9 6.26L21 9.27l-5 4.87L17.18 21 12 17.77 6.82 21 8 14.14l-5-4.87 6.1-1.01L12 2z"],
-  "map-pin": [], // custom viewBox, handled by MapPin component if needed
+  "map-pin": ["M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"], // + circle, see render
   user: [
     "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2",
     "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
@@ -101,6 +101,7 @@ export function Icon({ name, size = 14, strokeWidth = 2, className }: IconProps)
     >
       {name === "search" && <circle cx="11" cy="11" r="7" />}
       {name === "eye" && <circle cx="12" cy="12" r="3" />}
+      {name === "map-pin" && <circle cx="12" cy="10" r="2.6" />}
       {name === "columns" && (
         <>
           <rect x="3" y="3" width="18" height="18" rx="2" />
