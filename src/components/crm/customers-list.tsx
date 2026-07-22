@@ -96,7 +96,7 @@ const COLUMNS: Column[] = [
     w: SHORT,
     cell: (v) => <span>{titleCase(str(v.c.record.customer_type)) ?? "—"}</span>,
   },
-  { key: "customer_number", label: "Customer no.", group: "Identity", w: SHORT, kind: "number" },
+  { key: "customer_number", label: "Cust No.", group: "Identity", w: SHORT, kind: "number" },
   { key: "property_type", label: "Property type", group: "Identity", w: TEXT },
 
   // Contact
@@ -821,7 +821,7 @@ export function CustomerTable({
       <div className="min-h-0 flex-1 overflow-auto">
         <div style={{ minWidth: "min-content" }}>
           <div
-            className="sticky top-0 z-10 grid items-stretch border-b border-[#e7e7ea] bg-[#fafafa] text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]"
+            className="sticky top-0 z-10 grid items-stretch border-b border-[#e7e7ea] bg-[#fafafa] text-[12px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]"
             style={{ gridTemplateColumns: grid }}
           >
             <span className="flex items-center justify-center py-2.5">
