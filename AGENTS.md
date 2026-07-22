@@ -853,20 +853,25 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   the screen renders as if the customer had no notes/documents (this happened with
   `note_number`/`document_number`). Loaders now go through `selectWithFallback` with a
   `*_SELECT_BASE` subset — keep that pattern when adding columns to a shared select.
-- **Generated types are stale.** Migrations `20260721094000`–`099200` add columns/tables not yet
-  in `src/lib/supabase/types.ts`, so data code uses a loose `const db = supabase as any` pattern and
-  actions cast insert/update payloads. **Run
-  `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`** to restore real typing
-  and remove the casts.
+- **KEEP `src/lib/supabase/types.ts` IN SYNC — regenerate after EVERY hand-applied migration.** This
+  is the last step of the migration checklist below, not an afterthought: because schema is applied by
+  hand, the generated types don't move on their own, and when they drift the data layer papers over it
+  with loose `supabase as any` casts / payload casts — which silently hide real column/table mistakes.
+  They fell a full day behind once (`user_ui_layouts` etc. were missing until 2026-07-22). To refresh:
+  `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`, then `npx tsc --noEmit`,
+  then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
+  doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
+  2026-07-22** (through migration `20260722096000`).
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
 - **Schema is applied BY HAND in the Supabase SQL editor**, in order — not `supabase db push` (an
-  early hook-policy migration was applied manually, so db push conflicts). For new migrations: add
-  the file, then apply the SQL manually, then **reload the PostgREST schema cache**
-  (`notify pgrst, 'reload schema';`, or Supabase dashboard → restart) so new columns and embeds
-  resolve. **Every migration through `20260722093000` was applied to the remote as of 2026-07-22.**
-  Some (`097000`) were re-run as they gained rows.
+  early hook-policy migration was applied manually, so db push conflicts). **The full checklist for a
+  new migration:** (1) add the migration file; (2) apply the SQL manually; (3) **reload the PostgREST
+  schema cache** (`notify pgrst, 'reload schema';`, or Supabase dashboard → restart) so new columns
+  and embeds resolve; (4) **regenerate + commit the generated types** (see the types bullet above) —
+  skipping this is what let them drift. **Every migration through `20260722096000` was applied to the
+  remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.
