@@ -422,32 +422,28 @@ delete it as each screen moves over** (the lead detail is the last holdout).
 - **Geocoding runs server-side only** (`src/app/(app)/geo/actions.ts` → `resolveAddress`), so tenant
   addresses are never broadcast from staff browsers to a third party and the cache is shared rather
   than per-session.
-- **TWO renderers, picked by whether `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` is set.**
-  - **Google Maps Embed API — primary.** One provider for road map, satellite and street view, and
-    every mode of it is **free and unmetered**. The card shows the road map; the fullscreen overlay
-    carries a **Map / Satellite / Street view** toggle.
-  - **MapLibre GL + OpenStreetMap — fallback, no key.** (OpenFreeMap `positron`, the grey style that
+- **TWO renderers, split by SURFACE — not by deployment, and not by preference.**
+  - **The CARD is always MapLibre GL + OpenStreetMap.** (OpenFreeMap `positron`, the grey style that
     sits inside the zinc palette rather than fighting it; `NEXT_PUBLIC_MAP_STYLE_URL` overrides.)
-    It exists so a fresh clone, a preview deploy with no env vars, or an un-provisioned tenant gets
-    a working map instead of a blank card. ~200KB gzipped and **imported dynamically inside the
-    effect**, so a Google-path deployment never downloads it. **Do not delete it to "simplify"**
-    unless a missing env var being a blank card is acceptable.
-- **What the Google path costs, and it is not nothing.** Decided knowingly on 2026-07-22:
-  - **The marker is Google's red pin and CANNOT be the tenant accent** — an iframe is not ours to
-    style. `PIN_SVG` and the whole `var(--accent-blue)` inheritance story apply to the MapLibre path
-    only.
-  - **Google's logo and Terms links sit on the canvas, contractually unhideable** — larger than the
-    OSM credit they replace. Going all-Google does not settle the branding question, it changes
-    which logo.
-  - **Nothing in the iframe is programmable**, so a future drag-to-pin cannot be built on it. That
-    needs the metered JS API or the MapLibre path.
-  - **Never swap these iframes for the Maps JavaScript API without pricing it first.** The Embed API
+    This is the surface staff look at all day, so it is the one that stays quiet: **tenant-accent
+    pin** and a 10px grey credit, free at any volume however many records get opened. ~200KB gzipped
+    and **imported dynamically inside the effect**, so a screen with no map never downloads it.
+  - **FULLSCREEN is Google's Maps Embed API**, when `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` is set —
+    a **Map / Satellite / Street view** toggle, every mode free and unmetered. A Google logo on a
+    full-screen view barely registers, and street view is the whole reason anyone opens it. No key →
+    fullscreen falls back to MapLibre and street view becomes a link out.
+- **All-Google was tried and reverted on 2026-07-22 — do not re-propose it.** The reasons are
+  structural, not aesthetic:
+  - **Google's logo and Terms links are contractually unremovable at every tier**, including the JS
+    API. OSM's licence explicitly permits the credit *adjacent to* the map; Google's terms prohibit
+    obscuring theirs. Going all-Google does not settle the branding question, it makes it worse.
+  - **An Embed iframe cannot be styled at all** — it supports no Map IDs, so cloud-based map styling
+    does not reach it, and **the marker can never be the tenant's colour**. `PIN_SVG` and the
+    `var(--accent-blue)` inheritance story are MapLibre-only.
+  - **Nothing in the iframe is programmable**, so a future drag-to-pin cannot be built on it.
+  - **Never swap the iframes for the Maps JavaScript API without pricing it first.** The Embed API
     is free; the JS API bills **per map load**, and a map load happens on every record view forever.
-    Geocoding is affordable because it caches; a map render cannot be cached.
-- **The card map is a PREVIEW with a transparent lid over it.** An iframe's wheel handling is not
-  ours to disable, so an uncovered embed swallows the tab panel's scroll. A full-bleed transparent
-  button takes the pointer events — restoring normal page scrolling and making the whole thumbnail
-  the control that opens the fullscreen view.
+    Geocoding is affordable because it caches — a map render cannot be.
 - **NO map chrome on the canvas — the credit lives in the card's fine print.** `attributionControl`
   is `false` and `<MapCredit>` renders a 10px grey "© OpenStreetMap" in the footer beside the links.
   Two on-canvas attempts were rejected first: MapLibre's `compact: true` renders **expanded** until
@@ -463,7 +459,12 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   helps nobody find a house.
 - **Fullscreen overlay mirrors the document viewer** — expand button top-LEFT of the canvas (the
   zoom control owns top-right), `fixed inset-0 z-50`, Escape to close, dark chrome header carrying
-  the address and the Directions / what3words links. **It is NOT a portal to `document.body`**, and
+  the address and the Directions / what3words links.
+- **The overlay OPENS ON a view, it does not always land on the map.** `fullscreen` state is the
+  `GoogleView` to open on (or `null` for closed), so the card's "Street view →" goes straight to the
+  pano instead of dumping the user on the map to hunt for the toggle. **Street view must never be a
+  link to a new Google Maps tab when the embed key is present** — leaving the app loses the record
+  the user was reading. The link-out only survives as the no-key fallback. **It is NOT a portal to `document.body`**, and
   that is load-bearing: the pin is filled with `var(--accent-blue)` from `tenantThemeVars` on the
   app shell root, so a portalled marker silently falls back to platform blue for every tenant with
   a brand colour. `fixed` covers the viewport perfectly well from inside the tree.
