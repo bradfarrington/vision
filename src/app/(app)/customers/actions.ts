@@ -525,6 +525,100 @@ export async function setCustomFieldValue(
   return {};
 }
 
+/**
+ * Define a new custom field for this tenant, from the record screen.
+ * Dropdown fields get their own tenant_options list (`cf_<slug>_<id>`) seeded
+ * with the values given, so they behave exactly like the standard pick-lists —
+ * searchable, and extendable inline later. All rows are company_id-scoped, so a
+ * tenant's own questions are invisible to every other tenant.
+ */
+export async function addCustomFieldDefinition(
+  question: string,
+  dataType: "text" | "select",
+  values: string[] = [],
+  entity: "customer" | "lead" = "customer",
+): Promise<{ error?: string }> {
+  const label = question.trim();
+  if (!label) return { error: "Enter a question." };
+  const labels = values.map((v) => v.trim()).filter(Boolean);
+  if (dataType === "select" && labels.length === 0)
+    return { error: "Add at least one dropdown value." };
+
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const dupe = await db
+    .from("custom_field_definitions")
+    .select("id")
+    .eq("entity", entity)
+    .eq("question", label)
+    .limit(1);
+  if (dupe.data?.[0]) return { error: "That question already exists." };
+
+  const last = await db
+    .from("custom_field_definitions")
+    .select("sort_order")
+    .eq("entity", entity)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  const sortOrder = (last.data?.[0]?.sort_order ?? 0) + 1;
+
+  const ins = await db
+    .from("custom_field_definitions")
+    .insert({ company_id: companyId, entity, question: label, data_type: dataType, sort_order: sortOrder })
+    .select("id")
+    .single();
+  if (ins.error) return { error: ins.error.message };
+
+  if (dataType === "select") {
+    const listKey = `cf_${slugify(label)}_${ins.data.id}`;
+    const opts = await db.from("tenant_options").insert(
+      // De-duplicated: the list's unique (company_id, list_key, label) would reject repeats.
+      [...new Set(labels)].map((l, i) => ({
+        company_id: companyId,
+        list_key: listKey,
+        label: l,
+        sort_order: i + 1,
+      })),
+    );
+    if (opts.error) return { error: opts.error.message };
+    const upd = await db
+      .from("custom_field_definitions")
+      .update({ list_key: listKey })
+      .eq("id", ins.data.id);
+    if (upd.error) return { error: upd.error.message };
+  }
+
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
+/** Remove a custom field (its answers cascade; its own dropdown list goes too). */
+export async function deleteCustomFieldDefinition(id: number): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const def = (
+    await db.from("custom_field_definitions").select("list_key").eq("id", id).limit(1)
+  ).data?.[0];
+  const { error } = await db.from("custom_field_definitions").delete().eq("id", id);
+  if (error) return { error: error.message };
+  // Only lists this field owns — shared standard lists (marketing_source etc.) stay.
+  if (def?.list_key?.startsWith("cf_")) {
+    await db.from("tenant_options").delete().eq("list_key", def.list_key);
+  }
+  revalidatePath("/customers", "layout");
+  return {};
+}
+
+/** A safe list_key fragment: lowercase, alphanumerics + underscores. */
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "field";
+}
+
 /** Add a stamped marketing note (thread) — records the author + date. */
 export async function addMarketingNote(
   customerId: string,

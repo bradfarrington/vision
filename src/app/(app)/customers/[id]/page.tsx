@@ -33,7 +33,11 @@ import { EditableField, type EditableType } from "@/components/crm/editable-fiel
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
 import { MarketingNotes } from "@/components/crm/marketing-notes";
 import { DocumentsPanel } from "@/components/crm/documents-panel";
-import { CustomFieldValue } from "@/components/crm/custom-field-editor";
+import {
+  AddCustomFieldButton,
+  CustomFieldRemove,
+  CustomFieldValue,
+} from "@/components/crm/custom-field-editor";
 import {
   RelationshipAdder,
   RelationshipRemove,
@@ -54,9 +58,19 @@ export default async function CustomerDetailPage({
   const c = await getCustomerRecord(id);
   if (!c) notFound();
 
+  // Tenant-defined dropdown fields bring their own list_key, so the lookup set
+  // is part-fixed, part-whatever this tenant has created.
+  const lookupKeys = [
+    ...new Set([
+      "customer_type", "title", "payment_terms", "settlement_terms", "marketing_source",
+      "contact_role", "locality", "consent_by", "preferred_contact_time", "heard_about_us",
+      "document_category",
+      ...c.customFields.map((f) => f.listKey).filter((k): k is string => !!k),
+    ]),
+  ];
   const [relationshipTypes, lookups, salesUsers] = await Promise.all([
     getRelationshipTypes(),
-    getTenantOptionLists(["customer_type", "title", "payment_terms", "settlement_terms", "marketing_source", "contact_role", "locality", "consent_by", "preferred_contact_time", "heard_about_us", "document_category"]),
+    getTenantOptionLists(lookupKeys),
     getSalesStaff(),
   ]);
   const typeLabel = c.customer_type
@@ -576,22 +590,36 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
 
 function CustomTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   if (c.customFields.length === 0)
-    return <Empty>No custom fields defined. Add them in settings to capture bespoke info here.</Empty>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+        <p className="text-[12.5px] text-[#71717a]">
+          No additional-info fields yet — add your own to capture bespoke info here.
+        </p>
+        <AddCustomFieldButton />
+      </div>
+    );
   return (
     <Card className="max-w-3xl">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <CardTitle>Additional info</CardTitle>
+        <AddCustomFieldButton compact />
+      </div>
       {c.customFields.map((f, i) => (
         <div
           key={f.definitionId}
-          className={`flex items-center justify-between gap-3 py-2 text-[12.5px] ${i === c.customFields.length - 1 ? "" : "border-b border-[#f4f4f5]"}`}
+          className={`group/row flex items-center justify-between gap-3 py-2 text-[12.5px] ${i === c.customFields.length - 1 ? "" : "border-b border-[#f4f4f5]"}`}
         >
           <span className="shrink-0 text-[#71717a]">{f.question}</span>
-          <CustomFieldValue
-            customerId={c.id}
-            definitionId={f.definitionId}
-            listKey={f.listKey}
-            value={f.value}
-            options={f.listKey ? (lookups[f.listKey] ?? []) : []}
-          />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <CustomFieldValue
+              customerId={c.id}
+              definitionId={f.definitionId}
+              listKey={f.listKey}
+              value={f.value}
+              options={f.listKey ? (lookups[f.listKey] ?? []) : []}
+            />
+            <CustomFieldRemove definitionId={f.definitionId} question={f.question} />
+          </div>
         </div>
       ))}
     </Card>
