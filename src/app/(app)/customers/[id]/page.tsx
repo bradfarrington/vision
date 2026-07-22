@@ -478,11 +478,11 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
     .filter(Boolean)
     .join(", ");
   const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
+  // NOT `fit`: FitRows trims from the bottom, and access notes are the last row
+  // — so a gate code / access instruction was the first thing hidden. The card's
+  // content is bounded anyway (finite address lines + access clamped to 2 lines),
+  // so it renders in full without a height budget.
   return (
-    {/* NOT `fit`: FitRows trims from the bottom, and access notes are the last
-        row — so a gate code / access instruction was the first thing hidden.
-        The card's content is bounded anyway (finite address lines + access
-        clamped to 2 lines), so it renders in full without a height budget. */}
     <SummaryCard title="Address" to="Address" linkLabel="Edit →">
       {lines.length === 0 && !c.postcode ? (
         <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
