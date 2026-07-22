@@ -210,12 +210,16 @@ export function EditableField({
           onKeyDown={(e) => {
             if (e.key === "Escape") setEditing(false);
           }}
-          // overflow-wrap:anywhere — a textarea soft-wraps at spaces only, so an
-          // unbroken string (a URL, a mashed-in note) scrolls sideways and hides
-          // its own start. Break mid-token rather than let the box scroll.
+          // The overview keeps every field row to one line by putting `truncate`
+          // on the last child of each [data-row] — which is this editor. Read
+          // mode wants that; an open textarea must not inherit `nowrap`, so the
+          // wrapping properties are forced back on here (the row's compound
+          // selector outranks a plain utility). overflow-wrap:anywhere on top,
+          // because a textarea soft-wraps at spaces only and an unbroken string
+          // would still scroll sideways past its own start.
           className={cn(
             commonCls,
-            "w-full resize-y text-left [overflow-wrap:anywhere]",
+            "w-full resize-y overflow-auto! text-left text-clip! whitespace-pre-wrap! [overflow-wrap:anywhere]",
             className,
           )}
         />
