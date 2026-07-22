@@ -393,10 +393,13 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   different-sounding place than the address (B77 2RL centroid reports "Bolehall" for an address in
   Glascote). Geocoding is therefore **full-address**, and `lib/geo.ts` reports how well it did:
   `address` · `street` · `postcode` · `outcode`. That precision drives BOTH the zoom and the caption.
-- **The map only claims what it knows.** An `address`-precision hit shows no caption at all — silence
-  is the claim of accuracy. Anything less prints an amber caveat saying the building could not be
-  identified. **Never label an approximate fix as if it were exact, and never zoom past the precision**
-  (`ZOOM_FOR` caps an outcode match at z12). A map that quietly rounds is worse than no map.
+- **The map never narrates its own confidence.** An earlier build printed an amber "the exact
+  building could not be identified" under a street-level hit and it was rejected on sight — a pin
+  that is on the right street reads as broken the moment the UI hedges about it, and staff stop
+  trusting every map including the exact ones. **No captions, no confidence badges, no "approximate".**
+  Precision still does its work silently: it is recorded in `address_locations`, and it sets the
+  zoom (`ZOOM_FOR`) so an outcode match never zooms to rooftop level. If precision genuinely is not
+  good enough, the fix is a better geocoder (below), not a disclaimer.
 - **Provider chain, best first** (`geocodeAddress` in `src/lib/geo.ts` — the ONLY place any provider
   is named):
   1. **Google Geocoding**, if `GOOGLE_MAPS_API_KEY` is set. Server-only var, never `NEXT_PUBLIC_`.
@@ -424,11 +427,15 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   account, no per-view billing; `NEXT_PUBLIC_MAP_STYLE_URL` moves to a paid or self-hosted tile host
   without a code change. MapLibre is ~200KB gzipped so it is **imported dynamically inside the
   effect** — a screen with no map never ships the renderer.
-- **Attribution is compact, and that is as far as it goes.** `attributionControl: { compact: true }`
-  reduces the credit to one small ⓘ button, dimmed to 35% until hover, with no visible wording.
-  It **cannot be removed entirely**: crediting OpenStreetMap is a condition of the ODbL licence the
-  data is published under, and every commercial alternative (Google, Mapbox) mandates a larger,
-  unhideable logo. Do not "fix" this by deleting the control.
+- **NO map chrome on the canvas — the credit lives in the card's fine print.** `attributionControl`
+  is `false` and `<MapCredit>` renders a 10px grey "© OpenStreetMap" in the footer beside the links.
+  Two on-canvas attempts were rejected first: MapLibre's `compact: true` renders **expanded** until
+  the user's first drag (it adds `maplibregl-compact-show` alongside `maplibregl-compact` — a real
+  trap, not a config mistake), and even collapsed to the ⓘ it is map-tool chrome one click from a
+  wall of provider branding. The credit itself **stays**: OSM data is ODbL and attribution is a
+  licence condition. The OSM Foundation's guidelines permit it *adjacent to* the map, which is what
+  the footer line is. Do not delete it, and note that Google and Mapbox both mandate an on-canvas
+  logo — this adjacent-credit approach does not carry over to them.
 - **Scroll-wheel zoom is disabled deliberately.** Maps sit inside scrolling tab panels, and a wheel
   over the canvas would swallow the page scroll. Zoom is the buttons or double-click. Rotation and
   pitch are off too — a tilted map helps nobody find a house.

@@ -39,20 +39,50 @@ import {
 const DEFAULT_STYLE = "https://tiles.openfreemap.org/styles/positron";
 const STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
 
-/** How far in to zoom for each quality of match — never further than we know. */
+/**
+ * How far in to zoom for each quality of match — never further than we actually
+ * know. This is the ONLY place the match precision shows itself: the map does
+ * not editorialise about what the geocoder could or could not pin down. The
+ * precision is still recorded in `address_locations` if it is ever needed.
+ */
 const ZOOM_FOR: Record<MatchPrecision, number> = {
   address: 18,
-  street: 16,
-  postcode: 15,
+  street: 17,
+  postcode: 16,
   outcode: 12,
 };
 
-/** Said out loud only when the pin is NOT on the building. */
-const CAVEAT: Partial<Record<MatchPrecision, string>> = {
-  street: "Street level — the exact building could not be identified",
-  postcode: "Postcode centre — the exact building could not be identified",
-  outcode: "Area only — this postcode was not found",
-};
+/**
+ * Attribution lives in the card's fine print, NOT on the canvas.
+ *
+ * The map's own control was tried twice and rejected both times: MapLibre's
+ * `compact: true` renders EXPANDED until the user's first drag (it adds
+ * `maplibregl-compact-show` alongside `maplibregl-compact`), and collapsing it
+ * to the ⓘ button still puts map-tool chrome on a CRM card, one click from a
+ * wall of provider branding.
+ *
+ * It cannot simply be deleted: OpenStreetMap data is published under the ODbL
+ * and crediting it is a licence condition, not a preference. The OSM
+ * Foundation's attribution guidelines allow that credit to sit *adjacent to*
+ * the map rather than on it — so `attributionControl: false` takes it off the
+ * canvas and `<MapCredit>` puts it in the footer as fine print, where it looks
+ * like part of our UI. Compliant, and no map branding on the map.
+ *
+ * If a future provider forbids adjacent attribution (Google and Mapbox both
+ * mandate an on-canvas logo), that provider's rules win — do not reuse this.
+ */
+function MapCredit() {
+  return (
+    <a
+      href="https://www.openstreetmap.org/copyright"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[10px] text-[#c4c4c8] hover:text-[#71717a] hover:underline"
+    >
+      © OpenStreetMap
+    </a>
+  );
+}
 
 type AddressMapProps = AddressInput & {
   /** what3words reference, if the record holds one. */
@@ -151,10 +181,9 @@ export function AddressMap({
         center: [lng, lat],
         zoom,
         interactive,
-        // Attribution is a licence condition of OpenStreetMap data, so it
-        // cannot be switched off — but `compact` collapses it to a small ⓘ
-        // button with no visible branding until someone asks for it.
-        attributionControl: { compact: true },
+        // Off the canvas — the credit is rendered as card fine print instead.
+        // See MapCredit above before changing this.
+        attributionControl: false,
         // A rotated or tilted map helps nobody find a house, and a stray
         // two-finger drag spinning the view reads as a bug.
         dragRotate: false,
@@ -202,7 +231,6 @@ export function AddressMap({
   }, [lat, lng, zoom, interactive, key]);
 
   const retry = () => setAttempt((n) => n + 1);
-  const caveat = coords ? CAVEAT[coords.precision] : null;
 
   return (
     <div className={className}>
@@ -211,15 +239,7 @@ export function AddressMap({
         style={{ height }}
       >
         {coords && !tilesFailed ? (
-          // No map branding on the canvas: `compact` leaves a single small ⓘ,
-          // which is dimmed until hovered. It cannot be removed altogether —
-          // crediting OpenStreetMap is a condition of the ODbL licence the tile
-          // data is published under, and every alternative provider (Google,
-          // Mapbox) requires its own logo, larger and unhideable.
-          <div
-            ref={containerRef}
-            className="h-full w-full [&_.maplibregl-ctrl-attrib]:opacity-35 [&_.maplibregl-ctrl-attrib]:transition-opacity [&_.maplibregl-ctrl-attrib:hover]:opacity-100"
-          />
+          <div ref={containerRef} className="h-full w-full" />
         ) : (
           <MapPlaceholder
             state={tilesFailed ? { status: "unavailable" } : location}
@@ -229,11 +249,13 @@ export function AddressMap({
         )}
       </div>
 
+      {/* Links only. The map never narrates how confident it is — a caption
+          hedging about what "could not be identified" makes staff distrust a
+          pin that is, in practice, on the right street. Precision is still
+          recorded in the cache, and it quietly sets the zoom. */}
       {showFooter && (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
-          {/* Nothing is said when the pin is on the building — silence is the
-              claim of accuracy, and a caption would only add doubt. */}
-          {caveat && <span className="text-[#b86e00]">{caveat}</span>}
+          <MapCredit />
           <span className="ml-auto flex items-center gap-3">
             {line && (
               <a
