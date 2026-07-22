@@ -922,7 +922,10 @@ function Row({ v, cols, grid }: { v: CustomerRowView; cols: Column[]; grid: stri
   return (
     <Link
       href={`/customers/${v.c.id}`}
-      className="grid items-center border-b border-[#f4f4f5] px-0 py-[11px] text-[13px] transition-colors last:border-b-0 hover:bg-[#fafafa]"
+      // Hover is a heavily-transparent wash of the tenant accent (via color-mix
+      // on --accent-blue) rather than a flat grey, so it picks up each tenant's
+      // brand colour. Kept very light so dense rows don't read as "selected".
+      className="grid items-center border-b border-[#f4f4f5] px-0 py-[11px] text-[13px] transition-colors last:border-b-0 hover:bg-[color-mix(in_srgb,var(--accent-blue)_8%,transparent)]"
       style={{ gridTemplateColumns: grid }}
     >
       <span className="flex items-center justify-center">
