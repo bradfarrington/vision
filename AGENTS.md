@@ -636,6 +636,18 @@ fork per-entity copies.
     iframe on `onMouseDownCapture`, and list rows select on `onMouseDown` (not click) — so
     switching files is reliably single-click. Keep both if you touch this.
   - Print: images open a print window; PDFs open in a new tab (the browser prints from there).
+- **The viewer is LIGHT — canvas grey behind the page, white chrome — inline and full screen alike**
+  (changed 2026-07-22; the overlay was previously dark like the map's). A document is a white page,
+  so the app canvas frames it the way the rest of the CRM frames a card; the dark treatment made the
+  Documents tab look like a different product. `ZoomBar`/`Stage`/`Centered` no longer take a `dark`
+  prop — there is one appearance. **Note the map overlay stays dark and that is not an
+  inconsistency**: map tiles are imagery, a scan is paper.
+- **The grey around a PDF page is the BROWSER's, not ours, and CSS cannot reach it.** The page is a
+  cross-origin `<iframe>` and Chromium paints its own `#525659` surround inside it. Our wrapper is
+  the app canvas and shows while the viewer loads. **Don't "fix" this with a colour change** — the
+  only real fix is rendering PDFs ourselves with pdf.js (a dependency + worker asset, and we'd have
+  to rebuild print, text selection and paging that the native viewer gives free). Not done; decide
+  deliberately if it ever matters enough.
 - **Loaders** select the shared `DOCUMENT_SELECT` (incl. `uploader:uploaded_by(...)`) and map
   with `mapDocumentRow` → `DocumentItem`. `getCustomerRecord` already does this;
   `CustomerDoc` is now an alias of `DocumentItem`. A standalone `getDocuments(ownerType, ownerId)`

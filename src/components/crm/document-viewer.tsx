@@ -70,16 +70,15 @@ async function openDownload(id: string) {
 // ---------------------------------------------------------------------------
 // Zoom bar — shared − / percent / + control.
 // ---------------------------------------------------------------------------
-function ZoomBar({ zoom, setZoom, dark }: { zoom: Zoom; setZoom: (z: Zoom) => void; dark?: boolean }) {
+function ZoomBar({ zoom, setZoom }: { zoom: Zoom; setZoom: (z: Zoom) => void }) {
   const fit = zoom === "fit";
   const zoomOut = () =>
     setZoom(fit ? ZOOM_FROM_FIT_OUT : Math.max(ZOOM_MIN, Math.round((zoom - ZOOM_STEP) * 100) / 100));
   const zoomIn = () =>
     setZoom(fit ? ZOOM_FROM_FIT_IN : Math.min(ZOOM_MAX, Math.round((zoom + ZOOM_STEP) * 100) / 100));
-  const btn = dark
-    ? "flex h-7 w-7 items-center justify-center rounded-md border border-white/20 bg-white/5 text-white transition-colors hover:bg-white/15 disabled:opacity-40"
-    : "flex h-7 w-7 items-center justify-center rounded-md border border-[#e7e7ea] bg-white text-[#3f3f46] transition-colors hover:bg-[#fafafa] disabled:opacity-40";
-  const label = dark ? "text-white/80" : "text-[#71717a]";
+  const btn =
+    "flex h-7 w-7 items-center justify-center rounded-md border border-[#e7e7ea] bg-white text-[#3f3f46] transition-colors hover:bg-[#fafafa] disabled:opacity-40";
+  const label = "text-[#71717a]";
   return (
     <div className="flex items-center gap-1">
       <button
@@ -121,22 +120,20 @@ function Stage({
   loading,
   error,
   zoom,
-  dark,
 }: {
   doc: ViewerDoc;
   url: string | null;
   loading: boolean;
   error: string | null;
   zoom: Zoom;
-  dark?: boolean;
 }) {
   const k = kindOf(doc.file_type);
 
-  if (loading) return <Centered dark={dark}>Loading…</Centered>;
+  if (loading) return <Centered>Loading…</Centered>;
   if (error)
     return (
-      <Centered dark={dark}>
-        <span className="text-[#e06666]">{error}</span>
+      <Centered>
+        <span className="text-[#d64545]">{error}</span>
       </Centered>
     );
   if (!url) return null;
@@ -180,7 +177,10 @@ function Stage({
         ? "#toolbar=0&navpanes=0&view=Fit&zoom=page-fit"
         : `#toolbar=0&navpanes=0&zoom=${Math.round(zoom * 100)}`;
     return (
-      <div className="h-full w-full bg-[#525659]">
+      // NB: the surround you actually see around a PDF page is painted by the
+      // browser's own PDF viewer INSIDE this cross-origin iframe — CSS can't
+      // reach it. This is our canvas showing while it loads.
+      <div className="h-full w-full bg-[var(--canvas)]">
         <iframe
           key={String(zoom)}
           src={`${url}${hash}`}
@@ -201,8 +201,8 @@ function Stage({
 
   // Non-previewable — offer a download.
   return (
-    <Centered dark={dark}>
-      <div className="flex flex-col items-center gap-3 rounded-xl bg-white px-8 py-10 text-center shadow-2xl">
+    <Centered>
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e7e7ea] bg-white px-8 py-10 text-center shadow-[0_12px_32px_rgba(10,10,10,0.10)]">
         <Icon name="file" size={32} strokeWidth={1.5} className="text-[#a1a1aa]" />
         <p className="text-[13px] font-semibold text-[#0a0a0a]">{doc.file_name}</p>
         <p className="max-w-xs text-[12px] text-[#71717a]">
@@ -220,13 +220,9 @@ function Stage({
   );
 }
 
-function Centered({ children, dark }: { children: React.ReactNode; dark?: boolean }) {
+function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className={`flex h-full w-full items-center justify-center p-4 text-[13px] ${
-        dark ? "text-white/70" : "text-[#71717a]"
-      }`}
-    >
+    <div className="flex h-full w-full items-center justify-center p-4 text-[13px] text-[#71717a]">
       {children}
     </div>
   );
@@ -292,7 +288,7 @@ function InlineBody({ doc, onFullscreen }: { doc: ViewerDoc; onFullscreen: () =>
           <Icon name="maximize" size={14} strokeWidth={1.9} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 bg-[#f4f4f5]">
+      <div className="min-h-0 flex-1 bg-[var(--canvas)]">
         <Stage doc={doc} url={url} loading={loading} error={error} zoom={zoom} />
       </div>
     </div>
@@ -327,27 +323,27 @@ function FsOverlay({ doc, onClose }: { doc: ViewerDoc; onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#0a0a0a]/90 backdrop-blur-sm">
-      <div className="flex items-center gap-3 px-4 py-3 text-white">
-        <Icon name="file" size={16} strokeWidth={1.75} className="text-white/70" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--canvas)]">
+      <div className="flex items-center gap-3 border-b border-[#e7e7ea] bg-white px-4 py-3">
+        <Icon name="file" size={16} strokeWidth={1.75} className="text-[var(--accent-blue)]" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#0a0a0a]">
           {doc.name}
           {doc.reference && (
-            <span className="ml-1.5 font-mono text-[11.5px] font-medium text-white/60">
+            <span className="ml-1.5 font-mono text-[11.5px] font-medium text-[#a1a1aa]">
               {doc.reference}
             </span>
           )}
           {doc.source && (
-            <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[11px] font-semibold text-white/90">
+            <span className="ml-1.5 rounded-full bg-[var(--accent-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent-active)]">
               {doc.source}
             </span>
           )}
         </span>
-        {zoomable && <ZoomBar zoom={zoom} setZoom={setZoom} dark />}
+        {zoomable && <ZoomBar zoom={zoom} setZoom={setZoom} />}
         <button
           type="button"
           onClick={() => openDownload(doc.id)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/15"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7e7ea] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#3f3f46] transition-colors hover:bg-[#fafafa]"
         >
           <Icon name="download" size={14} strokeWidth={2} /> Download
         </button>
@@ -355,13 +351,13 @@ function FsOverlay({ doc, onClose }: { doc: ViewerDoc; onClose: () => void }) {
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/5 text-white transition-colors hover:bg-white/15"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e7e7ea] bg-white text-[#3f3f46] transition-colors hover:bg-[#fafafa]"
         >
           <Icon name="x" size={16} strokeWidth={2} />
         </button>
       </div>
       <div className="min-h-0 flex-1" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <Stage doc={doc} url={url} loading={loading} error={error} zoom={zoom} dark />
+        <Stage doc={doc} url={url} loading={loading} error={error} zoom={zoom} />
       </div>
     </div>
   );
