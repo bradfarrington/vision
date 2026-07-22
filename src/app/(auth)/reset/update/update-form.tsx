@@ -15,7 +15,7 @@ export function UpdatePasswordForm() {
   return (
     <form action={action} className="mt-6 space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="password">New password</Label>
+        <Label htmlFor="password">New Password</Label>
         <Input
           id="password"
           name="password"
@@ -27,7 +27,7 @@ export function UpdatePasswordForm() {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="confirm">Confirm new password</Label>
+        <Label htmlFor="confirm">Confirm New Password</Label>
         <Input
           id="confirm"
           name="confirm"

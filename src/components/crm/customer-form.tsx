@@ -73,7 +73,7 @@ export function CustomerForm({
       {/* Sections spread across the full panel width */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <Section title="Identity">
-          <Field label="Customer type">
+          <Field label="Customer Type">
             <select
               name="customer_type"
               value={type}
@@ -87,15 +87,15 @@ export function CustomerForm({
           <Field label="Title">
             <input name="title" defaultValue={initial.title ?? ""} className={inputClass} placeholder="Mr / Mrs / Dr" />
           </Field>
-          <Field label="First name" required>
+          <Field label="First Name" required>
             <input name="first_name" defaultValue={initial.first_name ?? ""} required className={inputClass} />
           </Field>
-          <Field label="Last name" required>
+          <Field label="Last Name" required>
             <input name="last_name" defaultValue={initial.last_name ?? ""} required className={inputClass} />
           </Field>
           {/* Company name is a commercial-only concept. */}
           {isCommercial && (
-            <Field label="Company name" required full>
+            <Field label="Company Name" required full>
               <input name="company_name" defaultValue={initial.company_name ?? ""} className={inputClass} />
             </Field>
           )}
@@ -108,7 +108,7 @@ export function CustomerForm({
           <Field label="Phone">
             <input name="phone" defaultValue={initial.phone ?? ""} className={inputClass} />
           </Field>
-          <Field label="Home telephone">
+          <Field label="Home Telephone">
             <input name="home_telephone" defaultValue={initial.home_telephone ?? ""} className={inputClass} />
           </Field>
           <Field label="Email" full>
@@ -117,10 +117,10 @@ export function CustomerForm({
         </Section>
 
         <Section title="Address" className="lg:col-span-2" cols={3}>
-          <Field label="House name">
+          <Field label="House Name">
             <input name="house_name" defaultValue={initial.house_name ?? ""} className={inputClass} />
           </Field>
-          <Field label="House number">
+          <Field label="House Number">
             <input name="house_number" defaultValue={initial.house_number ?? ""} className={inputClass} />
           </Field>
           <Field label="Street">
@@ -144,7 +144,7 @@ export function CustomerForm({
         </Section>
 
         <Section title="Notes" className="lg:col-span-2" cols={1}>
-          <Field label="Customer notes" full>
+          <Field label="Customer Notes" full>
             <textarea
               name="notes"
               defaultValue={initial.notes ?? ""}

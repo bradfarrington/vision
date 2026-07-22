@@ -75,7 +75,7 @@ export default async function CustomersPage({
           label="Town"
           options={towns.map((t) => ({ value: t, label: t }))}
         />
-        <TogglePill param="live" label="Has live lead" />
+        <TogglePill param="live" label="Has Live Lead" />
         <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-[#71717a]">
           Sort: Last activity
           <Icon name="chevron-down" size={11} className="text-[#71717a]" />

@@ -86,7 +86,7 @@ export default async function CustomerDetailPage({
     : "Residential";
 
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-hidden px-[26px] py-[22px]">
+    <div className="flex flex-1 flex-col gap-2.5 overflow-hidden px-[26px] py-[18px]">
       <div className="text-[12.5px] text-[#71717a]">
         <Link href="/customers" className="hover:text-[#3f3f46]">Customers</Link>
         <span className="mx-1 text-[#d4d4d8]">/</span>
@@ -174,13 +174,12 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <div className="flex flex-col gap-3">
           <Card className={OV_CARD}>
             <CardTitle className="mb-1.5">Identity</CardTitle>
-            <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
             <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
             <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
-            <E c={c} label="First name" field="first_name" value={c.first_name} />
-            <E c={c} label="Last name" field="last_name" value={c.last_name} />
-            <E c={c} label="Second first name" field="first_name_2" value={c.first_name_2} />
-            <E c={c} label="Second last name" field="last_name_2" value={c.last_name_2} />
+            <E c={c} label="First Name" field="first_name" value={c.first_name} />
+            <E c={c} label="Last Name" field="last_name" value={c.last_name} />
+            <E c={c} label="Second First Name" field="first_name_2" value={c.first_name_2} />
+            <E c={c} label="Second Last Name" field="last_name_2" value={c.last_name_2} />
             <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
             {isCommercial(c.customer_type) && (
               <E c={c} label="Company" field="company_name" value={c.company_name} last />
@@ -189,10 +188,10 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <ContactSummary c={c} />
           <Card className={OV_CARD}>
             <CardTitle className="mb-1.5">Flags</CardTitle>
-            <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
-            <E c={c} label="Payment risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-            <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
-            <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
+            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
+            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
+            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+            <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
           </Card>
         </div>
 
@@ -254,10 +253,10 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
     // Tiles size to their content rather than stretching across the viewport —
     // a money figure in a full-width card reads as mostly empty space.
     <div className="flex flex-wrap gap-3">
-      <Stat label="Lifetime value" value={gbp(lifetimeValue)} tone="success" to="Billing & account" />
+      <Stat label="Lifetime Value" value={gbp(lifetimeValue)} tone="success" to="Billing & account" />
       <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Billing & account" />
       <Stat
-        label="Live leads"
+        label="Live Leads"
         value={String(liveLeads)}
         sub={c.leadCount > 0 ? `of ${c.leadCount}` : undefined}
         tone="accent"
@@ -298,14 +297,14 @@ function Stat({
   const t = STAT_TONE[tone];
   const body = (
     // A coloured rule down the leading edge carries the tone without an icon.
-    <Card className="relative h-full min-w-[164px] overflow-hidden !px-4 !py-3">
+    <Card className="relative h-full min-w-[158px] overflow-hidden !px-3.5 !py-2.5">
       <span className={`absolute inset-y-0 left-0 w-[3px] ${t.rule}`} />
       <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
         {label}
       </div>
       <div className="flex items-baseline gap-1.5">
         <span
-          className={`font-[family-name:var(--font-inter-tight)] text-[19px] font-extrabold tracking-[-0.01em] ${t.value}`}
+          className={`font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em] ${t.value}`}
         >
           {value}
         </span>
@@ -438,11 +437,11 @@ function ConsentSummary({ c }: { c: CustomerRecord }) {
         ))}
       </div>
       <div className="mt-3">
-        <Row label="Referral source" last={!c.opt_in_date}>
+        <Row label="Referral Source" last={!c.opt_in_date}>
           {c.marketing_code ?? "—"}
         </Row>
         {c.opt_in_date && (
-          <Row label="Consent given" last>
+          <Row label="Consent Given" last>
             {longDate(c.opt_in_date)}
           </Row>
         )}
@@ -463,7 +462,7 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
 }
 
 function RecentNotes({ c }: { c: CustomerRecord }) {
-  const recent = c.customerNotes.slice(0, DIGEST_ROWS);
+  const recent = c.customerNotes.slice(0, 2);
   return (
     <SummaryCard title="Recent notes" to="Notes">
       {recent.length === 0 ? (
@@ -851,25 +850,25 @@ function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
         <CardTitle className="mb-2">Address</CardTitle>
-        <E c={c} label="House name" field="house_name" value={c.house_name} />
-        <E c={c} label="House number" field="house_number" value={c.house_number} />
+        <E c={c} label="House Name" field="house_name" value={c.house_name} />
+        <E c={c} label="House Number" field="house_number" value={c.house_number} />
         <E c={c} label="Street" field="street" value={c.street} />
         <E c={c} label="Locality" field="locality" value={c.locality} type="lookup" listKey="locality" lookupOptions={lookups.locality} />
         <E c={c} label="Town" field="town" value={c.town} />
         <E c={c} label="County" field="county" value={c.county} />
         <E c={c} label="Postcode" field="postcode" value={c.postcode} mono />
         <E c={c} label="What3words" field="what_3_words" value={c.what_3_words} mono />
-        <E c={c} label="Business address" field="business_address" value={c.business_address} type="boolean" last />
+        <E c={c} label="Business Address" field="business_address" value={c.business_address} type="boolean" last />
       </Card>
       <div className="flex flex-col gap-4">
         <Card>
           <CardTitle className="mb-2">Phones</CardTitle>
-          <E c={c} label="Home tel" field="home_telephone" value={c.home_telephone} />
-          <E c={c} label="Work tel" field="work_telephone" value={c.work_telephone} />
+          <E c={c} label="Home Tel" field="home_telephone" value={c.home_telephone} />
+          <E c={c} label="Work Tel" field="work_telephone" value={c.work_telephone} />
           <E c={c} label="Mobile 1" field="mobile" value={c.mobile} />
           <E c={c} label="Mobile 2" field="mobile_2" value={c.mobile_2} />
-          <E c={c} label="Fax / alt" field="fax_alt_no" value={c.fax_alt_no} />
-          <E c={c} label="WhatsApp opt-out" field="no_whatsapp" value={c.no_whatsapp} type="boolean" last />
+          <E c={c} label="Fax / Alt" field="fax_alt_no" value={c.fax_alt_no} />
+          <E c={c} label="WhatsApp Opt-Out" field="no_whatsapp" value={c.no_whatsapp} type="boolean" last />
         </Card>
         <Card>
           <div className="mb-2 flex items-center justify-between">
@@ -900,26 +899,26 @@ function BillingTab({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:col-span-2">
       <Card>
         <CardTitle className="mb-2">Invoice address</CardTitle>
-        <E c={c} label="Invoice name" field="invoice_name" value={c.invoice_name} />
+        <E c={c} label="Invoice Name" field="invoice_name" value={c.invoice_name} />
         <E c={c} label="Address 1" field="invoice_address_1" value={c.invoice_address_1} />
         <E c={c} label="Address 2" field="invoice_address_2" value={c.invoice_address_2} />
         <E c={c} label="Address 3" field="invoice_address_3" value={c.invoice_address_3} />
         <E c={c} label="Address 4" field="invoice_address_4" value={c.invoice_address_4} />
         <E c={c} label="Postcode" field="invoice_postcode" value={c.invoice_postcode} mono />
-        <E c={c} label="Invoice tel" field="invoice_tel" value={c.invoice_tel} last />
+        <E c={c} label="Invoice Tel" field="invoice_tel" value={c.invoice_tel} last />
       </Card>
       <div className="flex flex-col gap-4">
         <Card>
           <CardTitle className="mb-2">Account settings</CardTitle>
-          <E c={c} label="Payment terms" field="payment_terms" value={c.payment_terms} type="lookup" listKey="payment_terms" lookupOptions={lookups.payment_terms} />
-          <E c={c} label="Early-payment terms" field="settlement_disc_terms" value={c.settlement_disc_terms} type="lookup" listKey="settlement_terms" lookupOptions={lookups.settlement_terms} />
-          <E c={c} label="Early-payment %" field="settlement_disc_pct" value={c.settlement_disc_pct} type="number" />
-          <E c={c} label="VAT after discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
-          <E c={c} label="In accounts system" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
-          <E c={c} label="Accounts reference" field="default_account_reference" value={c.default_account_reference} mono />
-          <E c={c} label="Sales manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} onAddNew={addSalesStaff} />
-          <E c={c} label="VAT no." field="vat_no" value={c.vat_no} mono />
-          <E c={c} label="CIS reg" field="cis_reg" value={c.cis_reg} mono last />
+          <E c={c} label="Payment Terms" field="payment_terms" value={c.payment_terms} type="lookup" listKey="payment_terms" lookupOptions={lookups.payment_terms} />
+          <E c={c} label="Early-Payment Terms" field="settlement_disc_terms" value={c.settlement_disc_terms} type="lookup" listKey="settlement_terms" lookupOptions={lookups.settlement_terms} />
+          <E c={c} label="Early-Payment %" field="settlement_disc_pct" value={c.settlement_disc_pct} type="number" />
+          <E c={c} label="VAT After Discount" field="calculate_vat_on_reduced" value={c.calculate_vat_on_reduced} type="boolean" />
+          <E c={c} label="In Accounts System" field="account_created_in_package" value={c.account_created_in_package} type="boolean" />
+          <E c={c} label="Accounts Reference" field="default_account_reference" value={c.default_account_reference} mono />
+          <E c={c} label="Sales Manager" field="sales_manager" value={c.sales_manager} type="lookup" lookupOptions={salesUsers} onAddNew={addSalesStaff} />
+          <E c={c} label="VAT No." field="vat_no" value={c.vat_no} mono />
+          <E c={c} label="CIS Reg" field="cis_reg" value={c.cis_reg} mono last />
         </Card>
         <Card>
           <CardTitle className="mb-2">Ledger accounts</CardTitle>
@@ -1030,10 +1029,10 @@ function MarketingTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
       </Card>
       <Card>
         <CardTitle className="mb-2">Marketing</CardTitle>
-        <E c={c} label="Referral source" field="marketing_code" value={c.marketing_code} type="lookup" listKey="marketing_source" lookupOptions={lookups.marketing_source} />
-        <E c={c} label="Consent date" field="opt_in_date" value={c.opt_in_date} type="date" />
-        <E c={c} label="Consent by" field="opted_in_by" value={c.opted_in_by} type="lookup" listKey="consent_by" lookupOptions={lookups.consent_by} />
-        <E c={c} label="Consent document" field="opt_in_document" value={c.opt_in_document} last />
+        <E c={c} label="Referral Source" field="marketing_code" value={c.marketing_code} type="lookup" listKey="marketing_source" lookupOptions={lookups.marketing_source} />
+        <E c={c} label="Consent Date" field="opt_in_date" value={c.opt_in_date} type="date" />
+        <E c={c} label="Consent By" field="opted_in_by" value={c.opted_in_by} type="lookup" listKey="consent_by" lookupOptions={lookups.consent_by} />
+        <E c={c} label="Consent Document" field="opt_in_document" value={c.opt_in_document} last />
         <MarketingNotes customerId={c.id} notes={c.marketingNotes} />
       </Card>
     </div>
@@ -1192,10 +1191,6 @@ function Empty({ children }: { children: React.ReactNode }) {
       <p className="text-[12.5px] text-[#71717a]">{children}</p>
     </div>
   );
-}
-
-function custNo(n: number): string {
-  return String(n).padStart(4, "0");
 }
 
 function longDate(value: string): string {

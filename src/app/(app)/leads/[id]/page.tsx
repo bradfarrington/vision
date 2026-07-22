@@ -102,18 +102,18 @@ function LeadPanel({ lead }: { lead: LeadDetail }) {
   return (
     <Card>
       <CardTitle className="mb-1.5 text-[14px]">Lead</CardTitle>
-      <FieldRow label="Lead no.">
+      <FieldRow label="Lead No.">
         <span className="font-mono font-semibold">{lead.leadNumber ?? "—"}</span>
       </FieldRow>
-      <FieldRow label="Date received">{fmt(lead.leadDate)}</FieldRow>
+      <FieldRow label="Date Received">{fmt(lead.leadDate)}</FieldRow>
       <EL leadId={lead.id} label="Salesperson" field="salesman" value={lead.salesman} />
       <EL leadId={lead.id} label="Source" field="source" value={lead.source} />
-      <EL leadId={lead.id} label="Sub-source" field="sub_source" value={lead.subSource} />
-      <EL leadId={lead.id} label="Main interest" field="product_type" value={lead.productType} />
-      <EL leadId={lead.id} label="Second interest" field="product_interest_2" value={lead.productInterest2} />
+      <EL leadId={lead.id} label="Sub-Source" field="sub_source" value={lead.subSource} />
+      <EL leadId={lead.id} label="Main Interest" field="product_type" value={lead.productType} />
+      <EL leadId={lead.id} label="Second Interest" field="product_interest_2" value={lead.productInterest2} />
       <EL leadId={lead.id} label="Windows" field="window_count" value={lead.windowCount} type="number" />
-      <EL leadId={lead.id} label="Follow-up date" field="follow_up_date" value={lead.followUpDate} type="date" />
-      <FieldRow label="Quote date · value">
+      <EL leadId={lead.id} label="Follow-Up Date" field="follow_up_date" value={lead.followUpDate} type="date" />
+      <FieldRow label="Quote Date · Value">
         {lead.quoteDate ? `${fmt(lead.quoteDate)} · ${gbp(lead.value)}` : "—"}
       </FieldRow>
       <FieldRow label="Result" last border={false}>

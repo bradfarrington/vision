@@ -151,7 +151,7 @@ function RelationshipTypeSelect({
             <div className="flex flex-col gap-2 p-3">
               <div className="text-[12px] font-semibold text-[#0a0a0a]">New relationship type</div>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-[#71717a]">This side reads</span>
+                <span className="text-[11px] text-[#71717a]">This Side Reads</span>
                 <input
                   autoFocus
                   value={newFwd}
@@ -161,7 +161,7 @@ function RelationshipTypeSelect({
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-[#71717a]">Other side reads (optional)</span>
+                <span className="text-[11px] text-[#71717a]">Other Side Reads (optional)</span>
                 <input
                   value={newInv}
                   onChange={(e) => setNewInv(e.target.value)}

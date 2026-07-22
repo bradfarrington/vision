@@ -65,7 +65,7 @@ export function Tabs({ tabs }: { tabs: TabDef[] }) {
             </button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pt-4">{tabs[active]?.content}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto pt-3">{tabs[active]?.content}</div>
       </div>
     </TabNavContext.Provider>
   );

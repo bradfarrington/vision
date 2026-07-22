@@ -60,7 +60,7 @@ export function LeadForm({
             ))}
           </select>
         </Field>
-        <Field label="Sub-source">
+        <Field label="Sub-Source">
           <input name="sub_source" className={inputClass} placeholder="e.g. Neighbour" />
         </Field>
         <Field label="Stage">
@@ -82,25 +82,25 @@ export function LeadForm({
       </Section>
 
       <Section title="Interest & value">
-        <Field label="Main product interest">
+        <Field label="Main Product Interest">
           <input name="product_type" className={inputClass} placeholder="e.g. uPVC Casement Windows" />
         </Field>
-        <Field label="Second interest">
+        <Field label="Second Interest">
           <input name="product_interest_2" className={inputClass} placeholder="e.g. Composite Door" />
         </Field>
         <Field label="Salesperson">
           <input name="salesman" className={inputClass} />
         </Field>
-        <Field label="Estimated value (£)">
+        <Field label="Estimated Value (£)">
           <input name="gross_value" inputMode="decimal" className={inputClass} placeholder="0.00" />
         </Field>
-        <Field label="Follow-up date">
+        <Field label="Follow-Up Date">
           <input type="date" name="follow_up_date" className={inputClass} />
         </Field>
       </Section>
 
       <Section title="Notes">
-        <Field label="Lead notes" full>
+        <Field label="Lead Notes" full>
           <textarea name="notes" rows={4} className={`${inputClass} resize-y`} placeholder="Enquiry details, requirements…" />
         </Field>
       </Section>

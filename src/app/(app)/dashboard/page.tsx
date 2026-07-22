@@ -42,10 +42,10 @@ export default async function DashboardPage() {
             {data.totalLeads} leads all time
           </div>
         </div>
-        <StatCard label="Deals won" value={String(data.dealsWon)} />
+        <StatCard label="Deals Won" value={String(data.dealsWon)} />
         <StatCard label="Pipeline" value={gbpCompact(data.pipelineValue)} sub={`${data.liveCount} live`} />
-        <StatCard label="Win rate" value={data.winRate != null ? `${data.winRate}%` : "—"} />
-        <StatCard label="Live leads" value={String(data.liveCount)} />
+        <StatCard label="Win Rate" value={data.winRate != null ? `${data.winRate}%` : "—"} />
+        <StatCard label="Live Leads" value={String(data.liveCount)} />
       </div>
 
       {/* Pipeline by stage */}
