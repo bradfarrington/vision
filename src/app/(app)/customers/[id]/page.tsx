@@ -55,6 +55,8 @@ import {
 import { AddressMap } from "@/components/crm/address-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { FitRows } from "@/components/crm/fit-rows";
+import { BentoBoard } from "@/components/crm/bento-board";
+import { getUserLayout } from "@/lib/data/user-layouts";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
 
 // Customer detail — the full contact record across tabs, every field editable
@@ -78,10 +80,11 @@ export default async function CustomerDetailPage({
       ...c.customFields.map((f) => f.listKey).filter((k): k is string => !!k),
     ]),
   ];
-  const [relationshipTypes, lookups, salesUsers] = await Promise.all([
+  const [relationshipTypes, lookups, salesUsers, overviewLayout] = await Promise.all([
     getRelationshipTypes(),
     getTenantOptionLists(lookupKeys),
     getSalesStaff(),
+    getUserLayout("customer_overview"),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -124,16 +127,9 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
-      {c.flash_note && (
-        <div className="rounded-lg border border-[#f6e0b8] bg-[#fdf2dc] px-3.5 py-2.5 text-[12.5px] font-medium text-[#b86e00]">
-          <span className="font-bold">Alert note: </span>
-          {c.flash_note}
-        </div>
-      )}
-
       <Tabs
         tabs={[
-          { label: "Overview", content: <OverviewTab c={c} lookups={lookups} /> },
+          { label: "Overview", content: <OverviewTab c={c} lookups={lookups} savedLayout={overviewLayout} /> },
           {
             label: "Leads & Contracts",
             count: c.leads.length,
@@ -160,8 +156,61 @@ export default async function CustomerDetailPage({
 type Lookups = Record<string, { id: string; label: string }[]>;
 
 // --- Tabs -------------------------------------------------------------------
-function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
+// The cards the overview knows about, and where they sit by default. The board
+// (BentoBoard) lets each user drag them into a different arrangement, saved per
+// user. A card added here later auto-appears for users with a saved layout
+// (reconcile() drops it into the shortest column), so this list stays the single
+// source of truth for "what cards exist".
+const OV_DEFAULT_LAYOUT = [
+  ["identity", "flags"],
+  ["contact", "address"],
+  ["consent", "documents", "notes"],
+  ["contracts", "leads"],
+];
+
+const OV_CARD_TITLES: Record<string, string> = {
+  identity: "Identity",
+  flags: "Flags",
+  contact: "Contact",
+  address: "Address",
+  consent: "Marketing consent",
+  documents: "Recent documents",
+  notes: "Recent notes",
+  contracts: "Contracts",
+  leads: "Leads",
+};
+
+// Field cards own the ONLY editor for their fields (Identity/Flags are editable
+// only on the overview), so they must never drop a row to fit — they stay
+// shrink-0. Everything else is a digest of another tab and may shrink.
+const OV_FIELD_CARDS = ["identity", "flags"];
+
+function OverviewTab({
+  c,
+  lookups,
+  savedLayout,
+}: {
+  c: CustomerRecord;
+  lookups: Lookups;
+  savedLayout: string[][] | null;
+}) {
   const liveLeads = c.leads.filter((l) => isLiveLead(l.status)).length;
+
+  // Cards are rendered here (server-side, with live data + inline editors) and
+  // handed to the client board, which only arranges them. Passing rendered
+  // server nodes as props to a client component is the standard RSC pattern.
+  const cards: Record<string, React.ReactNode> = {
+    identity: <IdentityCard c={c} lookups={lookups} />,
+    flags: <FlagsCard c={c} />,
+    contact: <ContactCard c={c} />,
+    address: <AddressSummary c={c} />,
+    consent: <ConsentSummary c={c} />,
+    documents: <RecentDocuments c={c} />,
+    notes: <RecentNotes c={c} />,
+    contracts: <ContractsCard c={c} />,
+    leads: <LeadsCard c={c} />,
+  };
+
   return (
     // Capped so cards stay a readable measure on a wide monitor — four columns
     // stretched across 1900px leaves each one mostly empty space.
@@ -175,53 +224,51 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <SnapshotStrip c={c} liveLeads={liveLeads} />
       </div>
 
-      {/* Bento: four independent column stacks. Cards are different heights by
-          nature (Identity is ten rows, Contact is two) — a row-aligned grid
-          stretches every card in a row to the tallest, which is where the dead
-          space came from. Each column packs its own cards instead. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="flex min-h-0 flex-col gap-3">
-          <Card className={OV_CARD}>
-            <CardTitle className="mb-1.5">Identity</CardTitle>
-            <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
-            <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
-            <E c={c} label="First Name" field="first_name" value={c.first_name} />
-            <E c={c} label="Last Name" field="last_name" value={c.last_name} />
-            <E c={c} label="Second First Name" field="first_name_2" value={c.first_name_2} />
-            <E c={c} label="Second Last Name" field="last_name_2" value={c.last_name_2} />
-            <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
-            {isCommercial(c.customer_type) && (
-              <E c={c} label="Company" field="company_name" value={c.company_name} last />
-            )}
-          </Card>
-          <Card className={OV_CARD}>
-            <CardTitle className="mb-1.5">Flags</CardTitle>
-            {/* Tristate, not boolean: blank = never asked/assessed, which is
-                materially different from a recorded No (same rule as consent). */}
-            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="tristate" danger />
-            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="tristate" danger />
-            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="tristate" danger />
-            <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
-          </Card>
-        </div>
-
-        <div className="flex min-h-0 flex-col gap-3">
-          <ContactCard c={c} />
-          <AddressSummary c={c} />
-        </div>
-
-        <div className="flex min-h-0 flex-col gap-3">
-          <ConsentSummary c={c} />
-          <RecentDocuments c={c} />
-          <RecentNotes c={c} />
-        </div>
-
-        <div className="flex min-h-0 flex-col gap-3">
-          <ContractsCard c={c} />
-          <LeadsCard c={c} />
-        </div>
-      </div>
+      {/* Bento: four independent column stacks the user can rearrange. Cards are
+          different heights by nature (Identity is ten rows, Contact is two) — a
+          row-aligned grid stretches every card in a row to the tallest, so each
+          column packs its own cards instead. */}
+      <BentoBoard
+        layoutKey="customer_overview"
+        cards={cards}
+        titles={OV_CARD_TITLES}
+        fieldCards={OV_FIELD_CARDS}
+        defaultLayout={OV_DEFAULT_LAYOUT}
+        savedLayout={savedLayout}
+      />
     </div>
+  );
+}
+
+function IdentityCard({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
+  return (
+    <Card className={OV_CARD}>
+      <CardTitle className="mb-1.5">Identity</CardTitle>
+      <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
+      <E c={c} label="Title" field="title" value={c.title} type="lookup" listKey="title" lookupOptions={lookups.title} />
+      <E c={c} label="First Name" field="first_name" value={c.first_name} />
+      <E c={c} label="Last Name" field="last_name" value={c.last_name} />
+      <E c={c} label="Second First Name" field="first_name_2" value={c.first_name_2} />
+      <E c={c} label="Second Last Name" field="last_name_2" value={c.last_name_2} />
+      <E c={c} label="Salutation" field="salutation" value={c.salutation} last={!isCommercial(c.customer_type)} />
+      {isCommercial(c.customer_type) && (
+        <E c={c} label="Company" field="company_name" value={c.company_name} last />
+      )}
+    </Card>
+  );
+}
+
+function FlagsCard({ c }: { c: CustomerRecord }) {
+  return (
+    <Card className={OV_CARD}>
+      <CardTitle className="mb-1.5">Flags</CardTitle>
+      {/* Tristate, not boolean: blank = never asked/assessed, which is
+          materially different from a recorded No (same rule as consent). */}
+      <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="tristate" danger />
+      <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="tristate" danger />
+      <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="tristate" danger />
+      <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
+    </Card>
   );
 }
 
@@ -252,8 +299,9 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
   const { lifetimeValue, outstandingTotal } = c.financials;
   return (
     // Tiles size to their content rather than stretching across the viewport —
-    // a money figure in a full-width card reads as mostly empty space.
-    <div className="flex flex-wrap gap-3">
+    // a money figure in a full-width card reads as mostly empty space. The alert
+    // note grows to fill the row's remaining width beside them.
+    <div className="flex flex-wrap items-stretch gap-3">
       <Stat label="Lifetime Value" value={gbp(lifetimeValue)} tone="success" to="Account" />
       <Stat label="Outstanding" value={gbp(outstandingTotal)} tone="danger" to="Account" />
       <Stat
@@ -263,6 +311,14 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
         tone="accent"
       />
       <Stat label="Contracts" value={String(c.contractCount)} tone="neutral" />
+      {c.flash_note && (
+        <div className="flex min-w-[240px] flex-1 items-center rounded-lg border border-[#f6e0b8] bg-[#fdf2dc] px-3.5 py-2.5 text-[12.5px] font-medium leading-snug text-[#b86e00]">
+          <span>
+            <span className="font-bold">Alert note: </span>
+            {c.flash_note}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

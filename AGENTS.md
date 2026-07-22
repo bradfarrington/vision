@@ -393,6 +393,52 @@ pattern for the whole app**, not an overview-only trick. Applied to the record's
   If a value needs to be editable, make the displayed value the editor (`EditableField` with
   `type="textarea"` and a left-aligned `className`), don't add a second copy.
 
+## Rearrangeable cards & per-user layouts — built 2026-07-22
+
+The customer-overview bento is **drag-and-droppable and saved PER USER**. First use of a pattern
+meant to spread: any customisable surface (this, the future `/leads` & `/customers` column pickers)
+stores its arrangement the same way. `src/components/crm/bento-board.tsx` is the board;
+`OverviewTab` renders the cards and hands them in.
+
+- **Layout is per user, never per tenant.** Company A's five users each get their own row and never
+  see each other's — a salesperson and a fitter want different things on screen. Same rule already
+  recorded for the list-screen column picker in § Lists & columns; this is where it lands.
+- **Storage is a GENERIC `user_ui_layouts` table** (`20260722096000`, **apply BY HAND** + reload
+  PostgREST) — `user_id` + `company_id` + `layout_key` + `layout jsonb`, unique on
+  `(user_id, layout_key)`, RLS locked to `auth.uid()` within the tenant. `layout_key` names the
+  surface (`customer_overview` now); the jsonb is opaque to the DB (`{ columns: string[][] }` for the
+  overview — ordered card ids per column). The future column pickers reuse the table, not fork one.
+  Loader `getUserLayout(key)` (`src/lib/data/user-layouts.ts`); actions `saveUserLayout` /
+  `resetUserLayout` (`src/app/(app)/preferences/actions.ts`) — `user_id`/`company_id` come from the
+  verified session + `current_company_id()`, NEVER client input.
+- **A CARD REGISTRY is the single source of truth for what cards exist.** `reconcile()` drops
+  unknown/duplicate ids from a stored layout and appends any card MISSING from it to the shortest
+  column — so a card added in a later release auto-appears for users who already have a saved layout.
+  Nothing silently vanishes; this is also the hook the future add/toggle-cards phase plugs into.
+- **Cards stay SERVER-RENDERED and are handed to the client board as `Record<id, ReactNode>`** — the
+  board only arranges them, so the inline editors/live data inside keep working (standard RSC
+  "pass server nodes as props to a client component" pattern). The board's own state must never add a
+  server round-trip on render.
+- **Drag from a HANDLE, not the card.** Cards are full of clickable things (`EditableField`, jumps,
+  note/document rows); a grip surfaces on hover at the card's top edge and carries the dnd listeners,
+  leaving the card interactive.
+- **Fit-to-panel (§ App frame, FitRows) is preserved by mirroring the cards' flex semantics onto the
+  sortable wrapper.** FIELD cards (Identity/Flags — editable ONLY on the overview) stay `shrink-0` so
+  a row is never lost; digest cards may shrink and their FitRows trims. The wrapper targets the card
+  with `[&>div]` (the card is a `<div>`, the handle a `<button>`) to fill the non-growing wrapper.
+- **`DndContext` MUST carry a stable `id`** (`bento-${layoutKey}`). Without it dnd-kit builds
+  `aria-describedby` from a global counter that differs between SSR and hydration → a React hydration
+  mismatch. (The live-region id is mount-guarded and doesn't SSR, so it isn't a second source.)
+- **A module-level `layoutCache` keyed by `layoutKey` survives remounts.** `Tabs` renders only the
+  active panel, so leaving Overview and returning REMOUNTS the board — without the cache it re-reads
+  the page-load `savedLayout` prop and drops any change made since. The cache is written ONLY from
+  browser event handlers, so the server render stays empty (no cross-request leak) and the first
+  hydrating render always matches the server by reading `savedLayout`.
+- **Degrades gracefully before the migration is applied:** `getUserLayout` catches the missing-table
+  error → null → default layout renders; saves fail silently until the table exists. So a pending
+  migration never blanks the overview (§ Gotchas: a loader must never let a pending migration blank a
+  record).
+
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 
 One table backs every note in the CRM (`public.lead_notes`): customer-level when `lead_id` is
