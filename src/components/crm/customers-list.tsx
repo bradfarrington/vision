@@ -112,19 +112,13 @@ const COLUMNS: Column[] = [
 
   // Address
   {
+    // Just the street line — Town and Postcode are their own columns, so the
+    // second line here only duplicated them and doubled the row height.
     key: "address",
     label: "Address",
     group: "Address",
     w: ADDR,
-    cell: (v) => (
-      <span className="block min-w-0 pr-2">
-        <span className="block truncate text-[#3f3f46]">{v.c.addressLine ?? "—"}</span>
-        <span className="block truncate text-[11.5px] text-[#71717a]">
-          {v.c.town ? `${v.c.town} · ` : ""}
-          {v.c.postcode && <span className="font-mono">{v.c.postcode}</span>}
-        </span>
-      </span>
-    ),
+    cell: (v) => <span className="block truncate text-[#3f3f46]">{v.c.addressLine ?? "—"}</span>,
   },
   { key: "house_name", label: "House name", group: "Address", w: TEXT },
   { key: "house_number", label: "House number", group: "Address", w: SHORT },
@@ -189,17 +183,19 @@ const COLUMNS: Column[] = [
     label: "Last activity",
     group: "Activity",
     w: ACT,
+    // One line: primary then the muted date, so this cell doesn't force a
+    // two-line row height.
     cell: (v) => (
-      <span className="block min-w-0 pr-2">
-        <span className="block truncate font-medium text-[#3f3f46]">{v.activity.primary}</span>
+      <span className="flex min-w-0 items-baseline gap-1.5">
         <span
           className={cn(
-            "block truncate text-[11.5px]",
-            v.activity.amber ? "font-semibold text-[#b86e00]" : "text-[#71717a]",
+            "truncate",
+            v.activity.amber ? "font-semibold text-[#b86e00]" : "font-medium text-[#3f3f46]",
           )}
         >
-          {v.activity.secondary}
+          {v.activity.primary}
         </span>
+        <span className="shrink-0 text-[11.5px] text-[#a1a1aa]">{v.activity.secondary}</span>
       </span>
     ),
   },
@@ -216,7 +212,7 @@ for (const c of COLUMNS) {
 const COLUMN_MAP = new Map(COLUMNS.map((c) => [c.key, c]));
 const ALL_KEYS = COLUMNS.map((c) => c.key);
 const GROUP_ORDER = ["Identity", "Contact", "Address", "Marketing", "Flags", "Account", "Activity"];
-const DEFAULT_VISIBLE = ["name", "address", "phone", "leads", "contracts", "activity"];
+const DEFAULT_VISIBLE = ["name", "address", "town", "postcode", "phone", "leads", "contracts", "activity"];
 const COLUMNS_KEY = "customers_columns";
 const MIN_WIDTH = 72;
 
