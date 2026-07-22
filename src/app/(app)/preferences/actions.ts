@@ -64,6 +64,11 @@ export async function saveUserOrder(layoutKey: string, order: string[]) {
   return writeLayout(layoutKey, { order });
 }
 
+/** Save an arbitrary preference object (e.g. the customer list's { order, widths }). */
+export async function saveUserPref(layoutKey: string, layout: Record<string, unknown>) {
+  return writeLayout(layoutKey, layout);
+}
+
 /** Forget a user's customisation so the surface reverts to its default layout. */
 export async function resetUserLayout(layoutKey: string) {
   const supabase = await createClient();

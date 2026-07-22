@@ -30,6 +30,24 @@ export const BOOL_FILTER_COLUMNS = [
   "business_address",
 ] as const;
 
+// Real customer columns the list may be ORDERED by (allowlisted — never an
+// interpolated name). Computed columns (lead/contract counts, last activity) and
+// the composite address aren't here; the client's Name column maps to last_name.
+const SORTABLE_COLUMNS = new Set<string>([
+  "last_name", "first_name", "title", "title_2", "first_name_2", "last_name_2",
+  "salutation", "company_name", "customer_type", "customer_number", "property_type",
+  "email", "phone", "mobile", "mobile_2", "home_telephone", "work_telephone", "fax_alt_no",
+  "no_whatsapp", "house_name", "house_number", "street", "locality", "town", "county",
+  "postcode", "what_3_words", "directions", "business_address",
+  "email_opt_in", "sms_opt_in", "phone_opt_in", "letter_opt_in",
+  "no_email_marketing", "no_sms_marketing", "no_telephone_marketing", "no_postal_marketing",
+  "marketing_code", "opt_in_date", "opted_in_by",
+  "do_not_contact", "bad_payer", "customer_moved_away", "flash_note",
+  "payment_terms", "settlement_disc_pct", "settlement_disc_terms", "default_account_reference",
+  "vat_no", "cis_reg", "sales_manager", "account_created_in_package", "invoice_name",
+  "office_ref_1", "office_ref_2", "created_at",
+]);
+
 export const CUSTOMERS_PAGE_SIZE = 9;
 
 export type CustomerLead = {
@@ -79,6 +97,9 @@ export type CustomerFilters = {
   page?: number;
   /** Allowlisted customer-column filters, keyed by column name (see *_FILTER_COLUMNS). */
   columnFilters?: Record<string, string>;
+  /** Column to order by (allowlisted; ignored otherwise) and direction. */
+  sort?: string;
+  dir?: "asc" | "desc";
 };
 
 export type CustomerListResult = {
@@ -114,9 +135,18 @@ export async function getCustomers(
        leads(${LEAD_FIELDS}),
        contracts(id)`,
       { count: "exact" },
-    )
-    .order("created_at", { ascending: false })
-    .range(from, to);
+    );
+
+  // Sort: an allowlisted column asc/desc, else newest first. A stable secondary
+  // key (id) keeps paging deterministic when the sort column has ties.
+  if (filters.sort && SORTABLE_COLUMNS.has(filters.sort)) {
+    query = query
+      .order(filters.sort, { ascending: filters.dir !== "desc", nullsFirst: false })
+      .order("id", { ascending: true });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+  query = query.range(from, to);
 
   const q = filters.search?.trim();
   if (q) {

@@ -5,7 +5,7 @@ import {
   latestLeadActivity,
   CUSTOMERS_PAGE_SIZE,
 } from "@/lib/data/customers";
-import { getUserOrder } from "@/lib/data/user-layouts";
+import { getUserPref } from "@/lib/data/user-layouts";
 import { Icon, btnPrimary } from "@/components/crm/primitives";
 import { SearchBox } from "@/components/crm/list-controls";
 import {
@@ -35,14 +35,17 @@ export default async function CustomersPage({
     if (k.startsWith("f_") && typeof v === "string" && v !== "") columnFilters[k.slice(2)] = v;
   }
 
+  const dir = sp.dir === "desc" ? "desc" : "asc";
   const [{ rows, total, page, pageCount, filterOptions }, columnPref] = await Promise.all([
     getCustomers({
       search: sp.search,
       hasLiveLead: sp.live === "1",
       page: sp.page ? Number(sp.page) : 1,
       columnFilters,
+      sort: sp.sort,
+      dir,
     }),
-    getUserOrder("customers_columns"),
+    getUserPref("customers_columns"),
   ]);
 
   const from = total === 0 ? 0 : (page - 1) * CUSTOMERS_PAGE_SIZE + 1;
@@ -54,6 +57,7 @@ export default async function CustomersPage({
 
   return (
     <CustomerColumnsProvider saved={columnPref}>
+      {/* saved carries { order, widths } — the provider sanitises the shape. */}
       <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] py-[22px]">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -91,6 +95,8 @@ export default async function CustomersPage({
           pageCount={pageCount}
           from={from}
           to={to}
+          sort={sp.sort ?? null}
+          dir={dir}
         />
       </div>
     </CustomerColumnsProvider>

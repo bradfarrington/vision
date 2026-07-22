@@ -23,78 +23,98 @@ import { CSS } from "@dnd-kit/utilities";
 import { Avatar, CountPill, Icon } from "@/components/crm/primitives";
 import { Pagination, useSetParams } from "@/components/crm/list-controls";
 import { useFloatingMenu } from "@/components/crm/floating-menu";
-import { resetUserLayout, saveUserOrder } from "@/app/(app)/preferences/actions";
+import { resetUserLayout, saveUserPref } from "@/app/(app)/preferences/actions";
 import { cn } from "@/lib/utils";
 import type { ActivityLine, CustomerRow } from "@/lib/data/customers";
 
-// The customer list: column-customisable (per user) + a full Filters popover
-// over the customer fields. Columns are a registry so any field can be shown;
-// the arrangement saves per user to `user_ui_layouts` (see AGENTS.md
-// § Rearrangeable cards / § Lists & columns). Filters stay URL-param-driven so
-// the server re-queries and the state is shareable.
+// The customer list: every field is a column that can be shown, reordered,
+// RESIZED and SORTED — all per user. Columns (which, order, widths) save to
+// `user_ui_layouts` (see AGENTS.md § Lists & columns); sort lives in the URL so
+// the server orders across all pages and the state is shareable. There is no
+// hardcoded name column any more — "Name" is just the first default column.
 
 export type CustomerRowView = { c: CustomerRow; activity: ActivityLine };
 
 // ---------------------------------------------------------------------------
-// Column registry — one entry per showable field. The primary name column and
-// the row controls (select box, chevron) are fixed edges and not listed here.
+// Column registry — one entry per showable field. Only the select box (left) and
+// a trailing chevron are fixed; everything else is a registry column.
 type ColumnKind = "text" | "bool" | "number" | "date";
 type Column = {
   key: string;
   label: string;
   group: string;
-  width: string;
-  /** Record field to read; defaults to `key`. */
-  field?: string;
-  /** How to format `record[field]` (ignored when `cell` is set). */
-  kind?: ColumnKind;
-  /** Custom renderer, for composite/computed cells. */
-  cell?: (v: CustomerRowView) => React.ReactNode;
+  /** Default width in px (resizable per user). */
+  w: number;
+  field?: string; // record field to read; defaults to key
+  kind?: ColumnKind; // how to format record[field] (ignored when `cell` is set)
+  cell?: (v: CustomerRowView) => React.ReactNode; // composite/computed cells
   cellClassName?: string;
+  /** DB column to ORDER BY; undefined = not sortable (computed/composite). */
+  sortField?: string;
 };
 
-const TEXT = "minmax(110px,1.2fr)";
-const SHORT = "minmax(84px,.85fr)";
-const BOOL = "minmax(96px,.9fr)";
-const DATE = "minmax(104px,1fr)";
-const WIDE = "minmax(160px,2.1fr)";
+// Default widths per shape (px).
+const NAME = 226;
+const ADDR = 250;
+const WIDE = 240;
+const EMAIL = 210;
+const TEXT = 158;
+const SHORT = 112;
+const BOOL = 122;
+const DATE = 132;
+const COUNT = 104;
+const ACT = 200;
 
 const COLUMNS: Column[] = [
+  {
+    key: "name",
+    label: "Name",
+    group: "Identity",
+    w: NAME,
+    sortField: "last_name",
+    cell: (v) => (
+      <span className="flex min-w-0 items-center gap-2.5">
+        <Avatar name={v.c.displayName} size={28} />
+        <span className="min-w-0 truncate font-semibold text-[#0a0a0a]">{v.c.displayName}</span>
+      </span>
+    ),
+  },
+
   // Identity
-  { key: "title", label: "Title", group: "Identity", width: SHORT },
-  { key: "first_name", label: "First name", group: "Identity", width: TEXT },
-  { key: "last_name", label: "Last name", group: "Identity", width: TEXT },
-  { key: "title_2", label: "Title (2nd)", group: "Identity", width: SHORT },
-  { key: "first_name_2", label: "First name (2nd)", group: "Identity", width: TEXT },
-  { key: "last_name_2", label: "Last name (2nd)", group: "Identity", width: TEXT },
-  { key: "salutation", label: "Salutation", group: "Identity", width: TEXT },
-  { key: "company_name", label: "Company", group: "Identity", width: TEXT },
+  { key: "title", label: "Title", group: "Identity", w: SHORT },
+  { key: "first_name", label: "First name", group: "Identity", w: TEXT },
+  { key: "last_name", label: "Last name", group: "Identity", w: TEXT },
+  { key: "title_2", label: "Title (2nd)", group: "Identity", w: SHORT },
+  { key: "first_name_2", label: "First name (2nd)", group: "Identity", w: TEXT },
+  { key: "last_name_2", label: "Last name (2nd)", group: "Identity", w: TEXT },
+  { key: "salutation", label: "Salutation", group: "Identity", w: TEXT },
+  { key: "company_name", label: "Company", group: "Identity", w: TEXT },
   {
     key: "customer_type",
     label: "Type",
     group: "Identity",
-    width: SHORT,
-    cell: (v) => <span className="text-[#3f3f46]">{titleCase(str(v.c.record.customer_type)) ?? "—"}</span>,
+    w: SHORT,
+    cell: (v) => <span>{titleCase(str(v.c.record.customer_type)) ?? "—"}</span>,
   },
-  { key: "customer_number", label: "Customer no.", group: "Identity", width: SHORT, kind: "number" },
-  { key: "property_type", label: "Property type", group: "Identity", width: TEXT },
+  { key: "customer_number", label: "Customer no.", group: "Identity", w: SHORT, kind: "number" },
+  { key: "property_type", label: "Property type", group: "Identity", w: TEXT },
 
   // Contact
-  { key: "email", label: "Email", group: "Contact", width: "minmax(150px,1.7fr)" },
-  { key: "phone", label: "Phone", group: "Contact", width: "minmax(110px,1.3fr)" },
-  { key: "mobile", label: "Mobile", group: "Contact", width: TEXT },
-  { key: "mobile_2", label: "Mobile (2nd)", group: "Contact", width: TEXT },
-  { key: "home_telephone", label: "Home tel", group: "Contact", width: TEXT },
-  { key: "work_telephone", label: "Work tel", group: "Contact", width: TEXT },
-  { key: "fax_alt_no", label: "Fax / alt", group: "Contact", width: TEXT },
-  { key: "no_whatsapp", label: "No WhatsApp", group: "Contact", width: BOOL, kind: "bool" },
+  { key: "email", label: "Email", group: "Contact", w: EMAIL },
+  { key: "phone", label: "Phone", group: "Contact", w: TEXT },
+  { key: "mobile", label: "Mobile", group: "Contact", w: TEXT },
+  { key: "mobile_2", label: "Mobile (2nd)", group: "Contact", w: TEXT },
+  { key: "home_telephone", label: "Home tel", group: "Contact", w: TEXT },
+  { key: "work_telephone", label: "Work tel", group: "Contact", w: TEXT },
+  { key: "fax_alt_no", label: "Fax / alt", group: "Contact", w: TEXT },
+  { key: "no_whatsapp", label: "No WhatsApp", group: "Contact", w: BOOL, kind: "bool" },
 
   // Address
   {
     key: "address",
     label: "Installation address",
     group: "Address",
-    width: WIDE,
+    w: ADDR,
     cell: (v) => (
       <span className="block min-w-0 pr-2">
         <span className="block truncate text-[#3f3f46]">{v.c.addressLine ?? "—"}</span>
@@ -105,69 +125,69 @@ const COLUMNS: Column[] = [
       </span>
     ),
   },
-  { key: "house_name", label: "House name", group: "Address", width: TEXT },
-  { key: "house_number", label: "House number", group: "Address", width: SHORT },
-  { key: "street", label: "Street", group: "Address", width: TEXT },
-  { key: "locality", label: "Locality", group: "Address", width: TEXT },
-  { key: "town", label: "Town", group: "Address", width: TEXT },
-  { key: "county", label: "County", group: "Address", width: TEXT },
-  { key: "postcode", label: "Postcode", group: "Address", width: SHORT, cellClassName: "font-mono" },
-  { key: "what_3_words", label: "what3words", group: "Address", width: TEXT, cellClassName: "font-mono" },
-  { key: "directions", label: "Access notes", group: "Address", width: WIDE },
-  { key: "business_address", label: "Business address", group: "Address", width: BOOL, kind: "bool" },
+  { key: "house_name", label: "House name", group: "Address", w: TEXT },
+  { key: "house_number", label: "House number", group: "Address", w: SHORT },
+  { key: "street", label: "Street", group: "Address", w: TEXT },
+  { key: "locality", label: "Locality", group: "Address", w: TEXT },
+  { key: "town", label: "Town", group: "Address", w: TEXT },
+  { key: "county", label: "County", group: "Address", w: TEXT },
+  { key: "postcode", label: "Postcode", group: "Address", w: SHORT, cellClassName: "font-mono" },
+  { key: "what_3_words", label: "what3words", group: "Address", w: TEXT, cellClassName: "font-mono" },
+  { key: "directions", label: "Access notes", group: "Address", w: WIDE },
+  { key: "business_address", label: "Business address", group: "Address", w: BOOL, kind: "bool" },
 
   // Marketing
-  { key: "email_opt_in", label: "Email consent", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "sms_opt_in", label: "SMS consent", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "phone_opt_in", label: "Phone consent", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "letter_opt_in", label: "Post consent", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "no_email_marketing", label: "No email mktg", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "no_sms_marketing", label: "No SMS mktg", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "no_telephone_marketing", label: "No phone mktg", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "no_postal_marketing", label: "No postal mktg", group: "Marketing", width: BOOL, kind: "bool" },
-  { key: "marketing_code", label: "Referral source", group: "Marketing", width: TEXT },
-  { key: "opt_in_date", label: "Consent given", group: "Marketing", width: DATE, kind: "date" },
-  { key: "opted_in_by", label: "Consent by", group: "Marketing", width: TEXT },
+  { key: "email_opt_in", label: "Email consent", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "sms_opt_in", label: "SMS consent", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "phone_opt_in", label: "Phone consent", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "letter_opt_in", label: "Post consent", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "no_email_marketing", label: "No email mktg", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "no_sms_marketing", label: "No SMS mktg", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "no_telephone_marketing", label: "No phone mktg", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "no_postal_marketing", label: "No postal mktg", group: "Marketing", w: BOOL, kind: "bool" },
+  { key: "marketing_code", label: "Referral source", group: "Marketing", w: TEXT },
+  { key: "opt_in_date", label: "Consent given", group: "Marketing", w: DATE, kind: "date" },
+  { key: "opted_in_by", label: "Consent by", group: "Marketing", w: TEXT },
 
   // Flags
-  { key: "do_not_contact", label: "Do not contact", group: "Flags", width: BOOL, kind: "bool" },
-  { key: "bad_payer", label: "Payment risk", group: "Flags", width: BOOL, kind: "bool" },
-  { key: "customer_moved_away", label: "Moved away", group: "Flags", width: BOOL, kind: "bool" },
-  { key: "flash_note", label: "Alert note", group: "Flags", width: WIDE },
+  { key: "do_not_contact", label: "Do not contact", group: "Flags", w: BOOL, kind: "bool" },
+  { key: "bad_payer", label: "Payment risk", group: "Flags", w: BOOL, kind: "bool" },
+  { key: "customer_moved_away", label: "Moved away", group: "Flags", w: BOOL, kind: "bool" },
+  { key: "flash_note", label: "Alert note", group: "Flags", w: WIDE },
 
   // Account
-  { key: "payment_terms", label: "Payment terms", group: "Account", width: TEXT },
-  { key: "settlement_disc_pct", label: "Settlement %", group: "Account", width: SHORT, kind: "number" },
-  { key: "settlement_disc_terms", label: "Settlement terms", group: "Account", width: TEXT },
-  { key: "default_account_reference", label: "Account ref", group: "Account", width: TEXT },
-  { key: "vat_no", label: "VAT no.", group: "Account", width: TEXT },
-  { key: "cis_reg", label: "CIS reg", group: "Account", width: TEXT },
-  { key: "sales_manager", label: "Sales manager", group: "Account", width: TEXT },
-  { key: "account_created_in_package", label: "In package", group: "Account", width: BOOL, kind: "bool" },
-  { key: "invoice_name", label: "Invoice name", group: "Account", width: TEXT },
-  { key: "office_ref_1", label: "Office ref 1", group: "Account", width: TEXT },
-  { key: "office_ref_2", label: "Office ref 2", group: "Account", width: TEXT },
+  { key: "payment_terms", label: "Payment terms", group: "Account", w: TEXT },
+  { key: "settlement_disc_pct", label: "Settlement %", group: "Account", w: SHORT, kind: "number" },
+  { key: "settlement_disc_terms", label: "Settlement terms", group: "Account", w: TEXT },
+  { key: "default_account_reference", label: "Account ref", group: "Account", w: TEXT },
+  { key: "vat_no", label: "VAT no.", group: "Account", w: TEXT },
+  { key: "cis_reg", label: "CIS reg", group: "Account", w: TEXT },
+  { key: "sales_manager", label: "Sales manager", group: "Account", w: TEXT },
+  { key: "account_created_in_package", label: "In package", group: "Account", w: BOOL, kind: "bool" },
+  { key: "invoice_name", label: "Invoice name", group: "Account", w: TEXT },
+  { key: "office_ref_1", label: "Office ref 1", group: "Account", w: TEXT },
+  { key: "office_ref_2", label: "Office ref 2", group: "Account", w: TEXT },
 
-  // Activity (computed)
+  // Activity (computed — not sortable)
   {
     key: "leads",
     label: "Leads",
     group: "Activity",
-    width: "minmax(70px,.9fr)",
+    w: COUNT,
     cell: (v) => <CountPill total={v.c.leadCount} live={v.c.liveLeadCount} />,
   },
   {
     key: "contracts",
     label: "Contracts",
     group: "Activity",
-    width: "minmax(80px,1fr)",
+    w: COUNT,
     cell: (v) => <CountPill total={v.c.contractCount} />,
   },
   {
     key: "activity",
     label: "Last activity",
     group: "Activity",
-    width: "minmax(140px,1.7fr)",
+    w: ACT,
     cell: (v) => (
       <span className="block min-w-0 pr-2">
         <span className="block truncate font-medium text-[#3f3f46]">{v.activity.primary}</span>
@@ -182,21 +202,22 @@ const COLUMNS: Column[] = [
       </span>
     ),
   },
-  {
-    key: "created",
-    label: "Added",
-    group: "Activity",
-    width: DATE,
-    field: "created_at",
-    kind: "date",
-  },
+  { key: "created", label: "Added", group: "Activity", w: DATE, field: "created_at", kind: "date" },
 ];
+
+// Real DB-backed columns are sortable by their own field; computed/composite ones
+// aren't. (Name is preset to last_name above.)
+const NO_SORT = new Set(["address", "leads", "contracts", "activity"]);
+for (const c of COLUMNS) {
+  if (c.sortField === undefined && !NO_SORT.has(c.key)) c.sortField = c.field ?? c.key;
+}
 
 const COLUMN_MAP = new Map(COLUMNS.map((c) => [c.key, c]));
 const ALL_KEYS = COLUMNS.map((c) => c.key);
 const GROUP_ORDER = ["Identity", "Contact", "Address", "Marketing", "Flags", "Account", "Activity"];
-const DEFAULT_VISIBLE = ["address", "phone", "leads", "contracts", "activity"];
+const DEFAULT_VISIBLE = ["name", "address", "phone", "leads", "contracts", "activity"];
 const COLUMNS_KEY = "customers_columns";
+const MIN_WIDTH = 72;
 
 function renderCell(v: CustomerRowView, col: Column): React.ReactNode {
   if (col.cell) return col.cell(v);
@@ -207,7 +228,6 @@ function renderCell(v: CustomerRowView, col: Column): React.ReactNode {
   return String(val);
 }
 
-/** Keep known keys in saved order; unknown/new keys are simply hidden. */
 function reconcileColumns(saved: string[] | null): string[] {
   if (!saved) return DEFAULT_VISIBLE;
   const known = new Set(ALL_KEYS);
@@ -222,13 +242,35 @@ function reconcileColumns(saved: string[] | null): string[] {
   return out;
 }
 
+function sanitiseSaved(saved: Record<string, unknown> | null): {
+  order: string[] | null;
+  widths: Record<string, number>;
+} {
+  const rawOrder = saved?.order;
+  const order =
+    Array.isArray(rawOrder) && rawOrder.every((x) => typeof x === "string")
+      ? (rawOrder as string[])
+      : null;
+  const widths: Record<string, number> = {};
+  const rawW = saved?.widths;
+  if (rawW && typeof rawW === "object") {
+    for (const [k, v] of Object.entries(rawW as Record<string, unknown>)) {
+      if (typeof v === "number" && v >= MIN_WIDTH && COLUMN_MAP.has(k)) widths[k] = v;
+    }
+  }
+  return { order, widths };
+}
+
 // ---------------------------------------------------------------------------
 // Shared column state — the "Columns" button and the table both read it.
 type ColumnsCtx = {
   visible: string[];
   hidden: string[];
+  widths: Record<string, number>;
   toggle: (key: string) => void;
   reorder: (from: number, to: number) => void;
+  setWidth: (key: string, px: number) => void; // live, no persist
+  commitWidth: (key: string, px: number) => void; // persist
   reset: () => void;
   isCustomised: boolean;
 };
@@ -238,27 +280,49 @@ export function CustomerColumnsProvider({
   saved,
   children,
 }: {
-  saved: string[] | null;
+  saved: Record<string, unknown> | null;
   children: React.ReactNode;
 }) {
-  const [visible, setVisible] = useState<string[]>(() => reconcileColumns(saved));
+  const init = sanitiseSaved(saved);
+  const [visible, setVisible] = useState<string[]>(() => reconcileColumns(init.order));
+  const [widths, setWidths] = useState<Record<string, number>>(() => init.widths);
   const hidden = ALL_KEYS.filter((k) => !visible.includes(k));
 
-  const persist = (next: string[]) => {
+  const save = (order: string[], w: Record<string, number>) =>
+    void saveUserPref(COLUMNS_KEY, { order, widths: w });
+
+  // These read `visible`/`widths` from the render closure. That's safe: toggle
+  // and reorder run on discrete clicks (closure is current), and commitWidth
+  // merges the final px explicitly — during a drag only that one column changes,
+  // so even a mid-drag stale closure produces the correct saved object.
+  const toggle = (key: string) => {
+    const next = visible.includes(key) ? visible.filter((k) => k !== key) : [...visible, key];
     setVisible(next);
-    void saveUserOrder(COLUMNS_KEY, next);
+    save(next, widths);
   };
-  const toggle = (key: string) =>
-    persist(visible.includes(key) ? visible.filter((k) => k !== key) : [...visible, key]);
-  const reorder = (from: number, to: number) => persist(arrayMove(visible, from, to));
-  const isCustomised = visible.join(",") !== DEFAULT_VISIBLE.join(",");
+  const reorder = (from: number, to: number) => {
+    const next = arrayMove(visible, from, to);
+    setVisible(next);
+    save(next, widths);
+  };
+  const setWidth = (key: string, px: number) => setWidths((w) => ({ ...w, [key]: px }));
+  const commitWidth = (key: string, px: number) => {
+    const next = { ...widths, [key]: px };
+    setWidths(next);
+    save(visible, next);
+  };
+  const isCustomised =
+    visible.join(",") !== DEFAULT_VISIBLE.join(",") || Object.keys(widths).length > 0;
   const reset = () => {
     setVisible(DEFAULT_VISIBLE);
+    setWidths({});
     void resetUserLayout(COLUMNS_KEY);
   };
 
   return (
-    <ColumnsContext.Provider value={{ visible, hidden, toggle, reorder, reset, isCustomised }}>
+    <ColumnsContext.Provider
+      value={{ visible, hidden, widths, toggle, reorder, setWidth, commitWidth, reset, isCustomised }}
+    >
       {children}
     </ColumnsContext.Provider>
   );
@@ -269,6 +333,8 @@ function useColumns(): ColumnsCtx {
   if (!ctx) throw new Error("useColumns must be used inside CustomerColumnsProvider");
   return ctx;
 }
+
+const widthOf = (widths: Record<string, number>, col: Column) => widths[col.key] ?? col.w;
 
 // ---------------------------------------------------------------------------
 // Dismissible popover — positioned against the viewport (the CRM standard, so it
@@ -387,9 +453,6 @@ export function ColumnsButton() {
           </div>
 
           <div className="min-h-0 overflow-y-auto px-1.5 py-1.5">
-            {/* Shown columns are draggable in place — but only when not filtering,
-                since a search hides some rows and reordering a partial list is
-                meaningless. */}
             {!q && (
               <>
                 <SectionLabel>Shown · drag to reorder</SectionLabel>
@@ -406,9 +469,7 @@ export function ColumnsButton() {
                   </SortableContext>
                 </DndContext>
                 {visible.length === 0 && (
-                  <p className="px-2 py-1.5 text-[12px] text-[#a1a1aa]">
-                    Only the name shows. Add a field below.
-                  </p>
+                  <p className="px-2 py-1.5 text-[12px] text-[#a1a1aa]">Add a field below.</p>
                 )}
               </>
             )}
@@ -416,9 +477,7 @@ export function ColumnsButton() {
             {q &&
               visible
                 .filter((k) => matches(k))
-                .map((k) => (
-                  <StaticRow key={k} colKey={k} checked onToggle={() => toggle(k)} />
-                ))}
+                .map((k) => <StaticRow key={k} colKey={k} checked onToggle={() => toggle(k)} />)}
 
             {hiddenByGroup.map(({ group, keys }) => (
               <div key={group}>
@@ -477,7 +536,6 @@ function ColumnRow({ colKey, onToggle }: { colKey: string; onToggle: () => void 
   );
 }
 
-// A non-draggable row (hidden columns, or search results): checkbox toggles it.
 function StaticRow({
   colKey,
   checked,
@@ -509,9 +567,8 @@ function StaticRow({
 }
 
 // ---------------------------------------------------------------------------
-// Filters — data-driven over the customer fields. Select filters match an exact
-// value; bool filters are Any / Yes / No. All URL-param-driven (`f_<key>`),
-// except the lead-derived "Has live lead" (`live`).
+// Filters — data-driven over the customer fields; all URL-param-driven
+// (`f_<key>`), except lead-derived "Has live lead" (`live`).
 type FilterDef = { key: string; label: string; group: string; kind: "select" | "bool" };
 const FILTERS: FilterDef[] = [
   { key: "customer_type", label: "Customer type", group: "Identity", kind: "select" },
@@ -610,8 +667,6 @@ export function FiltersButton({ filterOptions }: { filterOptions: Record<string,
   );
 }
 
-// Any / Yes / No segmented control. `yesNo=false` gives a single on/off toggle
-// (for "Has live lead", where "No live lead" isn't a useful query).
 function BoolFilter({
   label,
   value,
@@ -649,11 +704,7 @@ function BoolFilter({
           ))}
         </div>
       ) : (
-        <Check
-          checked={value === "1"}
-          onClick={() => onChange(value === "1" ? "" : "1")}
-          label={label}
-        />
+        <Check checked={value === "1"} onClick={() => onChange(value === "1" ? "" : "1")} label={label} />
       )}
     </div>
   );
@@ -682,10 +733,19 @@ function SelectFilter({
         className="flex w-full items-center gap-2 rounded-md py-1 pl-2 pr-1 text-left hover:bg-[#fafafa]"
       >
         <span className="min-w-0 flex-1 truncate text-[13px] text-[#3f3f46]">{label}</span>
-        <span className={cn("shrink-0 max-w-[120px] truncate text-[12px]", value ? "text-[var(--accent-blue)] font-medium" : "text-[#a1a1aa]")}>
+        <span
+          className={cn(
+            "max-w-[120px] shrink-0 truncate text-[12px]",
+            value ? "font-medium text-[var(--accent-blue)]" : "text-[#a1a1aa]",
+          )}
+        >
           {value ?? "Any"}
         </span>
-        <Icon name="chevron-down" size={11} className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")} />
+        <Icon
+          name="chevron-down"
+          size={11}
+          className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")}
+        />
       </button>
       {open && (
         <div className="mb-1 ml-2 max-h-[180px] overflow-y-auto rounded-md border border-[#f4f4f5] py-1">
@@ -738,6 +798,8 @@ export function CustomerTable({
   pageCount,
   from,
   to,
+  sort,
+  dir,
 }: {
   views: CustomerRowView[];
   total: number;
@@ -745,29 +807,30 @@ export function CustomerTable({
   pageCount: number;
   from: number;
   to: number;
+  sort: string | null;
+  dir: "asc" | "desc";
 }) {
-  const { visible } = useColumns();
+  const { visible, widths } = useColumns();
   const cols = visible.map((k) => COLUMN_MAP.get(k)).filter((c): c is Column => !!c);
-  // Fixed edges: 44px select box · the name column (always shown) · 40px chevron.
-  const grid = `44px minmax(180px,2.1fr) ${cols.map((c) => c.width).join(" ")} 40px`;
+  // Fixed edges: 44px select box · resizable data columns · flexible spacer (so
+  // rows fill the width and borders span) · 40px chevron.
+  const grid = `44px ${cols.map((c) => `${widthOf(widths, c)}px`).join(" ")} minmax(16px,1fr) 40px`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e7e7ea]">
       <div className="min-h-0 flex-1 overflow-auto">
         <div style={{ minWidth: "min-content" }}>
           <div
-            className="sticky top-0 z-10 grid items-center border-b border-[#e7e7ea] bg-[#fafafa] px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]"
+            className="sticky top-0 z-10 grid items-stretch border-b border-[#e7e7ea] bg-[#fafafa] text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]"
             style={{ gridTemplateColumns: grid }}
           >
-            <span>
+            <span className="flex items-center justify-center py-2.5">
               <span className="inline-block size-[15px] rounded-[4px] border-[1.5px] border-[#d4d4d8]" />
             </span>
-            <span>Customer</span>
             {cols.map((c) => (
-              <span key={c.key} className="truncate">
-                {c.label}
-              </span>
+              <HeaderCell key={c.key} col={c} sort={sort} dir={dir} />
             ))}
+            <span />
             <span />
           </div>
 
@@ -791,40 +854,93 @@ export function CustomerTable({
   );
 }
 
+function HeaderCell({
+  col,
+  sort,
+  dir,
+}: {
+  col: Column;
+  sort: string | null;
+  dir: "asc" | "desc";
+}) {
+  const { widths, setWidth, commitWidth } = useColumns();
+  const { setParams } = useSetParams();
+  const sortable = !!col.sortField;
+  const active = sortable && col.sortField === sort;
+
+  const onSort = () => {
+    if (!col.sortField) return;
+    const nextDesc = active && dir === "asc";
+    setParams({ sort: col.sortField, dir: nextDesc ? "desc" : null });
+  };
+
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = widths[col.key] ?? col.w;
+    const width = (ev: PointerEvent) => Math.max(MIN_WIDTH, Math.round(startW + (ev.clientX - startX)));
+    const move = (ev: PointerEvent) => setWidth(col.key, width(ev));
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      commitWidth(col.key, width(ev));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  return (
+    <div className="group/hcell relative flex items-center">
+      <button
+        type="button"
+        onClick={onSort}
+        disabled={!sortable}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1 px-3 py-2.5 text-left",
+          sortable ? "hover:text-[#52525b]" : "cursor-default",
+        )}
+      >
+        <span className="truncate">{col.label}</span>
+        {active && <span className="text-[var(--accent-blue)]">{dir === "desc" ? "▼" : "▲"}</span>}
+      </button>
+      {/* Resize handle — grabs the right edge; stops the click reaching sort. */}
+      <span
+        onPointerDown={startResize}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute right-0 top-0 z-10 flex h-full w-[9px] cursor-col-resize items-center justify-center"
+      >
+        <span className="h-[55%] w-px bg-[#e7e7ea] transition-colors group-hover/hcell:bg-[#c4c4c8]" />
+      </span>
+    </div>
+  );
+}
+
 function Row({ v, cols, grid }: { v: CustomerRowView; cols: Column[]; grid: string }) {
-  const { c } = v;
   return (
     <Link
-      href={`/customers/${c.id}`}
-      className="grid items-center border-b border-[#f4f4f5] px-4 py-[11px] text-[13px] transition-colors last:border-b-0 hover:bg-[#fafafa]"
+      href={`/customers/${v.c.id}`}
+      className="grid items-center border-b border-[#f4f4f5] px-0 py-[11px] text-[13px] transition-colors last:border-b-0 hover:bg-[#fafafa]"
       style={{ gridTemplateColumns: grid }}
     >
-      <span>
+      <span className="flex items-center justify-center">
         <span className="inline-block size-[15px] rounded-[4px] border-[1.5px] border-[#d4d4d8]" />
-      </span>
-      <span className="flex min-w-0 items-center gap-2.5">
-        <Avatar name={c.displayName} size={32} />
-        <span className="min-w-0">
-          <span className="block truncate font-semibold text-[#0a0a0a]">{c.displayName}</span>
-          {c.email && (
-            <span className="block truncate text-[11.5px] text-[#71717a]">{c.email}</span>
-          )}
-        </span>
       </span>
       {cols.map((col) =>
         col.cell ? (
-          <span key={col.key} className={cn("min-w-0", col.cellClassName)}>
+          <span key={col.key} className={cn("min-w-0 px-3", col.cellClassName)}>
             {renderCell(v, col)}
           </span>
         ) : (
           <span
             key={col.key}
-            className={cn("min-w-0 truncate text-[#3f3f46]", col.cellClassName)}
+            className={cn("min-w-0 truncate px-3 text-[#3f3f46]", col.cellClassName)}
           >
             {renderCell(v, col)}
           </span>
         ),
       )}
+      <span />
       <span className="text-center text-[#a1a1aa]">›</span>
     </Link>
   );

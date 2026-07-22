@@ -384,11 +384,24 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
     otherwise flat matches). With many columns on, the **table scrolls horizontally** (one x/y
     scroller, sticky header) — legitimate for a data table even though chrome scrollbars are hidden
     app-wide.
+  - **There is NO hardcoded name/customer column** (removed 2026-07-22 — it glued name + email
+    together and couldn't be moved/hidden/sorted). "Name" (avatar + display name) is just the first
+    DEFAULT column now; email is its own column. Only the select box (left) and a trailing chevron
+    are fixed edges.
   - **The saved layout is PER USER, per list, reusing `user_ui_layouts`** (§ Rearrangeable cards) —
-    `layout_key='customers_columns'`, shape `{ order: string[] }` = the visible columns in order
-    (absence = hidden). `getUserOrder`/`saveUserOrder`, so no new storage. A salesperson and a fitter
-    keep different columns; one admin's choice never becomes everyone's. (Tenant-default-with-override
-    can layer on later; storage is user-scoped from the start.)
+    `layout_key='customers_columns'`, shape `{ order: string[], widths: Record<key,px> }`
+    (`getUserPref`/`saveUserPref`). A salesperson and a fitter keep different columns AND widths; one
+    admin's choice never becomes everyone's. (Tenant-default-with-override can layer on later.)
+  - **Columns are RESIZABLE by dragging the header's right edge**, widths persisted per user. Widths
+    are px (the grid switched from `fr` tracks to fixed px + a trailing `minmax(16px,1fr)` spacer so
+    rows fill the width and borders span). `commitWidth` merges the final px explicitly, so a
+    mid-drag stale closure can't corrupt the saved object; only the dragged column changes.
+  - **Sorting is SERVER-SIDE, single-column, via `sort`/`dir` URL params** (so it orders across every
+    page, not just the 9 on screen, and is shareable). Click a header → asc, click again → desc,
+    click another → that column. `getCustomers` orders by an ALLOWLISTED column (`SORTABLE_COLUMNS`,
+    never interpolated) with `id` as a stable tiebreaker; computed/composite columns (counts, last
+    activity, address) aren't sortable, Name maps to `last_name`. Resize handle stops its click
+    reaching the sort button.
   - **The table is a CLIENT component fed serialisable rows** — the server page computes each row's
     view (incl. `latestLeadActivity`, whose helper stays in the server data layer) and hands
     `CustomerRowView[]` to `CustomerTable`. A `CustomerColumnsProvider` shares the column state

@@ -73,3 +73,15 @@ export async function getUserOrder(layoutKey: string): Promise<string[] | null> 
   if (!Array.isArray(order) || !order.every((v) => typeof v === "string")) return null;
   return order as string[];
 }
+
+/**
+ * The raw saved preference object for a surface that stores more than a flat
+ * order/columns (e.g. the customer list keeps `{ order, widths }`). The consumer
+ * sanitises the shape it expects. `null` when the user hasn't customised.
+ */
+export async function getUserPref(layoutKey: string): Promise<Record<string, unknown> | null> {
+  const layout = await readLayout(layoutKey);
+  return layout && typeof layout === "object" && !Array.isArray(layout)
+    ? (layout as Record<string, unknown>)
+    : null;
+}
