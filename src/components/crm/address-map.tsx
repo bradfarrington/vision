@@ -11,6 +11,7 @@ import {
   addressKey,
   addressLine,
   directionsUrl,
+  streetViewUrl,
   what3wordsUrl,
   type AddressInput,
   type MatchPrecision,
@@ -281,6 +282,7 @@ export function AddressMap({
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
           <MapCredit />
           <span className="ml-auto flex items-center gap-3">
+            {coords && <StreetViewLink lat={coords.lat} lng={coords.lng} />}
             {line && <DirectionsLink line={line} />}
             {what3words && <What3WordsLink words={what3words} />}
           </span>
@@ -342,6 +344,7 @@ function FullscreenMap({
       <div className="flex items-center gap-3 px-4 py-3 text-white">
         <Icon name="map-pin" size={16} strokeWidth={1.75} className="text-white/70" />
         <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{line}</span>
+        <StreetViewLink lat={lat} lng={lng} dark />
         {line && <DirectionsLink line={line} dark />}
         {what3words && <What3WordsLink words={what3words} dark />}
         <button
@@ -428,6 +431,31 @@ function DirectionsLink({ line, dark = false }: { line: string; dark?: boolean }
       }
     >
       Directions →
+    </a>
+  );
+}
+
+function StreetViewLink({
+  lat,
+  lng,
+  dark = false,
+}: {
+  lat: number;
+  lng: number;
+  dark?: boolean;
+}) {
+  return (
+    <a
+      href={streetViewUrl(lat, lng)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={
+        dark
+          ? "rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-white/15"
+          : "font-semibold text-[var(--accent-blue)] hover:underline"
+      }
+    >
+      Street view →
     </a>
   );
 }

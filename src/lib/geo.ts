@@ -392,6 +392,23 @@ export function directionsUrl(destination: string): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
 
+/**
+ * Google Street View, opened at our pin.
+ *
+ * OpenStreetMap has no street-level imagery of its own, and the open
+ * alternatives (Mapillary, KartaView, Panoramax) are contributor-driven, so UK
+ * residential coverage is patchy — they fail on exactly the estates a surveyor
+ * needs. This is Google's documented Maps URLs scheme: no API key, no billing,
+ * nothing metered, because it just deep-links their app.
+ *
+ * Coverage is NOT checked first — that needs the keyed Street View metadata
+ * endpoint. Where there is no imagery Google lands on the map instead, which is
+ * a soft landing, so the link is always offered.
+ */
+export function streetViewUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+}
+
 /** what3words location, e.g. "filled.count.soap" → its map. */
 export function what3wordsUrl(words: string): string {
   return `https://what3words.com/${encodeURIComponent(words.replace(/^\/+/, ""))}`;

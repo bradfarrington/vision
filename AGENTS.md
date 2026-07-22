@@ -446,6 +446,14 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   that is load-bearing: the pin is filled with `var(--accent-blue)` from `tenantThemeVars` on the
   app shell root, so a portalled marker silently falls back to platform blue for every tenant with
   a brand colour. `fixed` covers the viewport perfectly well from inside the tree.
+- **Street view is a LINK OUT to Google, not an embed.** OpenStreetMap has no street-level imagery
+  of its own, and the open alternatives (Mapillary, KartaView, Panoramax) are contributor-driven —
+  UK residential coverage is patchy, so they fail on exactly the estates a surveyor needs.
+  `streetViewUrl()` uses Google's documented Maps URLs scheme: no API key, no billing, nothing
+  metered. Coverage is deliberately NOT checked first (that needs the keyed metadata endpoint);
+  where there is no imagery Google lands on the map, which is a soft enough landing. **If an in-app
+  pano is ever wanted, the Maps Embed API is the one to reach for — it is free and unmetered** —
+  and the Street View *Static* API (thumbnails) is the metered one to avoid putting on a list screen.
 - **Inline and fullscreen each own a MapLibre instance** (`MapCanvas`). Sharing one and re-parenting
   the GL canvas was the alternative and it is worse: the inline map comes back showing wherever the
   user panned to in fullscreen. `MapCanvas` keeps the tile-error callback in a latest-ref so a
