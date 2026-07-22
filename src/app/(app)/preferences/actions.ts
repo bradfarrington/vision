@@ -26,7 +26,7 @@ type LooseWrite = {
   };
 };
 
-export async function saveUserLayout(layoutKey: string, columns: string[][]) {
+async function writeLayout(layoutKey: string, layout: Record<string, unknown>) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -42,16 +42,26 @@ export async function saveUserLayout(layoutKey: string, columns: string[][]) {
       user_id: user.id,
       company_id: companyId,
       layout_key: layoutKey,
-      layout: { columns },
+      layout,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,layout_key" },
   );
   if (error) {
-    console.error("saveUserLayout:", error.message);
+    console.error("writeLayout:", error.message);
     return { error: error.message };
   }
   return { ok: true };
+}
+
+/** Save the overview bento arrangement (cards per column). */
+export async function saveUserLayout(layoutKey: string, columns: string[][]) {
+  return writeLayout(layoutKey, { columns });
+}
+
+/** Save a flat ordering (e.g. the customer-record tabs). */
+export async function saveUserOrder(layoutKey: string, order: string[]) {
+  return writeLayout(layoutKey, { order });
 }
 
 /** Forget a user's customisation so the surface reverts to its default layout. */

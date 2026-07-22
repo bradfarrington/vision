@@ -56,7 +56,7 @@ import { AddressMap } from "@/components/crm/address-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { FitRows } from "@/components/crm/fit-rows";
 import { BentoBoard } from "@/components/crm/bento-board";
-import { getUserLayout } from "@/lib/data/user-layouts";
+import { getUserLayout, getUserOrder } from "@/lib/data/user-layouts";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
 
 // Customer detail — the full contact record across tabs, every field editable
@@ -80,11 +80,12 @@ export default async function CustomerDetailPage({
       ...c.customFields.map((f) => f.listKey).filter((k): k is string => !!k),
     ]),
   ];
-  const [relationshipTypes, lookups, salesUsers, overviewLayout] = await Promise.all([
+  const [relationshipTypes, lookups, salesUsers, overviewLayout, tabOrder] = await Promise.all([
     getRelationshipTypes(),
     getTenantOptionLists(lookupKeys),
     getSalesStaff(),
     getUserLayout("customer_overview"),
+    getUserOrder("customer_tabs"),
   ]);
   const typeLabel = c.customer_type
     ? c.customer_type.charAt(0).toUpperCase() + c.customer_type.slice(1)
@@ -128,6 +129,8 @@ export default async function CustomerDetailPage({
       </div>
 
       <Tabs
+        layoutKey="customer_tabs"
+        savedOrder={tabOrder}
         tabs={[
           { label: "Overview", content: <OverviewTab c={c} lookups={lookups} savedLayout={overviewLayout} /> },
           {

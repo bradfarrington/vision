@@ -395,10 +395,11 @@ pattern for the whole app**, not an overview-only trick. Applied to the record's
 
 ## Rearrangeable cards & per-user layouts — built 2026-07-22
 
-The customer-overview bento is **drag-and-droppable and saved PER USER**. First use of a pattern
-meant to spread: any customisable surface (this, the future `/leads` & `/customers` column pickers)
-stores its arrangement the same way. `src/components/crm/bento-board.tsx` is the board;
-`OverviewTab` renders the cards and hands them in.
+The customer-overview bento **and the record's tab bar** are both **drag-to-rearrange and saved PER
+USER**. First uses of a pattern meant to spread: any customisable surface (these, the future
+`/leads` & `/customers` column pickers) stores its arrangement the same way.
+`src/components/crm/bento-board.tsx` is the overview board; `OverviewTab` renders the cards and hands
+them in. The tab bar is `Tabs` (`src/components/crm/tabs.tsx`) with a `layoutKey`.
 
 - **Layout is per user, never per tenant.** Company A's five users each get their own row and never
   see each other's — a salesperson and a fitter want different things on screen. Same rule already
@@ -406,11 +407,13 @@ stores its arrangement the same way. `src/components/crm/bento-board.tsx` is the
 - **Storage is a GENERIC `user_ui_layouts` table** (`20260722096000`, **apply BY HAND** + reload
   PostgREST) — `user_id` + `company_id` + `layout_key` + `layout jsonb`, unique on
   `(user_id, layout_key)`, RLS locked to `auth.uid()` within the tenant. `layout_key` names the
-  surface (`customer_overview` now); the jsonb is opaque to the DB (`{ columns: string[][] }` for the
-  overview — ordered card ids per column). The future column pickers reuse the table, not fork one.
-  Loader `getUserLayout(key)` (`src/lib/data/user-layouts.ts`); actions `saveUserLayout` /
-  `resetUserLayout` (`src/app/(app)/preferences/actions.ts`) — `user_id`/`company_id` come from the
-  verified session + `current_company_id()`, NEVER client input.
+  surface; the jsonb is opaque to the DB and each surface owns its own shape:
+  `{ columns: string[][] }` for the overview (`customer_overview` — ordered card ids per column),
+  `{ order: string[] }` for the tabs (`customer_tabs` — tab labels in order). The future column
+  pickers reuse the same table, not fork one. Loaders `getUserLayout` / `getUserOrder`
+  (`src/lib/data/user-layouts.ts`); actions `saveUserLayout` / `saveUserOrder` / `resetUserLayout`
+  (`src/app/(app)/preferences/actions.ts`) — `user_id`/`company_id` come from the verified session +
+  `current_company_id()`, NEVER client input.
 - **A CARD REGISTRY is the single source of truth for what cards exist.** `reconcile()` drops
   unknown/duplicate ids from a stored layout and appends any card MISSING from it to the shortest
   column — so a card added in a later release auto-appears for users who already have a saved layout.
@@ -426,18 +429,33 @@ stores its arrangement the same way. `src/components/crm/bento-board.tsx` is the
   sortable wrapper.** FIELD cards (Identity/Flags — editable ONLY on the overview) stay `shrink-0` so
   a row is never lost; digest cards may shrink and their FitRows trims. The wrapper targets the card
   with `[&>div]` (the card is a `<div>`, the handle a `<button>`) to fill the non-growing wrapper.
-- **`DndContext` MUST carry a stable `id`** (`bento-${layoutKey}`). Without it dnd-kit builds
-  `aria-describedby` from a global counter that differs between SSR and hydration → a React hydration
-  mismatch. (The live-region id is mount-guarded and doesn't SSR, so it isn't a second source.)
+- **`DndContext` MUST carry a stable `id`** (`bento-${layoutKey}`, `tabs-${layoutKey}`). Without it
+  dnd-kit builds `aria-describedby` from a global counter that differs between SSR and hydration → a
+  React hydration mismatch. (The live-region id is mount-guarded and doesn't SSR, so it isn't a second
+  source.) The overview page runs two DndContexts at once — the bento and the tab bar — so each needs
+  its own stable id.
 - **A module-level `layoutCache` keyed by `layoutKey` survives remounts.** `Tabs` renders only the
   active panel, so leaving Overview and returning REMOUNTS the board — without the cache it re-reads
   the page-load `savedLayout` prop and drops any change made since. The cache is written ONLY from
   browser event handlers, so the server render stays empty (no cross-request leak) and the first
-  hydrating render always matches the server by reading `savedLayout`.
-- **Degrades gracefully before the migration is applied:** `getUserLayout` catches the missing-table
-  error → null → default layout renders; saves fail silently until the table exists. So a pending
-  migration never blanks the overview (§ Gotchas: a loader must never let a pending migration blank a
-  record).
+  hydrating render always matches the server by reading `savedLayout`. (The tab bar itself doesn't
+  need this — `Tabs` never unmounts, so its order state lives across tab switches.)
+
+### Reorderable tabs — built 2026-07-22
+
+`Tabs` gains drag-to-reorder ONLY when a `layoutKey` is passed (opt-in — every other screen using
+`Tabs` is unchanged). The customer record passes `layoutKey="customer_tabs"` + the user's
+`savedOrder`. Default order = the authored `tabs` array; "Reset order" (shown only once customised)
+reverts and deletes the row.
+
+- **A tab is BOTH the switch AND the drag source — no separate grip.** A tab is one word, so a
+  whole-tab drag with a click threshold (PointerSensor `distance: 6`) is the least cluttered
+  affordance — a click switches, a real drag reorders (the browser-tab-bar model). Cards needed a
+  grip because they're full of clickable content; tabs don't.
+- **Active tab is tracked by LABEL, not index.** Reordering must never change which tab is open, and
+  jumps (`goTo`) already target a label. An index would point at a different tab the moment the order
+  changes. `orderTabs()` reconciles a saved order like the bento's `reconcile()`: keep known labels,
+  drop gone ones, append NEW tabs at the end so a later-added tab is never hidden.
 
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 
