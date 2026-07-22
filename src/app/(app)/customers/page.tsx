@@ -35,6 +35,9 @@ export default async function CustomersPage({
     if (k.startsWith("f_") && typeof v === "string" && v !== "") columnFilters[k.slice(2)] = v;
   }
 
+  // Default arrangement is customer number ascending: the sidebar link to
+  // /customers carries no query, so leaving and returning always lands here.
+  const sort = sp.sort ?? "customer_number";
   const dir = sp.dir === "desc" ? "desc" : "asc";
   const [{ rows, total, page, pageCount, filterOptions }, columnPref] = await Promise.all([
     getCustomers({
@@ -42,7 +45,7 @@ export default async function CustomersPage({
       hasLiveLead: sp.live === "1",
       page: sp.page ? Number(sp.page) : 1,
       columnFilters,
-      sort: sp.sort,
+      sort,
       dir,
     }),
     getUserPref("customers_columns"),
@@ -95,7 +98,7 @@ export default async function CustomersPage({
           pageCount={pageCount}
           from={from}
           to={to}
-          sort={sp.sort ?? null}
+          sort={sort}
           dir={dir}
         />
       </div>
