@@ -392,7 +392,7 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   puts a fitter on the wrong side of the street — and worse, the ONS ward attached to it is often a
   different-sounding place than the address (B77 2RL centroid reports "Bolehall" for an address in
   Glascote). Geocoding is therefore **full-address**, and `lib/geo.ts` reports how well it did:
-  `address` · `street` · `postcode` · `outcode`. That precision drives BOTH the zoom and the caption.
+  `address` · `street` · `postcode` · `outcode`.
 - **The map never narrates its own confidence.** An earlier build printed an amber "the exact
   building could not be identified" under a street-level hit and it was rejected on sight — a pin
   that is on the right street reads as broken the moment the UI hedges about it, and staff stop
@@ -459,25 +459,24 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   helps nobody find a house.
 - **Fullscreen overlay mirrors the document viewer** — expand button top-LEFT of the canvas (the
   zoom control owns top-right), `fixed inset-0 z-50`, Escape to close, dark chrome header carrying
-  the address and the Directions / what3words links.
+  the address, the **Map / Satellite / Street view** toggle, and the Directions / what3words links.
+  Satellite opens one zoom step tighter than the road map — it is the "what does the plot look like"
+  view.
 - **The overlay OPENS ON a view, it does not always land on the map.** `fullscreen` state is the
   `GoogleView` to open on (or `null` for closed), so the card's "Street view →" goes straight to the
   pano instead of dumping the user on the map to hunt for the toggle. **Street view must never be a
   link to a new Google Maps tab when the embed key is present** — leaving the app loses the record
-  the user was reading. The link-out only survives as the no-key fallback. **It is NOT a portal to `document.body`**, and
-  that is load-bearing: the pin is filled with `var(--accent-blue)` from `tenantThemeVars` on the
-  app shell root, so a portalled marker silently falls back to platform blue for every tenant with
-  a brand colour. `fixed` covers the viewport perfectly well from inside the tree.
-- **Street view comes from Google, and the tier matters enormously.** OpenStreetMap has no
-  street-level imagery of its own, and the open alternatives (Mapillary, KartaView, Panoramax) are
-  contributor-driven — UK residential coverage is patchy, so they fail on exactly the estates a
-  surveyor needs. Two paths, both wired:
-  - `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` set → the fullscreen overlay gets a **Map / Street view**
-    toggle backed by the **Maps Embed API**, a navigable pano the user can walk along the street
-    with. That API is **free and unmetered**. The Street View *Static* API is the metered one —
-    **do not** reach for it for thumbnails on a list screen.
-  - No key → a free link out to Google Maps via `streetViewUrl()` (their Maps URLs scheme, no key,
-    no billing). Street view degrades, it does not break.
+  the user was reading. `streetViewUrl()` (Google's keyless Maps URLs scheme) only survives as the
+  no-key fallback.
+- **The overlay is NOT a portal to `document.body`**, and that is load-bearing: the pin is filled
+  with `var(--accent-blue)` from `tenantThemeVars` on the app shell root, so a portalled marker
+  silently falls back to platform blue for every tenant with a brand colour. `fixed` covers the
+  viewport perfectly well from inside the tree.
+- **Street view can only come from Google.** OpenStreetMap has no street-level imagery of its own,
+  and the open alternatives (Mapillary, KartaView, Panoramax) are contributor-driven — UK
+  residential coverage is patchy, so they fail on exactly the estates a surveyor needs. The **Maps
+  Embed API** gives a navigable pano for free; the Street View **Static** API is the metered one —
+  **do not** reach for it for thumbnails on a list screen.
   **`heading` is deliberately unset** on the embed: given a bare location Google aims the camera
   from the nearest panorama *towards* that point, i.e. at the front of the building. Supplying our
   own heading needs the bearing from road to house, which we do not know, and would face a hedge as
@@ -485,14 +484,8 @@ delete it as each screen moves over** (the lead detail is the last holdout).
 - **The embed key is PUBLIC by necessity** (the browser fetches the iframe), so it must be locked in
   Google Cloud to the Maps Embed API and to this app's domains by HTTP referrer. It is the only
   Google key with a `NEXT_PUBLIC_` prefix — `GOOGLE_MAPS_API_KEY` (geocoding) stays server-only.
-- **Why the base map is NOT Google.** Considered and rejected on 2026-07-22: geocoding and street
-  view are cheap or free because they are cached or unmetered, but a **map render cannot be cached
-  — every record view is a billable map load** on the Maps JavaScript API, so cost scales with staff
-  activity forever. MapLibre + OSM is free at any volume, and it is the only option that lets the
-  marker be the tenant's accent colour and that a future drag-to-pin can drive programmatically.
-  (Google's Embed API *can* render a plain map for free, but as an iframe: no tenant-coloured pin,
-  no styling, no programmatic control.) Note that going all-Google would not settle the branding
-  question either — Google's logo is larger than the OSM credit and contractually unhideable.
+  Note that Google Cloud requires a **billing account on the project** before it will issue a Maps
+  key at all, even for the free-and-unmetered Embed API.
 - **Inline and fullscreen each own a MapLibre instance** (`MapCanvas`). Sharing one and re-parenting
   the GL canvas was the alternative and it is worse: the inline map comes back showing wherever the
   user panned to in fullscreen. `MapCanvas` keeps the tile-error callback in a latest-ref so a
