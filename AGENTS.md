@@ -286,20 +286,11 @@ fork per-entity copies.
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
 - **Schema is applied BY HAND in the Supabase SQL editor**, in order — not `supabase db push` (an
-  early hook-policy migration was applied manually, so db push conflicts). Migrations
-  `094000`–`099200` were applied to the remote as of 2026-07-21; some (`097000`) were re-run as they
-  gained rows. For new migrations: add the file, then apply the SQL manually.
-  **`20260721101000_documents_storage.sql` (documents bucket + storage RLS),
-  `20260721101100_document_categories.sql` (category defaults) and
-  `20260722090000_note_links_versions_attachments.sql` (note links/versions/attachments) and
-  `20260722091000_document_dedupe.sql` (content hash + dedupe indexes) and
-  `20260722092000_document_note_numbers.sql` (reference numbers + backfill) and
-  `20260722093000_note_attachments_and_per_customer_refs.sql` (attachments become links; refs
-  renumbered per customer; merges the duplicate document rows the old design created) still need
-  applying** — document upload/view won't work until the storage one is run in the SQL
-  editor, and the Notes tab will error until the note one is. After applying the note migration,
-  **reload the PostgREST schema cache** (Supabase dashboard → API → restart, or
-  `notify pgrst, 'reload schema';`) or the new `updated_by`/`note_id` embeds fail to resolve.
+  early hook-policy migration was applied manually, so db push conflicts). For new migrations: add
+  the file, then apply the SQL manually, then **reload the PostgREST schema cache**
+  (`notify pgrst, 'reload schema';`, or Supabase dashboard → restart) so new columns and embeds
+  resolve. **Every migration through `20260722093000` was applied to the remote as of 2026-07-22.**
+  Some (`097000`) were re-run as they gained rows.
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.
