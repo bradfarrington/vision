@@ -16,6 +16,7 @@ import type { DocumentItem, DocumentOwnerType } from "@/lib/data/documents";
 import { cn } from "@/lib/utils";
 import { Icon } from "./icon";
 import { Combo } from "./combo";
+import { useDialogs } from "./dialogs";
 import { InlineViewer, FullscreenViewer, type ViewerDoc } from "./document-viewer";
 
 type CategoryOption = { id: string; label: string };
@@ -41,6 +42,7 @@ export function DocumentsPanel({
   customerId?: string;
 }) {
   const router = useRouter();
+  const { confirm } = useDialogs();
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(documents[0]?.id ?? null);
   const [fullscreen, setFullscreen] = useState<ViewerDoc | null>(null);
@@ -137,7 +139,13 @@ export function DocumentsPanel({
             onPrint={() => selected && printDoc(selected)}
             onDelete={async () => {
               if (!selected) return;
-              if (!confirm(`Delete “${selected.name}”? This can’t be undone.`)) return;
+              const ok = await confirm({
+                title: `Delete “${selected.name}”?`,
+                message: "The file is removed from the record and can't be recovered.",
+                confirmLabel: "Delete file",
+                tone: "danger",
+              });
+              if (!ok) return;
               const res = await deleteDocument(selected.id, ownerType, ownerId);
               if (res?.error) setError(res.error);
               else {

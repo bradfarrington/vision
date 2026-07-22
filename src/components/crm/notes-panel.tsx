@@ -10,6 +10,7 @@ import type { NoteItem, NoteRevision } from "@/lib/data/notes";
 import type { DocumentItem } from "@/lib/data/documents";
 import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
+import { useDialogs } from "./dialogs";
 import { Icon } from "./icon";
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,7 @@ function NoteRow({
   const [pending, start] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { confirm } = useDialogs();
 
   const target = linkTargets.find((t) => t.id === (note.leadId ?? note.contractId));
 
@@ -389,9 +391,15 @@ function NoteRow({
           <button
             type="button"
             disabled={pending}
-            onClick={() => {
-              if (!confirm("Remove this note? Its history goes too — attachments stay on the record."))
-                return;
+            onClick={async () => {
+              const ok = await confirm({
+                title: "Remove this note?",
+                message:
+                  "Its version history goes with it. Any attachments stay on the customer's Documents tab.",
+                confirmLabel: "Remove note",
+                tone: "danger",
+              });
+              if (!ok) return;
               start(async () => {
                 await deleteNote(note.id, { customerId });
                 router.refresh();
@@ -448,6 +456,7 @@ function NoteRow({
 function Attachment({ doc, customerId }: { doc: DocumentItem; customerId: string }) {
   const [pending, start] = useTransition();
   const router = useRouter();
+  const { confirm } = useDialogs();
 
   function open() {
     start(async () => {
@@ -466,8 +475,14 @@ function Attachment({ doc, customerId }: { doc: DocumentItem; customerId: string
         type="button"
         aria-label={`Remove ${doc.name}`}
         disabled={pending}
-        onClick={() => {
-          if (!confirm(`Delete “${doc.name}”? This removes the file from the record too.`)) return;
+        onClick={async () => {
+          const ok = await confirm({
+            title: `Delete “${doc.name}”?`,
+            message: "The file is removed from the customer's record too, not just this note.",
+            confirmLabel: "Delete file",
+            tone: "danger",
+          });
+          if (!ok) return;
           start(async () => {
             await deleteDocument(doc.id, "customer", customerId);
             router.refresh();

@@ -8,6 +8,7 @@ import {
   userInitials,
 } from "@/lib/company";
 import { tenantThemeVars } from "@/lib/theme";
+import { DialogsProvider } from "@/components/crm/dialogs";
 
 // Authenticated app shell: grey canvas, ~62px topbar, 76px icon rail and a
 // white rounded content panel — matching the dashboard frame in the design
@@ -24,24 +25,28 @@ export default async function AppLayout({
   const { user, company } = session;
 
   return (
+    // DialogsProvider sits inside the themed root so the app's confirm/alert
+    // dialogs pick up the tenant accent variables (see components/crm/dialogs).
     <div
       style={tenantThemeVars(company)}
       className="flex min-h-full flex-1 flex-col bg-[#f4f4f5]"
     >
-      <Topbar
-        companyName={company?.name ?? "Vision"}
-        logoUrl={company?.logo_url ?? null}
-        userName={userDisplayName(user)}
-        userEmail={user.email}
-        userRole={user.role}
-        userInitials={userInitials(user)}
-      />
-      <div className="flex min-h-0 flex-1 items-stretch">
-        <Sidebar />
-        <main className="mr-4 mb-4 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
-          {children}
-        </main>
-      </div>
+      <DialogsProvider>
+        <Topbar
+          companyName={company?.name ?? "Vision"}
+          logoUrl={company?.logo_url ?? null}
+          userName={userDisplayName(user)}
+          userEmail={user.email}
+          userRole={user.role}
+          userInitials={userInitials(user)}
+        />
+        <div className="flex min-h-0 flex-1 items-stretch">
+          <Sidebar />
+          <main className="mr-4 mb-4 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
+            {children}
+          </main>
+        </div>
+      </DialogsProvider>
     </div>
   );
 }

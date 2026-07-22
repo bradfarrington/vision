@@ -116,6 +116,38 @@ all related lists in one round-trip.
   everything is `company_id`-scoped so a tenant's own questions stay invisible to other tenants.
 - **Financials** panel (Billing tab) computes contract balance from `finance_lines`.
 
+## Dialogs, confirms & warnings — decided 2026-07-22
+
+**Never call the browser's `confirm()`, `alert()` or `prompt()`.** They can't be styled, ignore the
+tenant accent, and render as a "localhost says…" system box. Every destructive action, warning or
+acknowledgement uses the app's own dialogs:
+
+```tsx
+const { confirm } = useDialogs();            // components/crm/dialogs.tsx
+const ok = await confirm({
+  title: "Remove this note?",
+  message: "Its version history goes with it. Attachments stay on the record.",
+  confirmLabel: "Remove note",
+  tone: "danger",                            // "accent" | "warning" | "danger"
+});
+if (!ok) return;
+```
+
+- **Global by construction.** `DialogsProvider` is mounted once in `src/app/(app)/layout.tsx`,
+  INSIDE the themed root, so one dialog element serves the whole CRM and inherits the tenant's
+  accent CSS variables. New screens get it for free — never add a second provider, and never
+  hand-roll a bespoke confirm.
+- **Promise-based, so call sites read like the native API they replace.** `confirm()` resolves
+  false on Cancel, Escape and backdrop click; `alert()` resolves when acknowledged. `useDialogs()`
+  throws outside the provider — that's a mounting bug, not a reason to fall back to `window.confirm`.
+- **Tones carry meaning, not decoration:** `danger` = irreversible (red, and Cancel takes focus so
+  a reflex Enter never deletes), `warning` = proceed with care (amber), `accent` = an ordinary
+  decision (tenant accent). Buttons say what happens ("Delete file"), not "OK".
+- **Write the message like a receipt:** what is destroyed AND what survives ("Attachments stay on
+  the record"). Users judge the risk from that sentence.
+- Multi-field/interactive dialogs (e.g. "New additional-info field") stay bespoke `Dialog`
+  compositions from `components/ui/dialog` — `useDialogs` is for confirm/acknowledge only.
+
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 
 One table backs every note in the CRM (`public.lead_notes`): customer-level when `lead_id` is

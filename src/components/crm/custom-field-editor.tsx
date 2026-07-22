@@ -12,6 +12,7 @@ import {
 } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
+import { useDialogs } from "./dialogs";
 import { Icon } from "./icon";
 import { btnPrimary, btnSecondary } from "./primitives";
 import {
@@ -77,14 +78,22 @@ export function CustomFieldRemove({
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
+  const { confirm } = useDialogs();
   return (
     <button
       type="button"
       aria-label={`Remove ${question}`}
       title="Remove this field"
       disabled={pending}
-      onClick={() => {
-        if (!confirm(`Remove “${question}” and every answer recorded against it?`)) return;
+      onClick={async () => {
+        const ok = await confirm({
+          title: `Remove “${question}”?`,
+          message:
+            "The field disappears from every customer record, along with every answer recorded against it.",
+          confirmLabel: "Remove field",
+          tone: "danger",
+        });
+        if (!ok) return;
         start(async () => {
           await deleteCustomFieldDefinition(definitionId);
           router.refresh();
