@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Avatar, CountPill, Icon } from "@/components/crm/primitives";
+import { CountPill, Icon } from "@/components/crm/primitives";
 import { Pagination, useSetParams } from "@/components/crm/list-controls";
 import { useFloatingMenu } from "@/components/crm/floating-menu";
 import { resetUserLayout, saveUserPref } from "@/app/(app)/preferences/actions";
@@ -73,10 +73,7 @@ const COLUMNS: Column[] = [
     w: NAME,
     sortField: "last_name",
     cell: (v) => (
-      <span className="flex min-w-0 items-center gap-2.5">
-        <Avatar name={v.c.displayName} size={28} />
-        <span className="min-w-0 truncate font-semibold text-[#0a0a0a]">{v.c.displayName}</span>
-      </span>
+      <span className="block min-w-0 truncate font-semibold text-[#0a0a0a]">{v.c.displayName}</span>
     ),
   },
 
