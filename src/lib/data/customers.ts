@@ -1,6 +1,34 @@
 import { createClient } from "@/lib/supabase/server";
 import { isLiveLead } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
+import type { Database } from "@/lib/supabase/types";
+
+type CustomerTableRow = Database["public"]["Tables"]["customers"]["Row"];
+
+// Customer columns a user may filter the list by, applied server-side so paging
+// and counts stay correct. Allowlisted (never interpolated from input) — the
+// value is bound by PostgREST. Selects match an exact value; bools match yes/no.
+export const SELECT_FILTER_COLUMNS = [
+  "customer_type",
+  "property_type",
+  "town",
+  "county",
+  "payment_terms",
+  "sales_manager",
+  "marketing_code",
+] as const;
+
+export const BOOL_FILTER_COLUMNS = [
+  "do_not_contact",
+  "bad_payer",
+  "customer_moved_away",
+  "email_opt_in",
+  "sms_opt_in",
+  "phone_opt_in",
+  "letter_opt_in",
+  "no_whatsapp",
+  "business_address",
+] as const;
 
 export const CUSTOMERS_PAGE_SIZE = 9;
 
@@ -39,6 +67,9 @@ export type CustomerRow = {
   leadCount: number;
   liveLeadCount: number;
   contractCount: number;
+  // Every raw customer column, so the list's configurable columns can render any
+  // field without threading each one through a typed property.
+  record: Record<string, unknown>;
 };
 
 export type CustomerFilters = {
@@ -46,6 +77,8 @@ export type CustomerFilters = {
   town?: string;
   hasLiveLead?: boolean;
   page?: number;
+  /** Allowlisted customer-column filters, keyed by column name (see *_FILTER_COLUMNS). */
+  columnFilters?: Record<string, string>;
 };
 
 export type CustomerListResult = {
@@ -53,7 +86,8 @@ export type CustomerListResult = {
   total: number;
   page: number;
   pageCount: number;
-  towns: string[];
+  /** Distinct values per select-filter column, for the Filters popover. */
+  filterOptions: Record<string, string[]>;
 };
 
 const LEAD_FIELDS =
@@ -76,8 +110,7 @@ export async function getCustomers(
   let query = supabase
     .from("customers")
     .select(
-      `id, customer_type, title, first_name, last_name, company_name, email, phone, mobile,
-       house_name, house_number, street, locality, town, county, postcode, created_at,
+      `*,
        leads(${LEAD_FIELDS}),
        contracts(id)`,
       { count: "exact" },
@@ -101,15 +134,30 @@ export async function getCustomers(
       ].join(","),
     );
   }
+  // Legacy `town` param maps onto the generic town filter.
   if (filters.town) query = query.eq("town", filters.town);
+
+  // Allowlisted customer-column filters — applied at the DB so paging/counts
+  // stay correct (unlike hasLiveLead, which is lead-derived; see below).
+  const cf = filters.columnFilters ?? {};
+  for (const col of SELECT_FILTER_COLUMNS) {
+    const v = cf[col];
+    if (v) query = query.eq(col, v);
+  }
+  for (const col of BOOL_FILTER_COLUMNS) {
+    const v = cf[col];
+    if (v === "1" || v === "0") query = query.eq(col, v === "1");
+  }
 
   const { data, count, error } = await query;
   if (error) throw new Error(`getCustomers: ${error.message}`);
 
-  let rows = ((data ?? []) as unknown as RawCustomer[]).map(toCustomerRow);
+  let rows = ((data ?? []) as unknown as CustomerQueryRow[]).map(toCustomerRow);
+  // Lead-derived, so it can't be a DB predicate on customers without an inner
+  // join; kept as a post-filter (known trade-off: the count reflects pre-filter).
   if (filters.hasLiveLead) rows = rows.filter((r) => r.liveLeadCount > 0);
 
-  const towns = await getCustomerTowns(supabase);
+  const filterOptions = await getFilterOptions(supabase);
 
   const total = count ?? rows.length;
   return {
@@ -117,7 +165,7 @@ export async function getCustomers(
     total,
     page,
     pageCount: Math.max(1, Math.ceil(total / CUSTOMERS_PAGE_SIZE)),
-    towns,
+    filterOptions,
   };
 }
 
@@ -189,18 +237,7 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
   if (error) throw new Error(`getCustomer: ${error.message}`);
   if (!data) return null;
 
-  const raw = data as unknown as Omit<RawCustomer, "contracts"> & {
-    title: string | null;
-    mobile: string | null;
-    home_telephone: string | null;
-    work_telephone: string | null;
-    house_name: string | null;
-    house_number: string | null;
-    street: string | null;
-    locality: string | null;
-    county: string | null;
-    what_3_words: string | null;
-    notes: string | null;
+  const raw = data as unknown as Omit<CustomerQueryRow, "contracts"> & {
     contracts: ContractSummary[] | null;
   };
   const base = toCustomerRow(raw);
@@ -225,29 +262,16 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
   };
 }
 
-type RawCustomer = {
-  id: string;
-  customer_type: string | null;
-  title: string | null;
-  first_name: string;
-  last_name: string;
-  company_name: string | null;
-  email: string | null;
-  phone: string | null;
-  mobile: string | null;
-  house_name: string | null;
-  house_number: string | null;
-  street: string | null;
-  locality: string | null;
-  town: string | null;
-  county: string | null;
-  postcode: string | null;
-  created_at: string;
+type CustomerQueryRow = CustomerTableRow & {
   leads: CustomerLead[] | null;
   contracts: { id: string }[] | null;
 };
 
-function toCustomerRow(c: RawCustomer): CustomerRow {
+function toCustomerRow(row: CustomerQueryRow): CustomerRow {
+  const { leads: rawLeads, contracts: rawContracts, ...rest } = row;
+  const c = rest;
+  const record: Record<string, unknown> = { ...rest };
+
   const personName = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
   // Residential customers are always shown by their person name — a company name
   // is only a commercial concept and must never surface for a residential row.
@@ -256,9 +280,7 @@ function toCustomerRow(c: RawCustomer): CustomerRow {
       ? c.company_name || personName || "Unnamed customer"
       : personName || "Unnamed customer";
 
-  const leads = (c.leads ?? [])
-    .slice()
-    .sort((a, b) => dateVal(b) - dateVal(a));
+  const leads = (rawLeads ?? []).slice().sort((a, b) => dateVal(b) - dateVal(a));
   const liveLeadCount = leads.filter((l) => isLiveLead(l.status)).length;
 
   return {
@@ -278,7 +300,8 @@ function toCustomerRow(c: RawCustomer): CustomerRow {
     leads,
     leadCount: leads.length,
     liveLeadCount,
-    contractCount: (c.contracts ?? []).length,
+    contractCount: (rawContracts ?? []).length,
+    record,
   };
 }
 
@@ -366,15 +389,27 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-async function getCustomerTowns(
+/**
+ * Distinct values for each select-filter column, so the Filters popover can
+ * offer real choices. One read of the filter columns (capped) rather than a
+ * query per column. NOTE: this samples up to 5k rows — fine at current scale;
+ * a per-tenant distinct-values view is the upgrade if the book grows large.
+ */
+async function getFilterOptions(
   supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<string[]> {
-  const { data } = await supabase
-    .from("customers")
-    .select("town")
-    .not("town", "is", null)
-    .order("town");
-  const set = new Set<string>();
-  for (const r of data ?? []) if (r.town) set.add(r.town);
-  return [...set];
+): Promise<Record<string, string[]>> {
+  const cols = SELECT_FILTER_COLUMNS.join(", ");
+  const { data } = await supabase.from("customers").select(cols).limit(5000);
+
+  const sets: Record<string, Set<string>> = {};
+  for (const col of SELECT_FILTER_COLUMNS) sets[col] = new Set();
+  for (const r of (data ?? []) as unknown as Record<string, unknown>[]) {
+    for (const col of SELECT_FILTER_COLUMNS) {
+      const v = r[col];
+      if (typeof v === "string" && v.trim()) sets[col].add(v);
+    }
+  }
+  return Object.fromEntries(
+    SELECT_FILTER_COLUMNS.map((c) => [c, [...sets[c]].sort((a, b) => a.localeCompare(b))]),
+  );
 }

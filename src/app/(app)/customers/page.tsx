@@ -20,12 +20,7 @@ import {
 // Search / filters / pagination are URL-driven so the server re-queries; the
 // column layout is a per-user preference (see customers-list.tsx).
 
-type SearchParams = Promise<{
-  search?: string;
-  town?: string;
-  live?: string;
-  page?: string;
-}>;
+type SearchParams = Promise<Record<string, string | undefined>>;
 
 export default async function CustomersPage({
   searchParams,
@@ -33,12 +28,19 @@ export default async function CustomersPage({
   searchParams: SearchParams;
 }) {
   const sp = await searchParams;
-  const [{ rows, total, page, pageCount, towns }, columnPref] = await Promise.all([
+  // Every `f_<column>` param is a customer-column filter; collect them for the
+  // server to apply against its allowlist.
+  const columnFilters: Record<string, string> = {};
+  for (const [k, v] of Object.entries(sp)) {
+    if (k.startsWith("f_") && typeof v === "string" && v !== "") columnFilters[k.slice(2)] = v;
+  }
+
+  const [{ rows, total, page, pageCount, filterOptions }, columnPref] = await Promise.all([
     getCustomers({
       search: sp.search,
-      town: sp.town,
       hasLiveLead: sp.live === "1",
       page: sp.page ? Number(sp.page) : 1,
+      columnFilters,
     }),
     getUserOrder("customers_columns"),
   ]);
@@ -63,7 +65,7 @@ export default async function CustomersPage({
           </span>
           <div className="ml-auto flex items-center gap-2.5">
             <ColumnsButton />
-            <FiltersButton towns={towns} />
+            <FiltersButton filterOptions={filterOptions} />
             <button className="inline-flex items-center gap-[7px] rounded-lg border border-[#e7e7ea] bg-white px-3 py-2 text-[13px] font-semibold text-[#3f3f46] transition-colors hover:bg-[#fafafa]" type="button">
               <Icon name="export" size={13} /> Export
             </button>

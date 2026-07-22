@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -33,32 +27,74 @@ import { resetUserLayout, saveUserOrder } from "@/app/(app)/preferences/actions"
 import { cn } from "@/lib/utils";
 import type { ActivityLine, CustomerRow } from "@/lib/data/customers";
 
-// The customer list, made COLUMN-CUSTOMISABLE and per-user persistent. The
-// primary name column and the row controls (select box, chevron) are fixed; the
-// middle columns are toggled on/off and reordered from the "Columns" button, and
-// the arrangement saves to `user_ui_layouts` per user (see AGENTS.md
-// § Rearrangeable cards). Filtering moved off inline pills into a "Filters"
-// popover — both surfaces are here so they can share the toolbar row.
+// The customer list: column-customisable (per user) + a full Filters popover
+// over the customer fields. Columns are a registry so any field can be shown;
+// the arrangement saves per user to `user_ui_layouts` (see AGENTS.md
+// § Rearrangeable cards / § Lists & columns). Filters stay URL-param-driven so
+// the server re-queries and the state is shareable.
 
 export type CustomerRowView = { c: CustomerRow; activity: ActivityLine };
 
 // ---------------------------------------------------------------------------
-// Column registry — the single source of truth for the configurable middle
-// columns (the name column and row controls are fixed and not listed here).
+// Column registry — one entry per showable field. The primary name column and
+// the row controls (select box, chevron) are fixed edges and not listed here.
+type ColumnKind = "text" | "bool" | "number" | "date";
 type Column = {
   key: string;
   label: string;
-  /** Grid track for this column, e.g. "minmax(110px,1.3fr)". */
+  group: string;
   width: string;
-  cell: (v: CustomerRowView) => React.ReactNode;
+  /** Record field to read; defaults to `key`. */
+  field?: string;
+  /** How to format `record[field]` (ignored when `cell` is set). */
+  kind?: ColumnKind;
+  /** Custom renderer, for composite/computed cells. */
+  cell?: (v: CustomerRowView) => React.ReactNode;
   cellClassName?: string;
 };
 
+const TEXT = "minmax(110px,1.2fr)";
+const SHORT = "minmax(84px,.85fr)";
+const BOOL = "minmax(96px,.9fr)";
+const DATE = "minmax(104px,1fr)";
+const WIDE = "minmax(160px,2.1fr)";
+
 const COLUMNS: Column[] = [
+  // Identity
+  { key: "title", label: "Title", group: "Identity", width: SHORT },
+  { key: "first_name", label: "First name", group: "Identity", width: TEXT },
+  { key: "last_name", label: "Last name", group: "Identity", width: TEXT },
+  { key: "title_2", label: "Title (2nd)", group: "Identity", width: SHORT },
+  { key: "first_name_2", label: "First name (2nd)", group: "Identity", width: TEXT },
+  { key: "last_name_2", label: "Last name (2nd)", group: "Identity", width: TEXT },
+  { key: "salutation", label: "Salutation", group: "Identity", width: TEXT },
+  { key: "company_name", label: "Company", group: "Identity", width: TEXT },
+  {
+    key: "customer_type",
+    label: "Type",
+    group: "Identity",
+    width: SHORT,
+    cell: (v) => <span className="text-[#3f3f46]">{titleCase(str(v.c.record.customer_type)) ?? "—"}</span>,
+  },
+  { key: "customer_number", label: "Customer no.", group: "Identity", width: SHORT, kind: "number" },
+  { key: "property_type", label: "Property type", group: "Identity", width: TEXT },
+
+  // Contact
+  { key: "email", label: "Email", group: "Contact", width: "minmax(150px,1.7fr)" },
+  { key: "phone", label: "Phone", group: "Contact", width: "minmax(110px,1.3fr)" },
+  { key: "mobile", label: "Mobile", group: "Contact", width: TEXT },
+  { key: "mobile_2", label: "Mobile (2nd)", group: "Contact", width: TEXT },
+  { key: "home_telephone", label: "Home tel", group: "Contact", width: TEXT },
+  { key: "work_telephone", label: "Work tel", group: "Contact", width: TEXT },
+  { key: "fax_alt_no", label: "Fax / alt", group: "Contact", width: TEXT },
+  { key: "no_whatsapp", label: "No WhatsApp", group: "Contact", width: BOOL, kind: "bool" },
+
+  // Address
   {
     key: "address",
     label: "Installation address",
-    width: "minmax(160px,2.1fr)",
+    group: "Address",
+    width: WIDE,
     cell: (v) => (
       <span className="block min-w-0 pr-2">
         <span className="block truncate text-[#3f3f46]">{v.c.addressLine ?? "—"}</span>
@@ -69,27 +105,68 @@ const COLUMNS: Column[] = [
       </span>
     ),
   },
-  {
-    key: "phone",
-    label: "Phone",
-    width: "minmax(110px,1.3fr)",
-    cell: (v) => <span className="text-[#3f3f46]">{v.c.phone ?? "—"}</span>,
-  },
+  { key: "house_name", label: "House name", group: "Address", width: TEXT },
+  { key: "house_number", label: "House number", group: "Address", width: SHORT },
+  { key: "street", label: "Street", group: "Address", width: TEXT },
+  { key: "locality", label: "Locality", group: "Address", width: TEXT },
+  { key: "town", label: "Town", group: "Address", width: TEXT },
+  { key: "county", label: "County", group: "Address", width: TEXT },
+  { key: "postcode", label: "Postcode", group: "Address", width: SHORT, cellClassName: "font-mono" },
+  { key: "what_3_words", label: "what3words", group: "Address", width: TEXT, cellClassName: "font-mono" },
+  { key: "directions", label: "Access notes", group: "Address", width: WIDE },
+  { key: "business_address", label: "Business address", group: "Address", width: BOOL, kind: "bool" },
+
+  // Marketing
+  { key: "email_opt_in", label: "Email consent", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "sms_opt_in", label: "SMS consent", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "phone_opt_in", label: "Phone consent", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "letter_opt_in", label: "Post consent", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "no_email_marketing", label: "No email mktg", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "no_sms_marketing", label: "No SMS mktg", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "no_telephone_marketing", label: "No phone mktg", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "no_postal_marketing", label: "No postal mktg", group: "Marketing", width: BOOL, kind: "bool" },
+  { key: "marketing_code", label: "Referral source", group: "Marketing", width: TEXT },
+  { key: "opt_in_date", label: "Consent given", group: "Marketing", width: DATE, kind: "date" },
+  { key: "opted_in_by", label: "Consent by", group: "Marketing", width: TEXT },
+
+  // Flags
+  { key: "do_not_contact", label: "Do not contact", group: "Flags", width: BOOL, kind: "bool" },
+  { key: "bad_payer", label: "Payment risk", group: "Flags", width: BOOL, kind: "bool" },
+  { key: "customer_moved_away", label: "Moved away", group: "Flags", width: BOOL, kind: "bool" },
+  { key: "flash_note", label: "Alert note", group: "Flags", width: WIDE },
+
+  // Account
+  { key: "payment_terms", label: "Payment terms", group: "Account", width: TEXT },
+  { key: "settlement_disc_pct", label: "Settlement %", group: "Account", width: SHORT, kind: "number" },
+  { key: "settlement_disc_terms", label: "Settlement terms", group: "Account", width: TEXT },
+  { key: "default_account_reference", label: "Account ref", group: "Account", width: TEXT },
+  { key: "vat_no", label: "VAT no.", group: "Account", width: TEXT },
+  { key: "cis_reg", label: "CIS reg", group: "Account", width: TEXT },
+  { key: "sales_manager", label: "Sales manager", group: "Account", width: TEXT },
+  { key: "account_created_in_package", label: "In package", group: "Account", width: BOOL, kind: "bool" },
+  { key: "invoice_name", label: "Invoice name", group: "Account", width: TEXT },
+  { key: "office_ref_1", label: "Office ref 1", group: "Account", width: TEXT },
+  { key: "office_ref_2", label: "Office ref 2", group: "Account", width: TEXT },
+
+  // Activity (computed)
   {
     key: "leads",
     label: "Leads",
+    group: "Activity",
     width: "minmax(70px,.9fr)",
     cell: (v) => <CountPill total={v.c.leadCount} live={v.c.liveLeadCount} />,
   },
   {
     key: "contracts",
     label: "Contracts",
+    group: "Activity",
     width: "minmax(80px,1fr)",
     cell: (v) => <CountPill total={v.c.contractCount} />,
   },
   {
     key: "activity",
     label: "Last activity",
+    group: "Activity",
     width: "minmax(140px,1.7fr)",
     cell: (v) => (
       <span className="block min-w-0 pr-2">
@@ -106,35 +183,29 @@ const COLUMNS: Column[] = [
     ),
   },
   {
-    key: "type",
-    label: "Type",
-    width: "minmax(90px,1fr)",
-    cell: (v) => <span className="text-[#3f3f46]">{titleCase(v.c.customerType) ?? "—"}</span>,
-  },
-  {
-    key: "town",
-    label: "Town",
-    width: "minmax(90px,1fr)",
-    cell: (v) => <span className="block truncate text-[#3f3f46]">{v.c.town ?? "—"}</span>,
-  },
-  {
-    key: "postcode",
-    label: "Postcode",
-    width: "minmax(90px,.9fr)",
-    cell: (v) => <span className="font-mono text-[#3f3f46]">{v.c.postcode ?? "—"}</span>,
-  },
-  {
     key: "created",
     label: "Added",
-    width: "minmax(90px,1fr)",
-    cell: (v) => <span className="text-[#3f3f46]">{shortDate(v.c.createdAt)}</span>,
+    group: "Activity",
+    width: DATE,
+    field: "created_at",
+    kind: "date",
   },
 ];
 
 const COLUMN_MAP = new Map(COLUMNS.map((c) => [c.key, c]));
 const ALL_KEYS = COLUMNS.map((c) => c.key);
+const GROUP_ORDER = ["Identity", "Contact", "Address", "Marketing", "Flags", "Account", "Activity"];
 const DEFAULT_VISIBLE = ["address", "phone", "leads", "contracts", "activity"];
 const COLUMNS_KEY = "customers_columns";
+
+function renderCell(v: CustomerRowView, col: Column): React.ReactNode {
+  if (col.cell) return col.cell(v);
+  const val = v.c.record[col.field ?? col.key];
+  if (val == null || val === "") return <span className="text-[#a1a1aa]">—</span>;
+  if (col.kind === "bool") return val ? "Yes" : "No";
+  if (col.kind === "date") return shortDate(String(val));
+  return String(val);
+}
 
 /** Keep known keys in saved order; unknown/new keys are simply hidden. */
 function reconcileColumns(saved: string[] | null): string[] {
@@ -200,24 +271,25 @@ function useColumns(): ColumnsCtx {
 }
 
 // ---------------------------------------------------------------------------
-// A dismissible popover trigger + panel, positioned against the viewport so it
-// escapes the toolbar/card clipping (the CRM popover standard, keeping tenant
-// accent inheritance — unlike a portalled menu).
+// Dismissible popover — positioned against the viewport (the CRM standard, so it
+// escapes toolbar clipping AND keeps tenant-accent inheritance, unlike a portal).
 function Popover({
   label,
   icon,
   badge,
+  width = 272,
   children,
 }: {
   label: string;
   icon: "columns" | "filters";
   badge?: number;
-  children: (close: () => void) => React.ReactNode;
+  width?: number;
+  children: () => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuStyle = useFloatingMenu({ open, triggerRef, width: 264, align: "end" });
+  const menuStyle = useFloatingMenu({ open, triggerRef, width, align: "end", maxHeight: 460 });
 
   useEffect(() => {
     if (!open) return;
@@ -260,7 +332,7 @@ function Popover({
           style={menuStyle}
           className="z-50 flex flex-col overflow-hidden rounded-xl border border-[#e7e7ea] bg-white shadow-[0_8px_28px_rgba(10,10,10,0.14)]"
         >
-          {children(() => setOpen(false))}
+          {children()}
         </div>
       )}
     </div>
@@ -270,6 +342,7 @@ function Popover({
 // ---------------------------------------------------------------------------
 export function ColumnsButton() {
   const { visible, hidden, toggle, reorder, reset, isCustomised } = useColumns();
+  const [query, setQuery] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -283,56 +356,93 @@ export function ColumnsButton() {
     if (from !== -1 && to !== -1) reorder(from, to);
   };
 
+  const q = query.trim().toLowerCase();
+  const matches = (k: string) => COLUMN_MAP.get(k)?.label.toLowerCase().includes(q);
+  const hiddenByGroup = GROUP_ORDER.map((g) => ({
+    group: g,
+    keys: hidden.filter((k) => COLUMN_MAP.get(k)?.group === g && (!q || matches(k))),
+  })).filter((g) => g.keys.length > 0);
+
   return (
-    <Popover label="Columns" icon="columns">
+    <Popover label="Columns" icon="columns" width={264}>
       {() => (
-        <div className="flex max-h-[min(60vh,420px)] flex-col">
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
-              Shown
-            </span>
+        <div className="flex max-h-[min(70vh,460px)] flex-col">
+          <div className="flex items-center gap-2 border-b border-[#f4f4f5] px-2.5 py-2">
+            <Icon name="search" size={13} className="text-[#a1a1aa]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search fields…"
+              className="w-full bg-transparent text-[13px] text-[#3f3f46] placeholder:text-[#a1a1aa] focus:outline-none"
+            />
             {isCustomised && (
               <button
                 type="button"
                 onClick={reset}
-                className="text-[11px] font-medium text-[#a1a1aa] transition-colors hover:text-[#3f3f46]"
+                className="shrink-0 text-[11px] font-medium text-[#a1a1aa] transition-colors hover:text-[#3f3f46]"
               >
                 Reset
               </button>
             )}
           </div>
-          <div className="min-h-0 overflow-y-auto px-1.5 pb-1.5">
-            <DndContext
-              id="cols-customers"
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={onDragEnd}
-            >
-              <SortableContext items={visible} strategy={verticalListSortingStrategy}>
-                {visible.map((k) => (
-                  <ColumnRow key={k} colKey={k} onToggle={() => toggle(k)} />
-                ))}
-              </SortableContext>
-            </DndContext>
-            {visible.length === 0 && (
-              <p className="px-2 py-2 text-[12px] text-[#a1a1aa]">
-                Only the name is shown. Add a column below.
-              </p>
-            )}
-            {hidden.length > 0 && (
+
+          <div className="min-h-0 overflow-y-auto px-1.5 py-1.5">
+            {/* Shown columns are draggable in place — but only when not filtering,
+                since a search hides some rows and reordering a partial list is
+                meaningless. */}
+            {!q && (
               <>
-                <div className="px-2 pt-2 pb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
-                  Hidden
-                </div>
-                {hidden.map((k) => (
-                  <HiddenRow key={k} colKey={k} onShow={() => toggle(k)} />
-                ))}
+                <SectionLabel>Shown · drag to reorder</SectionLabel>
+                <DndContext
+                  id="cols-customers"
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={onDragEnd}
+                >
+                  <SortableContext items={visible} strategy={verticalListSortingStrategy}>
+                    {visible.map((k) => (
+                      <ColumnRow key={k} colKey={k} onToggle={() => toggle(k)} />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+                {visible.length === 0 && (
+                  <p className="px-2 py-1.5 text-[12px] text-[#a1a1aa]">
+                    Only the name shows. Add a field below.
+                  </p>
+                )}
               </>
+            )}
+
+            {q &&
+              visible
+                .filter((k) => matches(k))
+                .map((k) => (
+                  <StaticRow key={k} colKey={k} checked onToggle={() => toggle(k)} />
+                ))}
+
+            {hiddenByGroup.map(({ group, keys }) => (
+              <div key={group}>
+                <SectionLabel>{group}</SectionLabel>
+                {keys.map((k) => (
+                  <StaticRow key={k} colKey={k} checked={false} onToggle={() => toggle(k)} />
+                ))}
+              </div>
+            ))}
+            {q && hiddenByGroup.length === 0 && visible.filter((k) => matches(k)).length === 0 && (
+              <p className="px-2 py-2 text-[12px] text-[#a1a1aa]">No fields match “{query}”.</p>
             )}
           </div>
         </div>
       )}
     </Popover>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2 pt-2 pb-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+      {children}
+    </div>
   );
 }
 
@@ -367,35 +477,86 @@ function ColumnRow({ colKey, onToggle }: { colKey: string; onToggle: () => void 
   );
 }
 
-function HiddenRow({ colKey, onShow }: { colKey: string; onShow: () => void }) {
+// A non-draggable row (hidden columns, or search results): checkbox toggles it.
+function StaticRow({
+  colKey,
+  checked,
+  onToggle,
+}: {
+  colKey: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
   const col = COLUMN_MAP.get(colKey);
   if (!col) return null;
   return (
-    <div className="flex items-center gap-1.5 rounded-md py-1 pl-1 pr-1.5 hover:bg-[#fafafa]">
-      <span className="w-[19px] shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[#71717a]">{col.label}</span>
-      <Check checked={false} onClick={onShow} label={`Show ${col.label}`} />
-    </div>
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center gap-1.5 rounded-md py-1 pl-[26px] pr-1.5 text-left hover:bg-[#fafafa]"
+    >
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-[13px]",
+          checked ? "text-[#3f3f46]" : "text-[#71717a]",
+        )}
+      >
+        {col.label}
+      </span>
+      <Check checked={checked} label={checked ? `Hide ${col.label}` : `Show ${col.label}`} />
+    </button>
   );
 }
 
 // ---------------------------------------------------------------------------
-export function FiltersButton({ towns }: { towns: string[] }) {
+// Filters — data-driven over the customer fields. Select filters match an exact
+// value; bool filters are Any / Yes / No. All URL-param-driven (`f_<key>`),
+// except the lead-derived "Has live lead" (`live`).
+type FilterDef = { key: string; label: string; group: string; kind: "select" | "bool" };
+const FILTERS: FilterDef[] = [
+  { key: "customer_type", label: "Customer type", group: "Identity", kind: "select" },
+  { key: "property_type", label: "Property type", group: "Identity", kind: "select" },
+  { key: "no_whatsapp", label: "No WhatsApp", group: "Contact", kind: "bool" },
+  { key: "town", label: "Town", group: "Address", kind: "select" },
+  { key: "county", label: "County", group: "Address", kind: "select" },
+  { key: "business_address", label: "Business address", group: "Address", kind: "bool" },
+  { key: "marketing_code", label: "Referral source", group: "Marketing", kind: "select" },
+  { key: "email_opt_in", label: "Email consent", group: "Marketing", kind: "bool" },
+  { key: "sms_opt_in", label: "SMS consent", group: "Marketing", kind: "bool" },
+  { key: "phone_opt_in", label: "Phone consent", group: "Marketing", kind: "bool" },
+  { key: "letter_opt_in", label: "Post consent", group: "Marketing", kind: "bool" },
+  { key: "do_not_contact", label: "Do not contact", group: "Flags", kind: "bool" },
+  { key: "bad_payer", label: "Payment risk", group: "Flags", kind: "bool" },
+  { key: "customer_moved_away", label: "Moved away", group: "Flags", kind: "bool" },
+  { key: "payment_terms", label: "Payment terms", group: "Account", kind: "select" },
+  { key: "sales_manager", label: "Sales manager", group: "Account", kind: "select" },
+];
+const FILTER_GROUPS = ["Activity", "Identity", "Contact", "Address", "Marketing", "Flags", "Account"];
+
+export function FiltersButton({ filterOptions }: { filterOptions: Record<string, string[]> }) {
   const { setParams, searchParams } = useSetParams();
-  const town = searchParams.get("town");
   const live = searchParams.get("live") === "1";
-  const activeCount = (town ? 1 : 0) + (live ? 1 : 0);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+
+  const activeCount =
+    (live ? 1 : 0) + FILTERS.filter((f) => (searchParams.get(`f_${f.key}`) ?? "") !== "").length;
+
+  const clearAll = () => {
+    const updates: Record<string, null> = { live: null };
+    for (const f of FILTERS) updates[`f_${f.key}`] = null;
+    setParams(updates);
+  };
 
   return (
-    <Popover label="Filters" icon="filters" badge={activeCount || undefined}>
+    <Popover label="Filters" icon="filters" badge={activeCount || undefined} width={276}>
       {() => (
-        <div className="flex max-h-[min(70vh,460px)] w-[264px] flex-col">
+        <div className="flex max-h-[min(76vh,480px)] w-[276px] flex-col">
           <div className="flex items-center justify-between border-b border-[#f4f4f5] px-3 py-2.5">
             <span className="text-[13px] font-bold text-[#0a0a0a]">Filters</span>
             {activeCount > 0 && (
               <button
                 type="button"
-                onClick={() => setParams({ town: null, live: null })}
+                onClick={clearAll}
                 className="text-[11.5px] font-medium text-[var(--accent-blue)] hover:underline"
               >
                 Clear all
@@ -403,29 +564,45 @@ export function FiltersButton({ towns }: { towns: string[] }) {
             )}
           </div>
 
-          <div className="min-h-0 overflow-y-auto px-3 py-2.5">
-            <FilterRow
-              label="Has live lead"
-              checked={live}
-              onClick={() => setParams({ live: live ? null : "1" })}
-            />
-
-            <div className="mt-2.5">
-              <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
-                Town
-              </div>
-              <div className="max-h-[190px] overflow-y-auto">
-                <RadioRow label="All towns" checked={!town} onClick={() => setParams({ town: null })} />
-                {towns.map((t) => (
-                  <RadioRow
-                    key={t}
-                    label={t}
-                    checked={town === t}
-                    onClick={() => setParams({ town: t })}
-                  />
-                ))}
-              </div>
-            </div>
+          <div className="min-h-0 overflow-y-auto px-2.5 py-1.5">
+            {FILTER_GROUPS.map((group) => {
+              const inGroup = FILTERS.filter((f) => f.group === group);
+              const showLead = group === "Activity";
+              if (inGroup.length === 0 && !showLead) return null;
+              return (
+                <div key={group} className="pb-1">
+                  <SectionLabel>{group}</SectionLabel>
+                  {showLead && (
+                    <BoolFilter
+                      label="Has live lead"
+                      value={live ? "1" : ""}
+                      onChange={(v) => setParams({ live: v === "1" ? "1" : null })}
+                      yesNo={false}
+                    />
+                  )}
+                  {inGroup.map((f) =>
+                    f.kind === "bool" ? (
+                      <BoolFilter
+                        key={f.key}
+                        label={f.label}
+                        value={searchParams.get(`f_${f.key}`) ?? ""}
+                        onChange={(v) => setParams({ [`f_${f.key}`]: v || null })}
+                      />
+                    ) : (
+                      <SelectFilter
+                        key={f.key}
+                        label={f.label}
+                        value={searchParams.get(`f_${f.key}`)}
+                        options={filterOptions[f.key] ?? []}
+                        open={openKey === f.key}
+                        onOpen={() => setOpenKey(openKey === f.key ? null : f.key)}
+                        onChange={(v) => setParams({ [`f_${f.key}`]: v })}
+                      />
+                    ),
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -433,24 +610,95 @@ export function FiltersButton({ towns }: { towns: string[] }) {
   );
 }
 
-function FilterRow({
+// Any / Yes / No segmented control. `yesNo=false` gives a single on/off toggle
+// (for "Has live lead", where "No live lead" isn't a useful query).
+function BoolFilter({
   label,
-  checked,
-  onClick,
+  value,
+  onChange,
+  yesNo = true,
 }: {
   label: string;
-  checked: boolean;
-  onClick: () => void;
+  value: string;
+  onChange: (v: string) => void;
+  yesNo?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-md py-1.5 text-left hover:bg-[#fafafa]"
-    >
-      <Check checked={checked} label={label} />
-      <span className="text-[13px] text-[#3f3f46]">{label}</span>
-    </button>
+    <div className="flex items-center gap-2 py-1 pl-2 pr-1">
+      <span className="min-w-0 flex-1 truncate text-[13px] text-[#3f3f46]">{label}</span>
+      {yesNo ? (
+        <div className="flex shrink-0 overflow-hidden rounded-md border border-[#e7e7ea]">
+          {[
+            { v: "", t: "Any" },
+            { v: "1", t: "Yes" },
+            { v: "0", t: "No" },
+          ].map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => onChange(o.v)}
+              className={cn(
+                "px-2 py-1 text-[11.5px] font-medium transition-colors",
+                value === o.v
+                  ? "bg-[var(--accent-blue)] text-white"
+                  : "bg-white text-[#71717a] hover:bg-[#fafafa]",
+              )}
+            >
+              {o.t}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Check
+          checked={value === "1"}
+          onClick={() => onChange(value === "1" ? "" : "1")}
+          label={label}
+        />
+      )}
+    </div>
+  );
+}
+
+function SelectFilter({
+  label,
+  value,
+  options,
+  open,
+  onOpen,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  options: string[];
+  open: boolean;
+  onOpen: () => void;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-center gap-2 rounded-md py-1 pl-2 pr-1 text-left hover:bg-[#fafafa]"
+      >
+        <span className="min-w-0 flex-1 truncate text-[13px] text-[#3f3f46]">{label}</span>
+        <span className={cn("shrink-0 max-w-[120px] truncate text-[12px]", value ? "text-[var(--accent-blue)] font-medium" : "text-[#a1a1aa]")}>
+          {value ?? "Any"}
+        </span>
+        <Icon name="chevron-down" size={11} className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="mb-1 ml-2 max-h-[180px] overflow-y-auto rounded-md border border-[#f4f4f5] py-1">
+          <RadioRow label="Any" checked={!value} onClick={() => onChange(null)} />
+          {options.length === 0 && (
+            <p className="px-2 py-1 text-[12px] text-[#a1a1aa]">No values yet.</p>
+          )}
+          {options.map((o) => (
+            <RadioRow key={o} label={o} checked={value === o} onClick={() => onChange(o)} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -467,7 +715,7 @@ function RadioRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left hover:bg-[#fafafa]"
+      className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-[#fafafa]"
     >
       <span
         className={cn(
@@ -505,28 +753,30 @@ export function CustomerTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e7e7ea]">
-      <div
-        className="grid items-center border-b border-[#e7e7ea] bg-[#fafafa] px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]"
-        style={{ gridTemplateColumns: grid }}
-      >
-        <span>
-          <span className="inline-block size-[15px] rounded-[4px] border-[1.5px] border-[#d4d4d8]" />
-        </span>
-        <span>Customer</span>
-        {cols.map((c) => (
-          <span key={c.key} className="truncate">
-            {c.label}
-          </span>
-        ))}
-        <span />
-      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div style={{ minWidth: "min-content" }}>
+          <div
+            className="sticky top-0 z-10 grid items-center border-b border-[#e7e7ea] bg-[#fafafa] px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]"
+            style={{ gridTemplateColumns: grid }}
+          >
+            <span>
+              <span className="inline-block size-[15px] rounded-[4px] border-[1.5px] border-[#d4d4d8]" />
+            </span>
+            <span>Customer</span>
+            {cols.map((c) => (
+              <span key={c.key} className="truncate">
+                {c.label}
+              </span>
+            ))}
+            <span />
+          </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {views.length === 0 ? (
-          <EmptyState />
-        ) : (
-          views.map((v) => <Row key={v.c.id} v={v} cols={cols} grid={grid} />)
-        )}
+          {views.length === 0 ? (
+            <EmptyState />
+          ) : (
+            views.map((v) => <Row key={v.c.id} v={v} cols={cols} grid={grid} />)
+          )}
+        </div>
       </div>
 
       <div className="flex items-center border-t border-[#e7e7ea] bg-[#fafafa] px-4 py-3 text-[12.5px] text-[#71717a]">
@@ -561,11 +811,20 @@ function Row({ v, cols, grid }: { v: CustomerRowView; cols: Column[]; grid: stri
           )}
         </span>
       </span>
-      {cols.map((col) => (
-        <span key={col.key} className={cn("min-w-0", col.cellClassName)}>
-          {col.cell(v)}
-        </span>
-      ))}
+      {cols.map((col) =>
+        col.cell ? (
+          <span key={col.key} className={cn("min-w-0", col.cellClassName)}>
+            {renderCell(v, col)}
+          </span>
+        ) : (
+          <span
+            key={col.key}
+            className={cn("min-w-0 truncate text-[#3f3f46]", col.cellClassName)}
+          >
+            {renderCell(v, col)}
+          </span>
+        ),
+      )}
       <span className="text-center text-[#a1a1aa]">›</span>
     </Link>
   );
@@ -573,7 +832,7 @@ function Row({ v, cols, grid }: { v: CustomerRowView; cols: Column[]; grid: stri
 
 function EmptyState() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-1 py-16 text-center">
       <p className="text-sm font-semibold text-[#3f3f46]">No customers found</p>
       <p className="text-[12.5px] text-[#71717a]">Try a different search or clear your filters.</p>
     </div>
@@ -581,9 +840,6 @@ function EmptyState() {
 }
 
 // ---------------------------------------------------------------------------
-// A checkbox. Standalone (its own button) when given `onClick`; a visual-only
-// span when not — so it can sit inside a row that is itself the button, without
-// nesting a <button> in a <button>.
 function Check({
   checked,
   onClick,
@@ -626,6 +882,10 @@ function Grip() {
       <circle cx="7" cy="11" r="1" />
     </svg>
   );
+}
+
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v : null;
 }
 
 function titleCase(v: string | null): string | null {

@@ -372,10 +372,18 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   column picker into the customer record. **Built for `/customers` on 2026-07-22**
   (`src/components/crm/customers-list.tsx`); `/leads` still hardcodes its `GRID` and is the next to
   get the same treatment.
-  - **A `COLUMNS` registry per entity is the source of truth** — `{ key, label, width (grid track),
-    cell(view) }`. The primary name column and the row controls (select box, chevron) are FIXED
-    edges, not in the registry; only the middle columns toggle/reorder. New columns default hidden
-    (a release must not force a column into everyone's view).
+  - **A `COLUMNS` registry per entity is the source of truth** — `{ key, label, group, width (grid
+    track), kind|cell }`. It spans the WHOLE customer field set (~55 fields, grouped Identity ·
+    Contact · Address · Marketing · Flags · Account · Activity); generic fields render from
+    `record[field]` by `kind` (text/bool/number/date), composite/computed ones (address, lead &
+    contract counts, last activity) use a `cell`. To carry every field, the list query selects `*`
+    and `toCustomerRow` stashes the raw row on `CustomerRow.record`. The primary name column and the
+    row controls (select box, chevron) are FIXED edges, not in the registry; only these fields
+    toggle/reorder. New columns default hidden (a release must not force a column into everyone's
+    view). The "Columns" popover is **searchable + grouped** (Shown drag-list when not searching;
+    otherwise flat matches). With many columns on, the **table scrolls horizontally** (one x/y
+    scroller, sticky header) — legitimate for a data table even though chrome scrollbars are hidden
+    app-wide.
   - **The saved layout is PER USER, per list, reusing `user_ui_layouts`** (§ Rearrangeable cards) —
     `layout_key='customers_columns'`, shape `{ order: string[] }` = the visible columns in order
     (absence = hidden). `getUserOrder`/`saveUserOrder`, so no new storage. A salesperson and a fitter
@@ -396,6 +404,16 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   is shareable/back-button-friendly — only the column layout is a saved preference. Both popovers use
   `useFloatingMenu` (fixed, in-tree), NOT the base-ui `Popover` (it portals to `document.body`, which
   drops the tenant accent — see § Popover menus).
+- **The filter set spans the customer fields, applied server-side against an ALLOWLIST.** A `FILTERS`
+  registry drives the popover (grouped; selects = pick a value, bools = Any/Yes/No); each writes an
+  `f_<column>` URL param. `getCustomers` reads them into `columnFilters` and applies only columns in
+  `SELECT_FILTER_COLUMNS` (`.eq` value) / `BOOL_FILTER_COLUMNS` (`.eq` true/false) — never an
+  interpolated column name, and the value is PostgREST-bound. Select options are the DISTINCT values
+  actually in use (`getFilterOptions`, one capped read). Applying filters at the DB keeps paging +
+  the exact count correct — the ONE exception is `Has live lead` (`live`), which is lead-derived and
+  can't be a `customers` predicate without an inner join, so it stays a post-filter with the known
+  caveat that the count reflects the pre-filter set. Add new filters by extending both the client
+  `FILTERS` registry and the server allowlist.
 
 ## Bento layout is the house style — decided 2026-07-22
 
