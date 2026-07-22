@@ -80,12 +80,14 @@ export type DocumentItem = {
   created_at: string;
   uploaded_by: string | null;
   uploader: string | null; // resolved display name
+  /** Set when the file was attached to a note (it's still a normal document). */
+  noteId: string | null;
 };
 
 // Columns selected for a document row, plus the uploader name join. Kept here so
 // getCustomerRecord (and future lead/contract loaders) select an identical shape.
 export const DOCUMENT_SELECT =
-  "id, name, file_name, file_type, file_size, file_url, category, created_at, uploaded_by, uploader:uploaded_by(first_name, last_name)";
+  "id, name, file_name, file_type, file_size, file_url, category, created_at, note_id, uploaded_by, uploader:uploaded_by(first_name, last_name)";
 
 type RawDocRow = {
   id: string;
@@ -96,6 +98,7 @@ type RawDocRow = {
   file_url: string;
   category: string | null;
   created_at: string;
+  note_id: string | null;
   uploaded_by: string | null;
   uploader: { first_name: string | null; last_name: string | null } | null;
 };
@@ -112,6 +115,7 @@ export function mapDocumentRow(row: RawDocRow): DocumentItem {
     category: row.category,
     created_at: row.created_at,
     uploaded_by: row.uploaded_by,
+    noteId: row.note_id ?? null,
     uploader: row.uploader
       ? [row.uploader.first_name, row.uploader.last_name].filter(Boolean).join(" ").trim() || null
       : null,

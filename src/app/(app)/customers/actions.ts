@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
+import { addNote } from "@/app/(app)/notes/actions";
 import { searchCustomersForLink } from "@/lib/data/customer-record";
 import type { Database } from "@/lib/supabase/types";
 
@@ -619,30 +620,16 @@ function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "field";
 }
 
-/** Add a stamped marketing note (thread) — records the author + date. */
+/**
+ * Add a stamped marketing note (thread) — author + date/time, and versioned
+ * like every other note (see app/(app)/notes/actions).
+ */
 export async function addMarketingNote(
   customerId: string,
   content: string,
 ): Promise<{ error?: string }> {
-  const text = content.trim();
-  if (!text) return { error: "Enter a note." };
-  const companyId = await getCompanyId();
-  if (!companyId) return { error: "No tenant in session." };
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("lead_notes").insert({
-    company_id: companyId,
-    customer_id: customerId,
-    content: text,
-    category: "marketing",
-    created_by: user?.id ?? null,
-  });
-  if (error) return { error: error.message };
-  revalidatePath(`/customers/${customerId}`);
-  return {};
+  const res = await addNote({ customerId, content, category: "marketing" });
+  return res.error ? { error: res.error } : {};
 }
 
 /** Delete a marketing note. */

@@ -46,6 +46,9 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
   // The customer a lead/contract belongs to (nests its files under the customer
   // folder). For a customer owner this is the ownerId itself.
   const customerIdRaw = (formData.get("customerId") as string | null)?.trim();
+  // Set when the file is an attachment on a note — it stays an ordinary document
+  // on the owner, it just also shows inside that note.
+  const noteId = (formData.get("noteId") as string | null)?.trim() || null;
   const file = formData.get("file");
 
   if (!isDocumentOwnerType(ownerType)) return { error: "Invalid owner type." };
@@ -98,6 +101,7 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     file_size: file.size,
     file_url: objectPath,
     category,
+    note_id: noteId,
     uploaded_by: user?.id ?? null,
   });
   if (insErr) {

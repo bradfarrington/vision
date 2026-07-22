@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { LEAD_STAGES } from "@/lib/leads";
+import { addNote } from "@/app/(app)/notes/actions";
 import type { Database } from "@/lib/supabase/types";
 
 type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
@@ -147,26 +148,13 @@ export async function updateLeadField(
   return {};
 }
 
-/** Add a note to a lead's timeline. */
+/**
+ * Add a note to a lead's timeline. Goes through the shared note pipeline so it
+ * is stamped (author + date/time) and versioned like every other note.
+ */
 export async function addLeadNote(leadId: string, content: string): Promise<void> {
-  const text = content.trim();
-  if (!text) return;
-  const supabase = await createClient();
-  const companyId = await getCompanyId();
-  if (!companyId) return;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { error } = await supabase.from("lead_notes").insert({
-    company_id: companyId,
-    lead_id: leadId,
-    content: text,
-    created_by: user?.id ?? null,
-  } as Database["public"]["Tables"]["lead_notes"]["Insert"]);
-  if (error) throw new Error(`addLeadNote: ${error.message}`);
-  revalidatePath(`/leads/${leadId}`);
+  const res = await addNote({ leadId, content });
+  if (res.error) throw new Error(`addLeadNote: ${res.error}`);
 }
 
 /** Toggle a checklist item between complete and pending. */

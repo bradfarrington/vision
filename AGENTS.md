@@ -109,8 +109,40 @@ all related lists in one round-trip.
 - **Notes threads** reuse `lead_notes` with a `category` (`marketing` vs general).
 - **Custom fields** (`custom_field_definitions`/`custom_field_values`): dropdown fields set a
   `list_key` → `tenant_options`; free-text fields don't. Standard fields are migration-seeded
-  for all tenants (`20260721099200`), not per-tenant demo SQL.
+  for all tenants (`20260721099200`), not per-tenant demo SQL. **Tenants define their own from
+  the record** — "Add field" on the Additional info tab (`AddCustomFieldButton`) takes a question
+  + free-text/dropdown choice, and a dropdown field gets its own option list keyed
+  `cf_<slug>_<definition_id>` so it behaves like every other pick-list. No settings trip needed;
+  everything is `company_id`-scoped so a tenant's own questions stay invisible to other tenants.
 - **Financials** panel (Billing tab) computes contract balance from `finance_lines`.
+
+## Notes — stamped, versioned, linkable — built 2026-07-22
+
+One table backs every note in the CRM (`public.lead_notes`): customer-level when `lead_id` is
+null, lead-level otherwise, split into threads by `category` ('general' | 'marketing'). Built on
+the customer record; reuse it for leads/contracts rather than forking.
+
+- **Never overwrite a note.** History is append-only in `note_revisions` (`note_id`, `version`,
+  `content`, `edited_by`, `edited_at`, unique on `(note_id, version)`). v1 is written with the
+  note, every edit appends the next version, and the live row keeps the current text so lists stay
+  one read. Nothing in the app updates or deletes a revision. `lead_notes.updated_at/updated_by`
+  are the "last edited by X at Y" stamp; history loads on demand (`loadNoteHistory`), not with the
+  record. **Deletes are still hard** — a removed note takes its revisions with it. If a full audit
+  trail is wanted, that's a `deleted_at` soft-delete, decided separately.
+- **Every write goes through `src/app/(app)/notes/actions.ts`** (`addNote`/`updateNote`/
+  `deleteNote`) so author, tenant and v1 are always stamped. `addMarketingNote` and `addLeadNote`
+  are thin wrappers over `addNote` — do NOT insert into `lead_notes` directly, or the note starts
+  life with no history.
+- **Links:** a note may point at a lead OR a contract (`lead_id` / `contract_id`) while keeping
+  `customer_id` set, so it reads from the customer record and from the thing it's about. The
+  customer Notes tab shows every non-marketing note on the customer, lead-linked ones included.
+  (Notes written on the lead screen don't set `customer_id`, so they stay lead-only for now.)
+- **Attachments are ordinary documents** carrying `documents.note_id` — same bucket, same tenant
+  RLS, same viewer, and they still appear on the Documents tab. `ON DELETE SET NULL`: deleting a
+  note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field.
+- **UI:** `src/components/crm/notes-panel.tsx` — composer (text + link picker + attach), then
+  per-note author/date-time stamp, an "Edited by … " button that expands the full version list,
+  inline edit, per-note attach, and attachment chips that open signed URLs.
 
 ## Documents — reusable file store — built 2026-07-21
 
@@ -186,9 +218,13 @@ fork per-entity copies.
   early hook-policy migration was applied manually, so db push conflicts). Migrations
   `094000`–`099200` were applied to the remote as of 2026-07-21; some (`097000`) were re-run as they
   gained rows. For new migrations: add the file, then apply the SQL manually.
-  **`20260721101000_documents_storage.sql` (documents bucket + storage RLS) and
-  `20260721101100_document_categories.sql` (category defaults) still need applying** —
-  document upload/view won't work until the storage one is run in the SQL editor.
+  **`20260721101000_documents_storage.sql` (documents bucket + storage RLS),
+  `20260721101100_document_categories.sql` (category defaults) and
+  `20260722090000_note_links_versions_attachments.sql` (note links/versions/attachments) still
+  need applying** — document upload/view won't work until the storage one is run in the SQL
+  editor, and the Notes tab will error until the note one is. After applying the note migration,
+  **reload the PostgREST schema cache** (Supabase dashboard → API → restart, or
+  `notify pgrst, 'reload schema';`) or the new `updated_by`/`note_id` embeds fail to resolve.
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.

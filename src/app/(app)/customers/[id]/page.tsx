@@ -18,7 +18,7 @@ import {
   addSalesStaff,
 } from "@/app/(app)/customers/actions";
 import { gbp, isCommercial } from "@/lib/format";
-import { isLiveLead } from "@/lib/leads";
+import { isLiveLead, leadRef, contractRef } from "@/lib/leads";
 import {
   Avatar,
   Card,
@@ -32,6 +32,7 @@ import {
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { AddContactButton, ContactCardActions } from "@/components/crm/contact-actions";
 import { MarketingNotes } from "@/components/crm/marketing-notes";
+import { NotesPanel, type NoteLinkTarget } from "@/components/crm/notes-panel";
 import { DocumentsPanel } from "@/components/crm/documents-panel";
 import {
   AddCustomFieldButton,
@@ -644,16 +645,26 @@ function DocumentsTab({
 }
 
 function NotesTab({ c }: { c: CustomerRecord }) {
-  if (c.customerNotes.length === 0) return <Empty>No customer notes yet.</Empty>;
+  // A note can be pinned to any of this customer's leads or contracts.
+  const linkTargets: NoteLinkTarget[] = [
+    ...c.leads.map((l) => ({
+      id: l.id,
+      kind: "lead" as const,
+      label: `Lead ${leadRef(l.lead_number)}${l.product_type ? ` — ${l.product_type}` : ""}`,
+    })),
+    ...c.contracts.map((k) => ({
+      id: k.id,
+      kind: "contract" as const,
+      label: `Contract ${contractRef(k.contract_number)}${k.contract_type ? ` — ${k.contract_type}` : ""}`,
+    })),
+  ];
   return (
-    <Card className="max-w-3xl">
-      {c.customerNotes.map((n, i) => (
-        <div key={n.id} className={`py-2.5 ${i < c.customerNotes.length - 1 ? "border-b border-[#f4f4f5]" : ""}`}>
-          <p className="text-[12.5px] text-[#3f3f46]">{n.content}</p>
-          <p className="mt-1 text-[11px] text-[#a1a1aa]">{longDate(n.created_at)}</p>
-        </div>
-      ))}
-    </Card>
+    <NotesPanel
+      customerId={c.id}
+      notes={c.customerNotes}
+      documents={c.documents}
+      linkTargets={linkTargets}
+    />
   );
 }
 

@@ -32,7 +32,9 @@ export type IconName =
   | "printer"
   | "maximize"
   | "minimize"
-  | "minus";
+  | "minus"
+  | "paperclip"
+  | "clock";
 
 // Each entry: array of <path d> strings (default), or a render fn for icons
 // that need circles/rects.
@@ -70,6 +72,10 @@ const PATHS: Record<IconName, string[]> = {
   maximize: ["M8 3H5a2 2 0 0 0-2 2v3", "M21 8V5a2 2 0 0 0-2-2h-3", "M3 16v3a2 2 0 0 0 2 2h3", "M16 21h3a2 2 0 0 0 2-2v-3"],
   minimize: ["M8 3v3a2 2 0 0 1-2 2H3", "M21 8h-3a2 2 0 0 1-2-2V3", "M3 16h3a2 2 0 0 1 2 2v3", "M16 21v-3a2 2 0 0 1 2-2h3"],
   minus: ["M5 12h14"],
+  paperclip: [
+    "M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48",
+  ],
+  clock: ["M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z", "M12 7v5l3 2"],
 };
 
 type IconProps = {
