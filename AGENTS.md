@@ -212,8 +212,10 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   a row grid stretches every card to the tallest in its row, which left half the screen empty.
   A new card is appended to whichever column is shortest — the columns don't have to match.
 - **Leads and contracts live in column 4 as compact stacks**, not the full-width `LeadCard` /
-  `ContractCard`. A column is ~310px, so a row carries reference, what it is, when, how much and the
-  stage badge, and links to the lead for everything else.
+  `ContractCard`. A column is ~310px, so a row is ONE line — reference, what it is, how much — and
+  links to the lead for everything else. Stage badges and dates were tried there and dropped: they
+  doubled every row's height for information the lead itself states plainly. Digest cards carry a
+  "View all →" and no count; the count lives on the tab.
 - **The overview FILLS its panel and stops — it never scrolls and never spills.** The root is
   `h-full min-h-0 overflow-hidden`, the grid takes the leftover height, and each column is a flex
   stack. What gives way when the window is short is decided by which card it is:

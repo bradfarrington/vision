@@ -33,7 +33,6 @@ import {
   Icon,
   Pill,
   RefChip,
-  StageBadge,
   btnPrimary,
   btnSecondary,
 } from "@/components/crm/primitives";
@@ -218,7 +217,7 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
 
         <div className="flex min-h-0 flex-col gap-3">
           <ContractsCard c={c} />
-          <LeadsCard c={c} liveLeads={liveLeads} />
+          <LeadsCard c={c} />
         </div>
       </div>
     </div>
@@ -529,8 +528,8 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
 
 // --- Column 4: the work itself ----------------------------------------------
 // Compact stacks rather than the full-width LeadCard/ContractCard — a column is
-// ~310px, so each row carries reference, what it is, when, and how much, and
-// opens the lead for everything else.
+// ~310px, so a row carries only reference, what it is and how much, on one line.
+// Stage, dates and everything else are one click away on the lead itself.
 
 function ContractsCard({ c }: { c: CustomerRecord }) {
   const contracts = c.contracts.slice(0, DIGEST_ROWS);
@@ -539,8 +538,7 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
       <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Contracts</CardTitle>
         {c.contracts.length > 0 && (
-          <span className="ml-auto flex items-center gap-2 text-[11.5px] text-[#71717a]">
-            {c.contracts.length}
+          <span className="ml-auto text-[11.5px] text-[#71717a]">
             <TabLink to="Leads & contracts">View all →</TabLink>
           </span>
         )}
@@ -554,23 +552,17 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
           {contracts.map((k, i) => {
             const row = (
               <div
-                className={`flex flex-col gap-1 py-2 ${
+                className={`flex items-center gap-2 py-2 ${
                   i === contracts.length - 1 ? "" : "border-b border-[#f4f4f5]"
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
-                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
-                    {k.contract_type ?? "Contract"}
-                  </span>
-                  <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
-                    {gbp(k.gross_value ?? 0)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-[11.5px] text-[#a1a1aa]">
-                  {k.contract_date && <span>{longDate(k.contract_date)}</span>}
-                  {k.status && <Pill tone="neutral">{k.status}</Pill>}
-                </div>
+                <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                  {k.contract_type ?? "Contract"}
+                </span>
+                <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
+                  {gbp(k.gross_value ?? 0)}
+                </span>
               </div>
             );
             return k.lead_id ? (
@@ -591,15 +583,14 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
   );
 }
 
-function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
+function LeadsCard({ c }: { c: CustomerRecord }) {
   const leads = c.leads.slice(0, DIGEST_ROWS);
   return (
     <Card className={OV_LIST_CARD}>
       <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Leads</CardTitle>
         {c.leads.length > 0 && (
-          <span className="ml-auto flex items-center gap-2 text-[11.5px] text-[#71717a]">
-            {c.leads.length} · {liveLeads} live
+          <span className="ml-auto text-[11.5px] text-[#71717a]">
             <TabLink to="Leads & contracts">View all →</TabLink>
           </span>
         )}
@@ -624,24 +615,16 @@ function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
                 i === leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
               }`}
             >
-              <div className="flex flex-col gap-1 py-2">
-                <div className="flex items-center gap-2">
-                  <RefChip>{leadRef(l.lead_number)}</RefChip>
-                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
-                    {l.product_type ?? l.product_interest_1 ?? "Lead"}
+              <div className="flex items-center gap-2 py-2">
+                <RefChip>{leadRef(l.lead_number)}</RefChip>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                  {l.product_type ?? l.product_interest_1 ?? "Lead"}
+                </span>
+                {(l.gross_value ?? l.estimated_value) != null && (
+                  <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
+                    {gbp(l.gross_value ?? l.estimated_value ?? 0)}
                   </span>
-                  {(l.gross_value ?? l.estimated_value) != null && (
-                    <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
-                      {gbp(l.gross_value ?? l.estimated_value ?? 0)}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <StageBadge status={l.status} />
-                  {l.lead_date && (
-                    <span className="text-[11.5px] text-[#a1a1aa]">{longDate(l.lead_date)}</span>
-                  )}
-                </div>
+                )}
               </div>
             </Link>
           ))}
