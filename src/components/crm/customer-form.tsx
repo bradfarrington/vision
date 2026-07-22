@@ -105,10 +105,7 @@ export function CustomerForm({
           <Field label="Mobile">
             <input name="mobile" defaultValue={initial.mobile ?? ""} className={inputClass} />
           </Field>
-          <Field label="Phone">
-            <input name="phone" defaultValue={initial.phone ?? ""} className={inputClass} />
-          </Field>
-          <Field label="Home Telephone">
+          <Field label="Home">
             <input name="home_telephone" defaultValue={initial.home_telephone ?? ""} className={inputClass} />
           </Field>
           <Field label="Email" full>

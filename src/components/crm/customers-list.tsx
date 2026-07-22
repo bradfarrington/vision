@@ -102,11 +102,10 @@ const COLUMNS: Column[] = [
 
   // Contact
   { key: "email", label: "Email", group: "Contact", w: EMAIL },
-  { key: "phone", label: "Phone", group: "Contact", w: TEXT },
   { key: "mobile", label: "Mobile", group: "Contact", w: TEXT },
   { key: "mobile_2", label: "Mobile (2nd)", group: "Contact", w: TEXT },
-  { key: "home_telephone", label: "Home tel", group: "Contact", w: TEXT },
-  { key: "work_telephone", label: "Work tel", group: "Contact", w: TEXT },
+  { key: "home_telephone", label: "Home", group: "Contact", w: TEXT },
+  { key: "work_telephone", label: "Work", group: "Contact", w: TEXT },
   { key: "fax_alt_no", label: "Fax / alt", group: "Contact", w: TEXT },
   { key: "no_whatsapp", label: "No WhatsApp", group: "Contact", w: BOOL, kind: "bool" },
 
@@ -212,7 +211,7 @@ for (const c of COLUMNS) {
 const COLUMN_MAP = new Map(COLUMNS.map((c) => [c.key, c]));
 const ALL_KEYS = COLUMNS.map((c) => c.key);
 const GROUP_ORDER = ["Identity", "Contact", "Address", "Marketing", "Flags", "Account", "Activity"];
-const DEFAULT_VISIBLE = ["name", "address", "town", "postcode", "phone", "leads", "contracts", "activity"];
+const DEFAULT_VISIBLE = ["name", "address", "town", "postcode", "mobile", "leads", "contracts", "activity"];
 const COLUMNS_KEY = "customers_columns";
 const MIN_WIDTH = 72;
 
@@ -592,7 +591,7 @@ const FILTER_GROUPS = ["Activity", "Identity", "Contact", "Address", "Marketing"
 // column registry so they read the same as the headers.
 const VALUE_FIELD_KEYS = [
   "first_name", "last_name", "company_name", "salutation",
-  "email", "phone", "mobile", "mobile_2", "home_telephone", "work_telephone", "fax_alt_no",
+  "email", "mobile", "mobile_2", "home_telephone", "work_telephone", "fax_alt_no",
   "house_name", "house_number", "street", "locality", "town", "county", "postcode", "what_3_words",
   "customer_type", "property_type", "payment_terms", "sales_manager", "marketing_code",
   "vat_no", "cis_reg", "default_account_reference", "invoice_name", "office_ref_1", "office_ref_2",
