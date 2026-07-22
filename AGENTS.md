@@ -194,6 +194,16 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **Leads and contracts live in column 4 as compact stacks**, not the full-width `LeadCard` /
   `ContractCard`. A column is ~310px, so a row carries reference, what it is, when, how much and the
   stage badge, and links to the lead for everything else.
+- **The overview's height is BOUNDED BY DESIGN — every card has a fixed budget.** The rule that
+  keeps it that way: *no card may grow with the data*. Lists cap at a row count; free text is
+  clamped (access notes 2 lines, note snippets 2 lines); **every field row is exactly one line**
+  (`[&_[data-row]>:last-child]:truncate` on the tab root — before that, one long Alert Note or
+  contact Role wrapped a card to any height it liked). A capped card says so in its header
+  ("2 of 7"), which costs no height, rather than spending a row on "+N more".
+  Worst case is roughly 590px of cards + 62px strip; below about an 800px viewport the tab region
+  scrolls rather than clipping — that is the deliberate escape hatch, not a bug. If a new card
+  pushes the worst case up, rebalance the columns (Flags moved to column 4 for exactly this reason,
+  because Identity + Other contact + Flags was the tallest stack).
 - **Every digest is capped and every cap has a destination.** Notes / documents / contracts / leads
   show the latest `DIGEST_ROWS` (3), linked customers `LINKED_ROWS` (2) — a card must not grow with
   the data or the tab starts scrolling. Anything capped MUST offer the jump to the tab holding the

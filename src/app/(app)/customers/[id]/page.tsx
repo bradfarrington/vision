@@ -169,7 +169,7 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
     // denser than the editing tabs: `[&_[data-row]]:py-[5px]` tightens every
     // Row/E/CRow in one place instead of threading a `dense` prop through
     // thirty call sites, and the cards use OV_CARD's tighter padding.
-    <div className="flex max-w-[1320px] flex-col gap-3 [&_[data-row]]:py-[5px]">
+    <div className="flex max-w-[1320px] flex-col gap-3 [&_[data-row]]:py-[5px] [&_[data-row]>:last-child]:min-w-0 [&_[data-row]>:last-child]:truncate">
       <SnapshotStrip c={c} liveLeads={liveLeads} />
 
       {/* Bento: four independent column stacks. Cards are different heights by
@@ -192,13 +192,6 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
             )}
           </Card>
           <ContactSummary c={c} />
-          <Card className={OV_CARD}>
-            <CardTitle className="mb-1.5">Flags</CardTitle>
-            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
-            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
-            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
-            <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
-          </Card>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -232,6 +225,13 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         <div className="flex flex-col gap-3">
           <ContractsCard c={c} />
           <LeadsCard c={c} liveLeads={liveLeads} />
+          <Card className={OV_CARD}>
+            <CardTitle className="mb-1.5">Flags</CardTitle>
+            <E c={c} label="Do Not Contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
+            <E c={c} label="Payment Risk" field="bad_payer" value={c.bad_payer} type="boolean" danger />
+            <E c={c} label="Moved Away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
+            <E c={c} label="Alert Note" field="flash_note" value={c.flash_note} type="textarea" last />
+          </Card>
         </div>
       </div>
     </div>
@@ -338,17 +338,28 @@ function SummaryCard({
   title,
   to,
   linkLabel = "View all →",
+  shown,
+  total,
   children,
 }: {
   title: string;
   to: string;
   linkLabel?: string;
+  /** Rows rendered vs rows that exist — "2 of 7" when the cap is hiding some. */
+  shown?: number;
+  total?: number;
   children: React.ReactNode;
 }) {
+  const capped = shown != null && total != null && total > shown;
   return (
     <Card className={OV_CARD}>
       <div className="mb-1.5 flex items-center gap-2.5">
         <CardTitle>{title}</CardTitle>
+        {capped && (
+          <span className="text-[11.5px] text-[#a1a1aa]">
+            {shown} of {total}
+          </span>
+        )}
         <TabLink to={to} className="ml-auto">
           {linkLabel}
         </TabLink>
@@ -424,7 +435,7 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
           <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
             Access
           </div>
-          <p className="line-clamp-3 text-[12.5px] leading-[1.6] text-[#3f3f46]">{c.directions}</p>
+          <p className="line-clamp-2 text-[12.5px] leading-[1.6] text-[#3f3f46]">{c.directions}</p>
         </div>
       )}
     </SummaryCard>
@@ -473,7 +484,7 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
 function RecentNotes({ c }: { c: CustomerRecord }) {
   const recent = c.customerNotes.slice(0, DIGEST_ROWS);
   return (
-    <SummaryCard title="Recent notes" to="Notes">
+    <SummaryCard title="Recent notes" to="Notes" shown={recent.length} total={c.customerNotes.length}>
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
       ) : (
@@ -628,7 +639,7 @@ function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
 function RecentDocuments({ c }: { c: CustomerRecord }) {
   const recent = c.documents.slice(0, DIGEST_ROWS);
   return (
-    <SummaryCard title="Recent documents" to="Documents">
+    <SummaryCard title="Recent documents" to="Documents" shown={recent.length} total={c.documents.length}>
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No documents yet.</p>
       ) : (
@@ -657,7 +668,7 @@ function RecentDocuments({ c }: { c: CustomerRecord }) {
 function LinkedCustomers({ c }: { c: CustomerRecord }) {
   const linked = c.relationships.slice(0, LINKED_ROWS);
   return (
-    <SummaryCard title="Linked customers" to="Relationships">
+    <SummaryCard title="Linked customers" to="Relationships" shown={linked.length} total={c.relationships.length}>
       {linked.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">
           No linked customers — family, neighbours and referrers go here.
