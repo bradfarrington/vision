@@ -171,7 +171,17 @@ the customer record; reuse it for leads/contracts rather than forking.
   (Notes written on the lead screen don't set `customer_id`, so they stay lead-only for now.)
 - **Attachments are ordinary documents** carrying `documents.note_id` — same bucket, same tenant
   RLS, same viewer, and they still appear on the Documents tab. `ON DELETE SET NULL`: deleting a
-  note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field.
+  note never destroys a file. Upload via the shared `uploadDocument` with a `noteId` field, and
+  rename them in place with the shared `renameDocument`.
+- **Never store the same bytes twice.** Files are hashed (SHA-256 → `documents.content_hash`),
+  computed in the browser before upload so a duplicate costs one small query, not a wasted upload.
+  If the identical file is already on the customer, the user picks: attach the existing one
+  (`attachExistingDocument` writes a new row pointing at the SAME `file_url`) or upload another
+  copy. Escape/backdrop takes the non-duplicating option. **Because objects are shared,
+  `deleteDocument` removes the stored object only when no other row references that `file_url`** —
+  anything that deletes documents in future MUST keep that refcount check or it will punch holes
+  in other rows. (The Documents tab's own drag-drop upload does not dedupe yet — same treatment
+  is still to do there.)
 - **UI:** `src/components/crm/notes-panel.tsx` — a **two-pane panel like the Documents tab**:
   left (45%) = composer (text + link picker + attach) over the note thread, each note carrying its
   author/date-time stamp, an "Edited by …" button that expands the full version list, inline edit,
@@ -256,8 +266,8 @@ fork per-entity copies.
   gained rows. For new migrations: add the file, then apply the SQL manually.
   **`20260721101000_documents_storage.sql` (documents bucket + storage RLS),
   `20260721101100_document_categories.sql` (category defaults) and
-  `20260722090000_note_links_versions_attachments.sql` (note links/versions/attachments) still
-  need applying** — document upload/view won't work until the storage one is run in the SQL
+  `20260722090000_note_links_versions_attachments.sql` (note links/versions/attachments) and
+  `20260722091000_document_dedupe.sql` (content hash + dedupe indexes) still need applying** — document upload/view won't work until the storage one is run in the SQL
   editor, and the Notes tab will error until the note one is. After applying the note migration,
   **reload the PostgREST schema cache** (Supabase dashboard → API → restart, or
   `notify pgrst, 'reload schema';`) or the new `updated_by`/`note_id` embeds fail to resolve.

@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { addNote, deleteNote, loadNoteHistory, updateNote } from "@/app/(app)/notes/actions";
-import { deleteDocument, uploadDocument } from "@/app/(app)/documents/actions";
+import {
+  attachExistingDocument,
+  deleteDocument,
+  findDuplicateDocument,
+  renameDocument,
+  uploadDocument,
+} from "@/app/(app)/documents/actions";
 import type { NoteItem, NoteRevision } from "@/lib/data/notes";
 import type { DocumentItem } from "@/lib/data/documents";
 import { cn } from "@/lib/utils";
@@ -161,6 +167,7 @@ function NoteComposer({
   const [pending, start] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { confirm } = useDialogs();
 
   function reset() {
     setContent("");
@@ -189,7 +196,7 @@ function NoteComposer({
       // rejected file doesn't lose the note or the other files.
       const failed: string[] = [];
       for (const f of files) {
-        const up = await uploadAttachment({ file: f, customerId, noteId: res.id });
+        const up = await uploadAttachment({ file: f, customerId, noteId: res.id, confirm });
         if (up.error) failed.push(`${f.name}: ${up.error}`);
       }
       if (failed.length) {
@@ -370,7 +377,7 @@ function NoteRow({
     setError(null);
     start(async () => {
       for (const f of chosen) {
-        const up = await uploadAttachment({ file: f, customerId, noteId: note.id });
+        const up = await uploadAttachment({ file: f, customerId, noteId: note.id, confirm });
         if (up.error) setError(`${f.name}: ${up.error}`);
       }
       router.refresh();
@@ -553,13 +560,43 @@ function Attachment({
   onPreview: () => void;
 }) {
   const [pending, start] = useTransition();
+  const [renaming, setRenaming] = useState(false);
   const router = useRouter();
   const { confirm } = useDialogs();
+
+  function commitRename(next: string) {
+    setRenaming(false);
+    const clean = next.trim();
+    if (!clean || clean === doc.name) return;
+    start(async () => {
+      await renameDocument(doc.id, clean, "customer", customerId);
+      router.refresh();
+    });
+  }
+
+  if (renaming) {
+    return (
+      <input
+        autoFocus
+        defaultValue={doc.name}
+        onBlur={(e) => commitRename(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          } else if (e.key === "Escape") {
+            setRenaming(false);
+          }
+        }}
+        className="rounded-full border border-[var(--accent-blue)] bg-white px-2.5 py-1 text-[11.5px] text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+      />
+    );
+  }
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] transition-colors",
+        "group/att inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] transition-colors",
         selected
           ? "bg-[var(--accent-tint)] text-[var(--accent-active)]"
           : "bg-[#f4f4f5] text-[#3f3f46] hover:bg-[#ececee]",
@@ -574,6 +611,15 @@ function Attachment({
         className={cn("font-medium", selected && "font-semibold")}
       >
         {doc.name}
+      </button>
+      <button
+        type="button"
+        aria-label={`Rename ${doc.name}`}
+        title="Rename"
+        onClick={() => setRenaming(true)}
+        className="text-[#a1a1aa] opacity-0 transition-opacity hover:text-[#3f3f46] group-hover/att:opacity-100"
+      >
+        <Icon name="pencil" size={10.5} strokeWidth={2} />
       </button>
       <button
         type="button"
@@ -637,15 +683,61 @@ function decodeLink(v: string): { kind: "lead" | "contract"; id: string } | null
   return null;
 }
 
+/** SHA-256 of a file, hex — computed in the browser so a duplicate never costs
+ *  an upload of the whole file. Returns null if the browser won't do it (an
+ *  insecure context), in which case we simply upload as before. */
+async function hashFile(file: File): Promise<string | null> {
+  if (!globalThis.crypto?.subtle) return null;
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Attach one file to a note. If the identical file is already on the customer's
+ * record, the user chooses: reuse it (one copy in storage, shared by both rows)
+ * or upload another copy. Escape/backdrop takes the non-duplicating option.
+ */
 async function uploadAttachment({
   file,
   customerId,
   noteId,
+  confirm,
 }: {
   file: File;
   customerId: string;
   noteId: string;
+  confirm: ReturnType<typeof useDialogs>["confirm"];
 }): Promise<{ error?: string }> {
+  const contentHash = await hashFile(file);
+  if (contentHash) {
+    const dupe = await findDuplicateDocument({ contentHash, customerId });
+    if (dupe.id) {
+      const uploadAnyway = await confirm({
+        title: `“${file.name}” is already on this record`,
+        message: `Saved as “${dupe.name}”${dupe.uploader ? ` by ${dupe.uploader}` : ""}${
+          dupe.createdAt ? ` on ${fmtDateTime(dupe.createdAt)}` : ""
+        }. Attaching that one keeps a single copy of the file.`,
+        confirmLabel: "Upload another copy",
+        cancelLabel: "Attach the existing file",
+        tone: "warning",
+      });
+      if (!uploadAnyway) {
+        return attachExistingDocument({
+          documentId: dupe.id,
+          noteId,
+          ownerType: "customer",
+          ownerId: customerId,
+        });
+      }
+    }
+  }
+
   const fd = new FormData();
   fd.set("ownerType", "customer");
   fd.set("ownerId", customerId);

@@ -8,6 +8,7 @@ import { getCompanyId } from "@/lib/company";
 import {
   DOCUMENTS_BUCKET,
   OWNER_FK,
+  type DocumentOwnerType,
   buildDocumentPath,
   isDocumentOwnerType,
   ownerRevalidatePath,
@@ -24,6 +25,14 @@ import {
 // ---------------------------------------------------------------------------
 
 const MAX_BYTES = 25 * 1024 * 1024; // keep in step with next.config + bucket cap
+
+/** SHA-256 of the file's bytes, hex — the identity we dedupe on. */
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 /** Lowercased, sanitised extension incl. leading dot, or "" if none. */
 function safeExt(name: string): string {
@@ -78,7 +87,9 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     ext: safeExt(file.name),
   });
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const bytes = await file.arrayBuffer();
+  const contentHash = await sha256Hex(bytes);
+  const buffer = Buffer.from(bytes);
   const { error: upErr } = await supabase.storage
     .from(DOCUMENTS_BUCKET)
     .upload(objectPath, buffer, {
@@ -102,6 +113,7 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
     file_url: objectPath,
     category,
     note_id: noteId,
+    content_hash: contentHash,
     uploaded_by: user?.id ?? null,
   });
   if (insErr) {
@@ -111,6 +123,91 @@ export async function uploadDocument(formData: FormData): Promise<{ error?: stri
   }
 
   revalidatePath(ownerRevalidatePath(ownerType, ownerId));
+  return {};
+}
+
+/**
+ * Is this file already on the customer's record? Matched on the SHA-256 the
+ * client computes before uploading, so a duplicate costs one small query
+ * instead of a wasted round-trip of the whole file.
+ */
+export async function findDuplicateDocument(args: {
+  contentHash: string;
+  customerId: string;
+}): Promise<{ id?: string; name?: string; createdAt?: string; uploader?: string | null }> {
+  if (!args.contentHash || !args.customerId) return {};
+
+  const supabase = await createClient();
+  const db = supabase as any;
+  const { data } = await db
+    .from("documents")
+    .select("id, name, created_at, uploader:uploaded_by(first_name, last_name)")
+    .eq("customer_id", args.customerId)
+    .eq("content_hash", args.contentHash)
+    .order("created_at")
+    .limit(1);
+
+  const row = data?.[0];
+  if (!row) return {};
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    uploader: row.uploader
+      ? [row.uploader.first_name, row.uploader.last_name].filter(Boolean).join(" ").trim() || null
+      : null,
+  };
+}
+
+/**
+ * Attach a file that's already on the record to a note, without re-uploading it.
+ * Writes a new documents row pointing at the SAME storage object, so the note
+ * owns its own attachment row while the bytes are stored once. Deleting either
+ * row leaves the object alone until the last reference goes (see deleteDocument).
+ */
+export async function attachExistingDocument(args: {
+  documentId: string;
+  noteId: string;
+  ownerType: string;
+  ownerId: string;
+}): Promise<{ error?: string }> {
+  if (!isDocumentOwnerType(args.ownerType)) return { error: "Invalid owner type." };
+
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant in session." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const db = supabase as any;
+
+  const { data: src, error: readErr } = await db
+    .from("documents")
+    .select("name, file_name, file_type, file_size, file_url, category, content_hash, customer_id")
+    .eq("id", args.documentId)
+    .maybeSingle();
+  if (readErr) return { error: readErr.message };
+  if (!src) return { error: "That file is no longer on the record." };
+
+  const { error } = await db.from("documents").insert({
+    company_id: companyId,
+    [OWNER_FK[args.ownerType as DocumentOwnerType]]: args.ownerId,
+    customer_id: src.customer_id,
+    context: args.ownerType,
+    name: src.name,
+    file_name: src.file_name,
+    file_type: src.file_type,
+    file_size: src.file_size,
+    file_url: src.file_url, // shared object — intentionally not re-uploaded
+    category: src.category,
+    content_hash: src.content_hash,
+    note_id: args.noteId,
+    uploaded_by: user?.id ?? null,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(ownerRevalidatePath(args.ownerType as DocumentOwnerType, args.ownerId));
   return {};
 }
 
@@ -174,7 +271,13 @@ export async function deleteDocument(
   if (error) return { error: error.message };
 
   if (row?.file_url) {
-    await supabase.storage.from(DOCUMENTS_BUCKET).remove([row.file_url]);
+    // De-duplicated uploads share one storage object across rows, so the object
+    // only goes when the last row referencing it has gone.
+    const { count } = await db
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("file_url", row.file_url);
+    if (!count) await supabase.storage.from(DOCUMENTS_BUCKET).remove([row.file_url]);
   }
 
   revalidatePath(ownerRevalidatePath(ownerType, ownerId));
