@@ -51,7 +51,7 @@ import {
   RelationshipRemove,
   RelationshipTypeEditor,
 } from "@/components/crm/relationship-controls";
-import { IllustrativeMap } from "@/components/crm/illustrative-map";
+import { AddressMap } from "@/components/crm/address-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
 import { FitRows } from "@/components/crm/fit-rows";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
@@ -927,6 +927,26 @@ function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
 
       <div className="flex flex-col gap-4">
         <Card>
+          <CardTitle className="mb-2">Location</CardTitle>
+          {/* A real map, positioned from the postcode. Its own card rather than
+              a thumbnail inside Access notes: it answers a different question
+              ("where is this?" vs "how do I get in?"), and a map wedged under a
+              free-text note read as decoration. Fixed height — like every other
+              card here, it must not grow with the record. */}
+          <AddressMap
+            houseName={c.house_name}
+            houseNumber={c.house_number}
+            street={c.street}
+            locality={c.locality}
+            town={c.town}
+            county={c.county}
+            postcode={c.postcode}
+            what3words={c.what_3_words}
+            height={230}
+          />
+        </Card>
+
+        <Card>
           <CardTitle className="mb-2">Access notes</CardTitle>
           {/* The note itself IS the editor — it was printed twice before (an
               accent-blue editable in the header and a read-only echo below),
@@ -940,7 +960,6 @@ function AddressTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
             placeholder="No access notes recorded."
             className="block w-full text-left text-[12.5px] leading-[1.6] whitespace-pre-wrap text-[#3f3f46]"
           />
-          {(c.postcode || c.what_3_words) && <IllustrativeMap className="mt-3" />}
         </Card>
       </div>
     </div>

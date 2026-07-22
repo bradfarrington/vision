@@ -380,6 +380,67 @@ the customer record; reuse it for leads/contracts rather than forking.
   `document-viewer.tsx` unchanged — including the cross-origin PDF `reclaimFocus` guard, which
   MUST stay wherever that viewer is embedded.
 
+## Maps & geocoding — built 2026-07-22
+
+One component draws every map in the CRM: **`AddressMap`** (`src/components/crm/address-map.tsx`).
+It takes the address as loose fields (`houseNumber`/`street`/`town`/`postcode`…), geocodes them and
+renders the result. First use is the customer **Address** tab; leads, contracts and fitting diary
+reuse it unchanged. `IllustrativeMap` is the old decorative placeholder — **it is dead weight now,
+delete it as each screen moves over** (the lead detail is the last holdout).
+
+- **The pin goes on the BUILDING, not the postcode.** A UK postcode covers ~15 houses, so a centroid
+  puts a fitter on the wrong side of the street — and worse, the ONS ward attached to it is often a
+  different-sounding place than the address (B77 2RL centroid reports "Bolehall" for an address in
+  Glascote). Geocoding is therefore **full-address**, and `lib/geo.ts` reports how well it did:
+  `address` · `street` · `postcode` · `outcode`. That precision drives BOTH the zoom and the caption.
+- **The map only claims what it knows.** An `address`-precision hit shows no caption at all — silence
+  is the claim of accuracy. Anything less prints an amber caveat saying the building could not be
+  identified. **Never label an approximate fix as if it were exact, and never zoom past the precision**
+  (`ZOOM_FOR` caps an outcode match at z12). A map that quietly rounds is worse than no map.
+- **Provider chain, best first** (`geocodeAddress` in `src/lib/geo.ts` — the ONLY place any provider
+  is named):
+  1. **Google Geocoding**, if `GOOGLE_MAPS_API_KEY` is set. Server-only var, never `NEXT_PUBLIC_`.
+     ROOFTOP coordinates for UK premises; this is the switch to flip when street-level results are
+     not good enough.
+  2. **Nominatim** structured search, then free-text. Free, no key. OSM UK street data is excellent,
+     house-number coverage is good but **not complete** — that is the source of every `street`-precision
+     result, and no code change fixes it.
+  3. **postcodes.io** postcode (then outcode) centroid — the safety net.
+  A provider that is *unreachable* returns `undefined`, distinct from a clean *not found* (`null`).
+  They must never be collapsed: a network blip cached as "this address doesn't exist" is permanent.
+- **Every result is cached in `address_locations`** (migration `20260722095000`, **apply BY HAND**),
+  keyed by the tenant + the **normalised full address** (`addressKey()`), not by postcode — 3 and 5
+  Cathedral Close share a postcode and are not the same place. So an address is geocoded **once per
+  tenant, ever**. That is what keeps Nominatim's fair-use policy satisfied (and a Google key cheap):
+  the provider sees one request per distinct address in the book, not one per page view. Negative
+  results are cached too, with a 30-day TTL so OSM's growing coverage gets another chance.
+  **Coordinates are NOT columns on `customers`** — keyed by the address, a corrected street simply
+  stops reading the old row, so stale coordinates are impossible by construction.
+- **Geocoding runs server-side only** (`src/app/(app)/geo/actions.ts` → `resolveAddress`), so tenant
+  addresses are never broadcast from staff browsers to a third party and the cache is shared rather
+  than per-session.
+- **Renderer is MapLibre GL over free OpenStreetMap vector tiles** (OpenFreeMap `positron` — the grey
+  style, chosen because it sits inside the zinc palette instead of fighting it). No API key, no
+  account, no per-view billing; `NEXT_PUBLIC_MAP_STYLE_URL` moves to a paid or self-hosted tile host
+  without a code change. MapLibre is ~200KB gzipped so it is **imported dynamically inside the
+  effect** — a screen with no map never ships the renderer.
+- **Attribution is compact, and that is as far as it goes.** `attributionControl: { compact: true }`
+  reduces the credit to one small ⓘ button, dimmed to 35% until hover, with no visible wording.
+  It **cannot be removed entirely**: crediting OpenStreetMap is a condition of the ODbL licence the
+  data is published under, and every commercial alternative (Google, Mapbox) mandates a larger,
+  unhideable logo. Do not "fix" this by deleting the control.
+- **Scroll-wheel zoom is disabled deliberately.** Maps sit inside scrolling tab panels, and a wheel
+  over the canvas would swallow the page scroll. Zoom is the buttons or double-click. Rotation and
+  pitch are off too — a tilted map helps nobody find a house.
+- **A map has a FIXED height and never grows with the data**, like every other card (see § Bento
+  layout). On the customer record it is its own **Location** card, above Access notes — "where is
+  this?" and "how do I get in?" are different questions, and a map wedged under a free-text note
+  reads as decoration.
+- **Every state says what is wrong and what to do** — locating / not a recognisable address / not
+  found / service unreachable (with a Try again). A blank grey rectangle is the worst possible answer
+  to "where is this?". Async state is **stamped with the address it belongs to** and the render
+  derives from that stamp, so a new address is never drawn at the previous one's coordinates.
+
 ## Documents — reusable file store — built 2026-07-21
 
 Document upload/view is a **single entity-agnostic module**, built on the customer
