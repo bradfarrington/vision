@@ -70,6 +70,11 @@ export function contractRef(contractNumber: number | null | undefined): string {
   return contractNumber != null ? `C-${contractNumber}` : "C-—";
 }
 
+/** Human reference for a customer: CUST-0002. */
+export function customerRef(customerNumber: number | null | undefined): string {
+  return customerNumber != null ? `CUST-${pad4(customerNumber)}` : "CUST-————";
+}
+
 /** Human reference for a document: DOC-0104. Zero-padded to 4, then grows. */
 export function documentRef(documentNumber: number | null | undefined): string {
   return documentNumber != null ? `DOC-${pad4(documentNumber)}` : "DOC-————";

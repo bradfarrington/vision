@@ -18,7 +18,7 @@ import {
   addSalesStaff,
 } from "@/app/(app)/customers/actions";
 import { gbp, isCommercial } from "@/lib/format";
-import { isLiveLead, leadRef, contractRef } from "@/lib/leads";
+import { isLiveLead, leadRef, contractRef, customerRef } from "@/lib/leads";
 import {
   Avatar,
   Card,
@@ -96,7 +96,7 @@ export default async function CustomerDetailPage({
             <span className="rounded-full bg-[#f4f4f5] px-[9px] py-[3px] text-[11px] font-semibold text-[#52525b]">
               {typeLabel}
             </span>
-            {c.customer_number != null && <RefChip>{custNo(c.customer_number)}</RefChip>}
+            {c.customer_number != null && <RefChip>{customerRef(c.customer_number)}</RefChip>}
             {c.bad_payer && <Pill tone="danger">Payment risk</Pill>}
             {c.do_not_contact && <Pill tone="danger">Do not contact</Pill>}
             {c.customer_moved_away && <Pill tone="amber">Moved away</Pill>}
