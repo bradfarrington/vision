@@ -3,8 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { isLiveLead, contractRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
 import type { CustomerLead, ContractSummary } from "./customers";
-import { DOCUMENT_SELECT, mapDocumentRow, type DocumentItem } from "./documents";
-import { NOTE_SELECT, mapNoteRow, type NoteItem } from "./notes";
+import {
+  DOCUMENT_SELECT,
+  DOCUMENT_SELECT_BASE,
+  mapDocumentRow,
+  selectWithFallback,
+  type DocumentItem,
+} from "./documents";
+import { NOTE_SELECT, NOTE_SELECT_BASE, mapNoteRow, type NoteItem } from "./notes";
 
 // Full customer record for the tabbed detail page. Reads the customer row plus
 // its related lists (contacts, account references, custom fields, documents,
@@ -275,10 +281,16 @@ export async function getCustomerRecord(id: string): Promise<CustomerRecord | nu
     db.from("customer_account_references").select("id, reference, acc_name").eq("customer_id", id),
     db.from("custom_field_definitions").select("id, question, data_type, required, sort_order, list_key").eq("entity", "customer").eq("is_active", true).order("sort_order"),
     db.from("custom_field_values").select("definition_id, value, initials").eq("customer_id", id),
-    db.from("documents").select(DOCUMENT_SELECT).eq("customer_id", id).order("created_at", { ascending: false }),
+    selectWithFallback(
+      () => db.from("documents").select(DOCUMENT_SELECT).eq("customer_id", id).order("created_at", { ascending: false }),
+      () => db.from("documents").select(DOCUMENT_SELECT_BASE).eq("customer_id", id).order("created_at", { ascending: false }),
+    ),
     // Every non-marketing note on this customer — including ones pinned to a
     // lead or contract, so the Notes tab is the customer's full picture.
-    db.from("lead_notes").select(NOTE_SELECT).eq("customer_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
+    selectWithFallback(
+      () => db.from("lead_notes").select(NOTE_SELECT).eq("customer_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
+      () => db.from("lead_notes").select(NOTE_SELECT_BASE).eq("customer_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
+    ),
     db.from("customer_relationships").select("id, customer_id, related_customer_id, label_a, label_b, notes").or(`customer_id.eq.${id},related_customer_id.eq.${id}`).order("created_at"),
     db.from("lead_notes").select("id, content, created_at, users:created_by(first_name, last_name)").eq("customer_id", id).eq("category", "marketing").order("created_at", { ascending: false }),
   ]);

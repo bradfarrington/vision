@@ -52,6 +52,12 @@ export const NOTE_SELECT =
   "id, note_number, content, category, created_at, updated_at, lead_id, contract_id, " +
   "author:created_by(first_name, last_name), editor:updated_by(first_name, last_name)";
 
+// Fallback for when a migration hasn't been applied yet — see the note on
+// DOCUMENT_SELECT_BASE. A pending migration must never blank a customer's notes.
+export const NOTE_SELECT_BASE =
+  "id, content, category, created_at, " +
+  "author:created_by(first_name, last_name)";
+
 type NameJoin = { first_name: string | null; last_name: string | null } | null;
 
 function personName(p: NameJoin): string | null {

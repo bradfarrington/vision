@@ -93,6 +93,27 @@ export type DocumentItem = {
 export const DOCUMENT_SELECT =
   "id, document_number, name, file_name, file_type, file_size, file_url, category, created_at, note_id, note:note_id(note_number), uploaded_by, uploader:uploaded_by(first_name, last_name)";
 
+// Same shape minus anything added by a migration that may not be applied yet.
+// Schema is applied by hand here (see AGENTS.md), so a loader that asks for a
+// not-yet-existing column gets its WHOLE query rejected and the screen renders
+// as if the customer had no files. Falling back keeps the record readable —
+// references just show as "D-—" until the migration lands.
+export const DOCUMENT_SELECT_BASE =
+  "id, name, file_name, file_type, file_size, file_url, category, created_at, uploaded_by, uploader:uploaded_by(first_name, last_name)";
+
+/**
+ * Run a select that uses newest-migration columns, retrying with a safe subset
+ * if the database hasn't caught up. Only the retry path loses fields.
+ */
+export async function selectWithFallback<T = any>(
+  primary: () => PromiseLike<{ data: T | null; error: unknown }>,
+  fallback: () => PromiseLike<{ data: T | null; error: unknown }>,
+): Promise<{ data: T | null; error: unknown }> {
+  const res = await primary();
+  if (!res.error) return res;
+  return fallback();
+}
+
 type RawDocRow = {
   id: string;
   document_number: number | null;
@@ -138,12 +159,21 @@ export async function getDocuments(
   const supabase = await createClient();
   const db = supabase as unknown as { from(table: string): any };
 
-  const { data, error } = await db
-    .from("documents")
-    .select(DOCUMENT_SELECT)
-    .eq(OWNER_FK[ownerType], ownerId)
-    .order("created_at", { ascending: false });
+  const { data, error } = await selectWithFallback(
+    () =>
+      db
+        .from("documents")
+        .select(DOCUMENT_SELECT)
+        .eq(OWNER_FK[ownerType], ownerId)
+        .order("created_at", { ascending: false }),
+    () =>
+      db
+        .from("documents")
+        .select(DOCUMENT_SELECT_BASE)
+        .eq(OWNER_FK[ownerType], ownerId)
+        .order("created_at", { ascending: false }),
+  );
 
-  if (error) throw new Error(`getDocuments: ${error.message}`);
+  if (error) throw new Error(`getDocuments: ${(error as { message?: string }).message}`);
   return ((data ?? []) as RawDocRow[]).map(mapDocumentRow);
 }

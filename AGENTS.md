@@ -179,6 +179,10 @@ the customer record; reuse it for leads/contracts rather than forking.
   the viewer header beside the file name — where a note attachment also shows "Note N-18", so a
   previewed file always says where it came from. Anything else that creates notes/documents MUST
   allocate its number the same way.
+- **Attaching to a note offers "Choose file" (already on the record) or "Upload".** Choosing an
+  existing document is the duplicate-free path — `attachExistingDocument` shares the storage object
+  and the name/category/reference carry across. Prefer offering the picker anywhere files can be
+  attached.
 - **Never store the same bytes twice.** Files are hashed (SHA-256 → `documents.content_hash`),
   computed in the browser before upload so a duplicate costs one small query, not a wasted upload.
   If the identical file is already on the customer, the user picks: attach the existing one
@@ -258,6 +262,11 @@ fork per-entity copies.
   exists for owners that don't batch-load.
 
 ### Gotchas for future work
+- **A loader must never let a pending migration blank a record.** Schema here is applied by hand,
+  so a select that names a not-yet-existing column has its WHOLE query rejected by PostgREST and
+  the screen renders as if the customer had no notes/documents (this happened with
+  `note_number`/`document_number`). Loaders now go through `selectWithFallback` with a
+  `*_SELECT_BASE` subset — keep that pattern when adding columns to a shared select.
 - **Generated types are stale.** Migrations `20260721094000`–`099200` add columns/tables not yet
   in `src/lib/supabase/types.ts`, so data code uses a loose `const db = supabase as any` pattern and
   actions cast insert/update payloads. **Run

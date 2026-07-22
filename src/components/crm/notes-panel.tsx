@@ -17,6 +17,14 @@ import type { DocumentItem } from "@/lib/data/documents";
 import { cn } from "@/lib/utils";
 import { Combo } from "./combo";
 import { useDialogs } from "./dialogs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Icon } from "./icon";
 import { InlineViewer, FullscreenViewer, type ViewerDoc } from "./document-viewer";
 import { documentRef, noteRef } from "@/lib/leads";
@@ -92,6 +100,7 @@ export function NotesPanel({
             <NoteComposer
               customerId={customerId}
               linkTargets={linkTargets}
+              documents={documents}
               open={composing}
               setOpen={setComposing}
             />
@@ -109,6 +118,7 @@ export function NotesPanel({
                     attachments={attachmentsFor(n.id)}
                     linkTargets={linkTargets}
                     last={i === notes.length - 1}
+                    allDocuments={documents}
                     previewId={previewId}
                     onPreview={setPreviewId}
                   />
@@ -162,17 +172,21 @@ function EmptyNotes({ onAdd }: { onAdd: () => void }) {
 function NoteComposer({
   customerId,
   linkTargets,
+  documents,
   open,
   setOpen,
 }: {
   customerId: string;
   linkTargets: NoteLinkTarget[];
+  documents: DocumentItem[];
   open: boolean;
   setOpen: (open: boolean) => void;
 }) {
   const [content, setContent] = useState("");
   const [link, setLink] = useState<string>(NO_LINK);
   const [files, setFiles] = useState<File[]>([]);
+  // Files already on the record, chosen rather than re-uploaded.
+  const [picked, setPicked] = useState<DocumentItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -183,6 +197,7 @@ function NoteComposer({
     setContent("");
     setLink(NO_LINK);
     setFiles([]);
+    setPicked([]);
     setError(null);
   }
 
@@ -202,17 +217,27 @@ function NoteComposer({
         setError(res.error ?? "Could not save the note.");
         return;
       }
-      // Attachments upload one at a time against the saved note, so a single
-      // rejected file doesn't lose the note or the other files.
+      // Attachments are applied one at a time against the saved note, so a
+      // single rejected file doesn't lose the note or the other files.
       const failed: string[] = [];
+      for (const d of picked) {
+        const att = await attachExistingDocument({
+          documentId: d.id,
+          noteId: res.id,
+          ownerType: "customer",
+          ownerId: customerId,
+        });
+        if (att.error) failed.push(`${d.name}: ${att.error}`);
+      }
       for (const f of files) {
         const up = await uploadAttachment({ file: f, customerId, noteId: res.id, confirm });
         if (up.error) failed.push(`${f.name}: ${up.error}`);
       }
       if (failed.length) {
-        setError(`Note saved, but some files didn't upload — ${failed.join("; ")}`);
+        setError(`Note saved, but some files didn't attach — ${failed.join("; ")}`);
         setContent("");
         setFiles([]);
+        setPicked([]);
         router.refresh();
         return;
       }
@@ -248,12 +273,17 @@ function NoteComposer({
         <div className="min-w-[220px] flex-1">
           <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
         </div>
+        <DocumentPicker
+          documents={documents}
+          exclude={picked.map((d) => d.id)}
+          onPick={(chosen) => setPicked([...picked, ...chosen])}
+        />
         <button
           type="button"
           onClick={() => fileInput.current?.click()}
           className="flex items-center gap-1.5 rounded-lg border border-[#d4d4d8] px-3 py-2 text-[12.5px] font-semibold text-[#3f3f46] hover:bg-[#fafafa]"
         >
-          <Icon name="paperclip" size={13} /> Attach
+          <Icon name="upload" size={13} /> Upload
         </button>
         <input
           ref={fileInput}
@@ -267,8 +297,25 @@ function NoteComposer({
         />
       </div>
 
-      {files.length > 0 && (
+      {(files.length > 0 || picked.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
+          {picked.map((d) => (
+            <span
+              key={d.id}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-tint)] px-2.5 py-1 text-[11.5px] text-[var(--accent-active)]"
+            >
+              <Icon name="file" size={11} /> {d.name}
+              <span className="font-mono text-[10px] opacity-70">{documentRef(d.number)}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${d.name}`}
+                onClick={() => setPicked(picked.filter((p) => p.id !== d.id))}
+                className="opacity-60 hover:opacity-100"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
           {files.map((f, i) => (
             <span
               key={`${f.name}-${i}`}
@@ -321,6 +368,7 @@ function NoteRow({
   attachments,
   linkTargets,
   last,
+  allDocuments,
   previewId,
   onPreview,
 }: {
@@ -329,6 +377,8 @@ function NoteRow({
   attachments: DocumentItem[];
   linkTargets: NoteLinkTarget[];
   last: boolean;
+  /** Everything on the customer, so an existing file can be attached instead of re-uploaded. */
+  allDocuments: DocumentItem[];
   previewId: string | null;
   onPreview: (id: string) => void;
 }) {
@@ -378,6 +428,22 @@ function NoteRow({
       const res = await loadNoteHistory(note.id);
       if (res.error) setError(res.error);
       else setHistory(res.revisions ?? []);
+    });
+  }
+
+  function attachExisting(chosen: DocumentItem[]) {
+    setError(null);
+    start(async () => {
+      for (const d of chosen) {
+        const res = await attachExistingDocument({
+          documentId: d.id,
+          noteId: note.id,
+          ownerType: "customer",
+          ownerId: customerId,
+        });
+        if (res.error) setError(`${d.name}: ${res.error}`);
+      }
+      router.refresh();
     });
   }
 
@@ -480,12 +546,18 @@ function NoteRow({
         <span className="ml-auto flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
           {!editing && (
             <>
+              <DocumentPicker
+                documents={allDocuments}
+                exclude={attachments.map((a) => a.id)}
+                onPick={attachExisting}
+                variant="link"
+              />
               <button
                 type="button"
                 onClick={() => fileInput.current?.click()}
                 className="font-semibold text-[#71717a] hover:text-[#3f3f46]"
               >
-                Attach
+                Upload
               </button>
               <button
                 type="button"
@@ -659,6 +731,155 @@ function Attachment({
         ✕
       </button>
     </span>
+  );
+}
+
+// --- Pick a file that's already on the record --------------------------------
+// Attaching an existing document beats re-uploading it: no duplicate bytes, and
+// the name, category and reference carry across as they are.
+function DocumentPicker({
+  documents,
+  exclude,
+  onPick,
+  variant = "button",
+}: {
+  documents: DocumentItem[];
+  /** Already attached/queued — hidden from the list. */
+  exclude: string[];
+  onPick: (chosen: DocumentItem[]) => void;
+  variant?: "button" | "link";
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [chosen, setChosen] = useState<string[]>([]);
+
+  const available = documents.filter((d) => !exclude.includes(d.id));
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? available.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          (d.category ?? "").toLowerCase().includes(q) ||
+          documentRef(d.number).toLowerCase().includes(q),
+      )
+    : available;
+
+  function close() {
+    setOpen(false);
+    setQuery("");
+    setChosen([]);
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={
+          variant === "link"
+            ? "font-semibold text-[#71717a] hover:text-[#3f3f46]"
+            : "flex items-center gap-1.5 rounded-lg border border-[#d4d4d8] px-3 py-2 text-[12.5px] font-semibold text-[#3f3f46] hover:bg-[#fafafa]"
+        }
+      >
+        {variant === "link" ? (
+          "Attach existing"
+        ) : (
+          <>
+            <Icon name="paperclip" size={13} /> Choose file
+          </>
+        )}
+      </button>
+
+      <Dialog open={open} onOpenChange={(o: boolean) => (o ? setOpen(true) : close())}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-[family-name:var(--font-inter-tight)] text-[17px] font-bold">
+              Attach a file from this customer
+            </DialogTitle>
+            <DialogDescription>
+              Pick something already on the record — nothing is uploaded twice, and the file keeps
+              its name and reference.
+            </DialogDescription>
+          </DialogHeader>
+
+          {available.length === 0 ? (
+            <p className="py-6 text-center text-[12.5px] text-[#71717a]">
+              This customer has no other files yet — upload one instead.
+            </p>
+          ) : (
+            <>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name, reference or category…"
+                className="w-full rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-[13px] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
+              />
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-[#e7e7ea]">
+                {shown.length === 0 ? (
+                  <p className="px-3 py-4 text-center text-[12.5px] text-[#a1a1aa]">No matches</p>
+                ) : (
+                  shown.map((d, i) => {
+                    const on = chosen.includes(d.id);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() =>
+                          setChosen(on ? chosen.filter((c) => c !== d.id) : [...chosen, d.id])
+                        }
+                        className={cn(
+                          "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors",
+                          i < shown.length - 1 && "border-b border-[#f4f4f5]",
+                          on ? "bg-[var(--accent-tint)]" : "hover:bg-[#fafafa]",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                            on
+                              ? "border-[var(--accent-blue)] bg-[var(--accent-blue)] text-white"
+                              : "border-[#d4d4d8] bg-white",
+                          )}
+                        >
+                          {on && <Icon name="check" size={10} strokeWidth={3.5} />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12.5px] font-medium text-[#0a0a0a]">
+                            {d.name}
+                          </span>
+                          <span className="block truncate text-[11px] text-[#a1a1aa]">
+                            <span className="font-mono">{documentRef(d.number)}</span>
+                            {d.category ? ` · ${d.category}` : ""} · {fmtDateTime(d.created_at)}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+
+          <DialogFooter>
+            <button type="button" onClick={close} className="text-[12.5px] font-semibold text-[#71717a]">
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={chosen.length === 0}
+              onClick={() => {
+                onPick(documents.filter((d) => chosen.includes(d.id)));
+                close();
+              }}
+              className="rounded-lg bg-[var(--accent-blue)] px-3.5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
+            >
+              {chosen.length > 1 ? `Attach ${chosen.length} files` : "Attach file"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
