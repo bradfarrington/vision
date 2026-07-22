@@ -148,6 +148,30 @@ if (!ok) return;
 - Multi-field/interactive dialogs (e.g. "New additional-info field") stay bespoke `Dialog`
   compositions from `components/ui/dialog` — `useDialogs` is for confirm/acknowledge only.
 
+## Customer overview — summary cards — built 2026-07-22
+
+The Overview tab is the **at-a-glance answer to "who do I ring, where do they live, what do they
+owe, what's the latest"**. It pulls digests from the other tabs rather than making staff hunt:
+
+- **Summary cards are READ-ONLY and deep-link to the tab that owns the data.** A field is edited in
+  exactly one place — its own tab — so there is never a second `EditableField` for the same column
+  to keep in sync. Every card carries an "Edit →" / "View all →" jump.
+- **Jumping between tabs goes through `TabNavContext`** (`src/components/crm/tabs.tsx`). Panels are
+  server-rendered `content`, so they can't touch the `active` state; `TabLink` (a text link) and
+  `TabJump` (a clickable row/region) are the two small client buttons that call `goTo("Notes")`.
+  Targets are matched by **exact tab label**, so renaming a tab means updating its jump targets.
+  Tab state is deliberately NOT in the URL — no navigation, no scroll reset on jump.
+- **Cards on the overview:** snapshot strip (lifetime value · outstanding · live leads · contracts),
+  Contact (phones/email + do-not-contact/no-WhatsApp pills), Address (formatted block, postcode,
+  what3words, access notes), Marketing consent (4 channel chips + referral source), Recent notes (3),
+  Recent documents (4), Linked customers (5). Ordering: strip → Identity/Main contact/Flags →
+  Contact/Address/Consent → **Leads & contracts** → Notes/Documents/Linked.
+- **Consent chips show three states, not two** — blank = never asked, which is materially different
+  from a recorded "No". Same rule as the `tristate` editor.
+- **No new queries.** Everything renders from what `getCustomerRecord()` already loads; a summary
+  card must never add a round-trip. If a future card needs data the record doesn't carry, add it to
+  that loader (behind `selectWithFallback`), not to the component.
+
 ## Notes — stamped, versioned, linkable — built 2026-07-22
 
 One table backs every note in the CRM (`public.lead_notes`): customer-level when `lead_id` is

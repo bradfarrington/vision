@@ -18,7 +18,14 @@ import {
   addSalesStaff,
 } from "@/app/(app)/customers/actions";
 import { gbp, isCommercial } from "@/lib/format";
-import { isLiveLead, leadRef, contractRef, customerRef } from "@/lib/leads";
+import {
+  isLiveLead,
+  leadRef,
+  contractRef,
+  customerRef,
+  documentRef,
+  noteRef,
+} from "@/lib/leads";
 import {
   Avatar,
   Card,
@@ -46,7 +53,7 @@ import {
 } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
-import { Tabs } from "@/components/crm/tabs";
+import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
 
 // Customer detail — the full contact record across tabs, every field editable
 // inline (click a value to edit; Enter/blur saves).
@@ -150,6 +157,8 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   const liveLeads = c.leads.filter((l) => isLiveLead(l.status)).length;
   return (
     <div className="flex flex-col gap-4">
+      <SnapshotStrip c={c} liveLeads={liveLeads} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardTitle className="mb-2">Identity</CardTitle>
@@ -166,7 +175,7 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           )}
         </Card>
         <Card>
-          <CardTitle className="mb-2">Main</CardTitle>
+          <CardTitle className="mb-2">Main contact</CardTitle>
           {c.mainContact ? (
             <>
               <Row label="Name">{c.mainContact.name}</Row>
@@ -189,6 +198,12 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
           <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <ContactSummary c={c} />
+        <AddressSummary c={c} />
+        <ConsentSummary c={c} />
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -222,7 +237,320 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           ))
         )}
       </div>
+
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <RecentNotes c={c} />
+        <RecentDocuments c={c} />
+        <LinkedCustomers c={c} />
+      </div>
     </div>
+  );
+}
+
+// --- Overview summary cards -------------------------------------------------
+// Read-only digests of data that lives on another tab. Each one deep-links to
+// the tab that owns it (TabLink/TabJump) rather than duplicating its editing —
+// the owning tab stays the single place a field is changed.
+
+function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
+  const { lifetimeValue, outstandingTotal } = c.financials;
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Stat label="Lifetime value" value={gbp(lifetimeValue)} to="Billing & account" />
+      <Stat
+        label="Outstanding"
+        value={gbp(outstandingTotal)}
+        tone={outstandingTotal > 0 ? "amber" : undefined}
+        to="Billing & account"
+      />
+      <Stat
+        label="Live leads"
+        value={String(liveLeads)}
+        sub={c.leadCount > 0 ? `of ${c.leadCount}` : undefined}
+      />
+      <Stat label="Contracts" value={String(c.contractCount)} />
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  tone,
+  to,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "amber";
+  to?: string;
+}) {
+  const body = (
+    <Card className="h-full !py-3">
+      <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+        {label}
+      </div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <span
+          className={`font-[family-name:var(--font-inter-tight)] text-[20px] font-extrabold tracking-[-0.01em] ${
+            tone === "amber" ? "text-[#b86e00]" : "text-[#0a0a0a]"
+          }`}
+        >
+          {value}
+        </span>
+        {sub && <span className="text-[11.5px] text-[#71717a]">{sub}</span>}
+      </div>
+    </Card>
+  );
+  return to ? (
+    <TabJump to={to} className="block text-left transition-opacity hover:opacity-80">
+      {body}
+    </TabJump>
+  ) : (
+    body
+  );
+}
+
+function ContactSummary({ c }: { c: CustomerRecord }) {
+  const phones = [
+    { label: "Mobile", value: c.mobile },
+    { label: "Mobile 2", value: c.mobile_2 },
+    { label: "Home", value: c.home_telephone },
+    { label: "Work", value: c.work_telephone },
+  ].filter((p) => p.value);
+  const email = c.email ?? c.mainContact?.email ?? null;
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <CardTitle>Contact</CardTitle>
+        <TabLink to="Address & access">Edit →</TabLink>
+      </div>
+      {!email && phones.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">No phone or email recorded.</p>
+      ) : (
+        <>
+          {email && (
+            <Row label="Email">
+              <a
+                href={`mailto:${email}`}
+                className="text-[var(--accent-blue)] hover:underline"
+              >
+                {email}
+              </a>
+            </Row>
+          )}
+          {phones.map((p, i) => (
+            <Row key={p.label} label={p.label} last={i === phones.length - 1}>
+              <a href={`tel:${p.value}`} className="hover:text-[var(--accent-blue)]">
+                {p.value}
+              </a>
+            </Row>
+          ))}
+        </>
+      )}
+      {(c.no_whatsapp || c.do_not_contact) && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-[#f4f4f5] pt-2.5">
+          {c.do_not_contact && <Pill tone="danger">Do not contact</Pill>}
+          {c.no_whatsapp && <Pill tone="neutral">No WhatsApp</Pill>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function AddressSummary({ c }: { c: CustomerRecord }) {
+  // House name and number are separate fields; either, both or neither may be set.
+  const line1 = [c.house_name, [c.house_number, c.street].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <CardTitle>Address</CardTitle>
+        <TabLink to="Address & access">Edit →</TabLink>
+      </div>
+      {lines.length === 0 && !c.postcode ? (
+        <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
+      ) : (
+        <address className="text-[12.5px] not-italic leading-[1.6] text-[#3f3f46]">
+          {lines.map((l) => (
+            <div key={l}>{l}</div>
+          ))}
+          {c.postcode && <div className="font-mono font-semibold text-[#0a0a0a]">{c.postcode}</div>}
+        </address>
+      )}
+      {c.what_3_words && (
+        <div className="mt-2 font-mono text-[11.5px] text-[#71717a]">
+          {"/// "}
+          {c.what_3_words}
+        </div>
+      )}
+      {c.directions && (
+        <div className="mt-2.5 border-t border-[#f4f4f5] pt-2.5">
+          <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+            Access
+          </div>
+          <p className="line-clamp-3 text-[12.5px] leading-[1.6] text-[#3f3f46]">{c.directions}</p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ConsentSummary({ c }: { c: CustomerRecord }) {
+  const channels: { label: string; value: boolean | null }[] = [
+    { label: "Email", value: c.email_opt_in },
+    { label: "SMS", value: c.sms_opt_in },
+    { label: "Phone", value: c.phone_opt_in },
+    { label: "Post", value: c.letter_opt_in },
+  ];
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <CardTitle>Marketing consent</CardTitle>
+        <TabLink to="Marketing & permissions">Edit →</TabLink>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {channels.map((ch) => (
+          <ConsentChip key={ch.label} label={ch.label} value={ch.value} />
+        ))}
+      </div>
+      <div className="mt-3">
+        <Row label="Referral source" last={!c.opt_in_date}>
+          {c.marketing_code ?? "—"}
+        </Row>
+        {c.opt_in_date && (
+          <Row label="Consent given" last>
+            {longDate(c.opt_in_date)}
+          </Row>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// Blank = never asked, which is materially different from a recorded "No".
+function ConsentChip({ label, value }: { label: string; value: boolean | null }) {
+  const tone = value == null ? "neutral" : value ? "success" : "danger";
+  const mark = value == null ? "not asked" : value ? "yes" : "no";
+  return (
+    <Pill tone={tone}>
+      {label} · {mark}
+    </Pill>
+  );
+}
+
+function RecentNotes({ c }: { c: CustomerRecord }) {
+  const recent = c.customerNotes.slice(0, 3);
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <CardTitle>Recent notes</CardTitle>
+        <TabLink to="Notes">View all →</TabLink>
+      </div>
+      {recent.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
+      ) : (
+        recent.map((n, i) => (
+          <TabJump
+            key={n.id}
+            to="Notes"
+            className={`-mx-2 block w-[calc(100%+1rem)] rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
+              i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
+              <span className="truncate text-[11.5px] text-[#a1a1aa]">
+                {n.author ?? "Unknown"} · {longDate(n.createdAt)}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.55] text-[#3f3f46]">
+              {n.content}
+            </p>
+          </TabJump>
+        ))
+      )}
+    </Card>
+  );
+}
+
+function RecentDocuments({ c }: { c: CustomerRecord }) {
+  const recent = c.documents.slice(0, 4);
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <CardTitle>Recent documents</CardTitle>
+        <TabLink to="Documents">View all →</TabLink>
+      </div>
+      {recent.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">No documents yet.</p>
+      ) : (
+        recent.map((d, i) => (
+          <TabJump
+            key={d.id}
+            to="Documents"
+            className={`-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
+              i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
+            }`}
+          >
+            {d.number != null && <RefChip>{documentRef(d.number)}</RefChip>}
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+              {d.name}
+            </span>
+            {d.category && (
+              <span className="shrink-0 text-[11px] text-[#a1a1aa]">{d.category}</span>
+            )}
+          </TabJump>
+        ))
+      )}
+    </Card>
+  );
+}
+
+function LinkedCustomers({ c }: { c: CustomerRecord }) {
+  const linked = c.relationships.slice(0, 5);
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <CardTitle>Linked customers</CardTitle>
+        <TabLink to="Relationships">View all →</TabLink>
+      </div>
+      {linked.length === 0 ? (
+        <p className="py-1 text-[12px] text-[#71717a]">
+          No linked customers — family, neighbours and referrers go here.
+        </p>
+      ) : (
+        linked.map((r, i) => {
+          const row = (
+            <div
+              className={`flex items-center gap-2.5 py-2 ${
+                i === linked.length - 1 ? "" : "border-b border-[#f4f4f5]"
+              }`}
+            >
+              <Avatar name={r.related?.name ?? "?"} size={28} />
+              <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-[#0a0a0a]">
+                {r.related?.name ?? "Unknown customer"}
+              </span>
+              {r.label && <Pill tone="neutral">{r.label}</Pill>}
+            </div>
+          );
+          return r.related ? (
+            <Link
+              key={r.id}
+              href={`/customers/${r.related.id}`}
+              className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
+            >
+              {row}
+            </Link>
+          ) : (
+            <div key={r.id}>{row}</div>
+          );
+        })
+      )}
+    </Card>
   );
 }
 
