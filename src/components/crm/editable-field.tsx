@@ -210,7 +210,14 @@ export function EditableField({
           onKeyDown={(e) => {
             if (e.key === "Escape") setEditing(false);
           }}
-          className={cn(commonCls, "w-full resize-y text-left", className)}
+          // overflow-wrap:anywhere — a textarea soft-wraps at spaces only, so an
+          // unbroken string (a URL, a mashed-in note) scrolls sideways and hides
+          // its own start. Break mid-token rather than let the box scroll.
+          className={cn(
+            commonCls,
+            "w-full resize-y text-left [overflow-wrap:anywhere]",
+            className,
+          )}
         />
       );
     }

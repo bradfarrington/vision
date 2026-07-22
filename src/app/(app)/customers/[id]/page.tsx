@@ -508,19 +508,18 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
           <TabJump
             key={n.id}
             to="Notes"
-            className={`-mx-2 block w-[calc(100%+1rem)] rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
+            className={`-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
               i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
             }`}
           >
-            <div className="flex items-center gap-2">
-              {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
-              <span className="truncate text-[11.5px] text-[#a1a1aa]">
-                {n.author ?? "Unknown"} · {longDate(n.createdAt)}
-              </span>
-            </div>
-            <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.55] text-[#3f3f46]">
-              {n.content}
-            </p>
+            {/* Reference, author and date only — the note text itself lives on
+                the Notes tab. A snippet is the one thing here that grows with
+                the data, and two clamped lines cost more height than the row. */}
+            {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+              {n.author ?? "Unknown"}
+            </span>
+            <span className="shrink-0 text-[11px] text-[#a1a1aa]">{longDate(n.createdAt)}</span>
           </TabJump>
         ))
       )}

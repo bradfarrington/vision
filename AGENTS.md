@@ -229,7 +229,9 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   fields that live nowhere else must be `shrink-0`; anything mirroring a tab should shrink.
 - **The overview's height is BOUNDED BY DESIGN — every card has a fixed budget.** The rule that
   keeps it that way: *no card may grow with the data*. Lists cap at a row count; free text is
-  clamped (access notes 2 lines, note snippets 2 lines); **every field row is exactly one line**
+  clamped (access notes 2 lines); **every digest row is exactly one line** — Recent notes carries
+  `NOTE-…` + author + date and NO note text (the snippet was the only thing on the overview whose
+  height moved with the data; the words live on the Notes tab); **every field row is exactly one line**
   (`[&_[data-row]>:last-child]:truncate` on the tab root — before that, one long Alert Note or
   contact Role wrapped a card to any height it liked). A capped card says so in its header
   ("2 of 7"), which costs no height, rather than spending a row on "+N more".
