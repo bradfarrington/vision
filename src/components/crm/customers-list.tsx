@@ -432,7 +432,7 @@ export function ColumnsButton() {
   return (
     <Popover label="Columns" icon="columns" width={264}>
       {() => (
-        <div className="flex max-h-[min(70vh,460px)] flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center gap-2 border-b border-[#f4f4f5] px-2.5 py-2">
             <Icon name="search" size={13} className="text-[#a1a1aa]" />
             <input
@@ -653,7 +653,7 @@ export function FiltersButton({ filterOptions }: { filterOptions: Record<string,
   return (
     <Popover label="Filters" icon="filters" badge={activeCount || undefined} width={316}>
       {() => (
-        <div className="flex max-h-[min(80vh,520px)] w-[316px] flex-col">
+        <div className="flex min-h-0 w-[316px] flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-[#f4f4f5] px-3 py-2.5">
             <span className="text-[13px] font-bold text-[#0a0a0a]">Filters</span>
             {activeCount > 0 && (
@@ -887,7 +887,10 @@ function InlinePicker({
         />
       </button>
       {open && (
-        <div className="mt-1 max-h-[200px] overflow-y-auto rounded-md border border-[#e7e7ea] bg-white py-1 shadow-sm">
+        // Absolute so it OVERLAYS rather than growing the picker's box — an
+        // inline dropdown pushed the sibling Value input taller. The builder sits
+        // at the top of the popover, so opening downward isn't clipped.
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-[220px] overflow-y-auto rounded-md border border-[#e7e7ea] bg-white py-1 shadow-[0_8px_20px_rgba(10,10,10,0.14)]">
           {children}
         </div>
       )}
