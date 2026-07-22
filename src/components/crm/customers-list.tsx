@@ -897,7 +897,9 @@ function HeaderCell({
         onClick={onSort}
         disabled={!sortable}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-1 px-3 py-2.5 text-left",
+          // `uppercase` must sit on the button: Tailwind preflight resets
+          // `button { text-transform: none }`, overriding the header row's class.
+          "flex min-w-0 flex-1 items-center gap-1 px-3 py-2.5 text-left uppercase",
           sortable ? "hover:text-[#52525b]" : "cursor-default",
         )}
       >
