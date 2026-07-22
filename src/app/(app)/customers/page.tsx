@@ -85,10 +85,6 @@ export default async function CustomersPage({
         {/* Search */}
         <div className="flex items-center gap-2">
           <SearchBox placeholder="Name, postcode, phone…" />
-          <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-[#71717a]">
-            Sort: Last activity
-            <Icon name="chevron-down" size={11} className="text-[#71717a]" />
-          </span>
         </div>
 
         <CustomerTable
