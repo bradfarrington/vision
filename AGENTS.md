@@ -161,11 +161,14 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   `TabJump` (a clickable row/region) are the two small client buttons that call `goTo("Notes")`.
   Targets are matched by **exact tab label**, so renaming a tab means updating its jump targets.
   Tab state is deliberately NOT in the URL — no navigation, no scroll reset on jump.
-- **Cards on the overview:** snapshot strip (lifetime value · outstanding · live leads · contracts),
-  Contact (phones/email + do-not-contact/no-WhatsApp pills), Address (formatted block, postcode,
-  what3words, access notes), Marketing consent (4 channel chips + referral source), Recent notes (3),
-  Recent documents (4), Linked customers (5). Ordering: strip → Identity/Main contact/Flags →
-  Contact/Address/Consent → **Leads & contracts** → Notes/Documents/Linked.
+- **The overview is a 4-column grid** (`sm:grid-cols-2 xl:grid-cols-4`), capped at `max-w-[1320px]`:
+  - strip — lifetime value · outstanding · live leads · contracts
+  - row 1, *who they are and how to reach them* — Identity · Main contact · Contact · Address
+  - row 2, *how they're handled* — Flags · Marketing consent · Linked customers · Recent documents
+  - **Leads & contracts**
+  - Recent notes — the one full-width card, tiling its 4 notes 4-across to hold the same rhythm
+  Nine cards don't divide by four, which is why Recent notes sits alone under the leads list.
+  Adding a card means re-balancing the rows, not appending a fifth column.
 - **Consent chips show three states, not two** — blank = never asked, which is materially different
   from a recorded "No". Same rule as the `tristate` editor.
 - **Colour carries meaning on the overview, and the tab is capped at `max-w-[1240px]`.** Three

@@ -157,12 +157,13 @@ type Lookups = Record<string, { id: string; label: string }[]>;
 function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
   const liveLeads = c.leads.filter((l) => isLiveLead(l.status)).length;
   return (
-    // Capped so cards stay a readable measure on a wide monitor — three columns
+    // Capped so cards stay a readable measure on a wide monitor — four columns
     // stretched across 1900px leaves each one mostly empty space.
-    <div className="flex max-w-[1240px] flex-col gap-4">
+    <div className="flex max-w-[1320px] flex-col gap-4">
       <SnapshotStrip c={c} liveLeads={liveLeads} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Who they are and how to reach them. */}
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardTitle className="mb-2">Identity</CardTitle>
           <Row label="Customer no." mono>{c.customer_number != null ? custNo(c.customer_number) : "—"}</Row>
@@ -194,6 +195,12 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
             </p>
           )}
         </Card>
+        <ContactSummary c={c} />
+        <AddressSummary c={c} />
+      </div>
+
+      {/* How they're handled: flags, consent, who they're linked to, their files. */}
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardTitle className="mb-2">Flags</CardTitle>
           <E c={c} label="Do not contact" field="do_not_contact" value={c.do_not_contact} type="boolean" danger />
@@ -201,12 +208,9 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           <E c={c} label="Moved away" field="customer_moved_away" value={c.customer_moved_away} type="boolean" danger />
           <E c={c} label="Alert note" field="flash_note" value={c.flash_note} type="textarea" last />
         </Card>
-      </div>
-
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-        <ContactSummary c={c} />
-        <AddressSummary c={c} />
         <ConsentSummary c={c} />
+        <LinkedCustomers c={c} />
+        <RecentDocuments c={c} />
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -241,11 +245,7 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-        <RecentNotes c={c} />
-        <RecentDocuments c={c} />
-        <LinkedCustomers c={c} />
-      </div>
+      <RecentNotes c={c} />
     </div>
   );
 }
@@ -496,32 +496,34 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
   );
 }
 
+// The one full-width card, sitting under the leads list. Its notes tile 4-across
+// so it matches the column rhythm above rather than running the page width.
 function RecentNotes({ c }: { c: CustomerRecord }) {
-  const recent = c.customerNotes.slice(0, 3);
+  const recent = c.customerNotes.slice(0, 4);
   return (
     <SummaryCard title="Recent notes" icon="message" tone="accent" to="Notes">
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
       ) : (
-        recent.map((n, i) => (
-          <TabJump
-            key={n.id}
-            to="Notes"
-            className={`-mx-2 block w-[calc(100%+1rem)] rounded px-2 py-2 text-left hover:bg-[#fafafa] ${
-              i === recent.length - 1 ? "" : "border-b border-[#f4f4f5]"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
-              <span className="truncate text-[11.5px] text-[#a1a1aa]">
-                {n.author ?? "Unknown"} · {longDate(n.createdAt)}
-              </span>
-            </div>
-            <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.55] text-[#3f3f46]">
-              {n.content}
-            </p>
-          </TabJump>
-        ))
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {recent.map((n) => (
+            <TabJump
+              key={n.id}
+              to="Notes"
+              className="rounded-lg bg-[#fafafa] px-3 py-2.5 text-left transition-colors hover:bg-[#f4f4f5]"
+            >
+              <div className="flex items-center gap-2">
+                {n.number != null && <RefChip>{noteRef(n.number)}</RefChip>}
+                <span className="truncate text-[11.5px] text-[#a1a1aa]">
+                  {n.author ?? "Unknown"} · {longDate(n.createdAt)}
+                </span>
+              </div>
+              <p className="mt-1.5 line-clamp-3 text-[12.5px] leading-[1.55] text-[#3f3f46]">
+                {n.content}
+              </p>
+            </TabJump>
+          ))}
+        </div>
       )}
     </SummaryCard>
   );
