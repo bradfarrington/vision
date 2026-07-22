@@ -65,6 +65,10 @@ const DATE = 132;
 const COUNT = 104;
 const ACT = 200;
 
+// Name-type fields render bold + near-black, matching the Name column, so a
+// person's name reads as one identity wherever its parts are shown.
+const NAME_CELL = "font-semibold text-[#0a0a0a]";
+
 const COLUMNS: Column[] = [
   {
     key: "name",
@@ -78,14 +82,14 @@ const COLUMNS: Column[] = [
   },
 
   // Identity
-  { key: "title", label: "Title", group: "Identity", w: SHORT },
-  { key: "first_name", label: "First name", group: "Identity", w: TEXT },
-  { key: "last_name", label: "Last name", group: "Identity", w: TEXT },
-  { key: "title_2", label: "Title (2nd)", group: "Identity", w: SHORT },
-  { key: "first_name_2", label: "First name (2nd)", group: "Identity", w: TEXT },
-  { key: "last_name_2", label: "Last name (2nd)", group: "Identity", w: TEXT },
-  { key: "salutation", label: "Salutation", group: "Identity", w: TEXT },
-  { key: "company_name", label: "Company", group: "Identity", w: TEXT },
+  { key: "title", label: "Title", group: "Identity", w: SHORT, cellClassName: NAME_CELL },
+  { key: "first_name", label: "First name", group: "Identity", w: TEXT, cellClassName: NAME_CELL },
+  { key: "last_name", label: "Last name", group: "Identity", w: TEXT, cellClassName: NAME_CELL },
+  { key: "title_2", label: "Title (2nd)", group: "Identity", w: SHORT, cellClassName: NAME_CELL },
+  { key: "first_name_2", label: "First name (2nd)", group: "Identity", w: TEXT, cellClassName: NAME_CELL },
+  { key: "last_name_2", label: "Last name (2nd)", group: "Identity", w: TEXT, cellClassName: NAME_CELL },
+  { key: "salutation", label: "Salutation", group: "Identity", w: TEXT, cellClassName: NAME_CELL },
+  { key: "company_name", label: "Company", group: "Identity", w: TEXT, cellClassName: NAME_CELL },
   {
     key: "customer_type",
     label: "Type",
