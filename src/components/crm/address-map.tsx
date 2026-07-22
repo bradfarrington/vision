@@ -36,6 +36,14 @@ import {
 const DEFAULT_STYLE = "https://tiles.openfreemap.org/styles/positron";
 const STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
 
+// Street view inside the app needs Google's Maps EMBED API — the tier that is
+// free and unmetered, unlike the Static API which bills per thumbnail. The key
+// is public by necessity (it is an iframe URL the browser requests), so it MUST
+// be locked to this app's domains with an HTTP-referrer restriction in Google
+// Cloud, and restricted to the Maps Embed API alone. Without it the app falls
+// back to the free link-out, so street view degrades rather than breaks.
+const EMBED_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+
 /**
  * How far in to zoom for each quality of match — never further than we actually
  * know. This is the ONLY place the match precision shows itself: the map does
@@ -331,6 +339,8 @@ function FullscreenMap({
   onTileError: () => void;
   onClose: () => void;
 }) {
+  const [view, setView] = useState<"map" | "street">("map");
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -344,7 +354,29 @@ function FullscreenMap({
       <div className="flex items-center gap-3 px-4 py-3 text-white">
         <Icon name="map-pin" size={16} strokeWidth={1.75} className="text-white/70" />
         <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{line}</span>
-        <StreetViewLink lat={lat} lng={lng} dark />
+
+        {/* Street view is a VIEW of this location, not a trip somewhere else —
+            so it toggles in place rather than sitting beside Directions as
+            another link out. Without an embed key there is nothing to toggle
+            to, and the link-out below stands in for it. */}
+        {EMBED_KEY && (
+          <div className="flex items-center rounded-lg border border-white/20 bg-white/5 p-0.5">
+            {(["map", "street"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={`rounded-[6px] px-2.5 py-1 text-[12.5px] font-semibold transition-colors ${
+                  view === v ? "bg-white text-[#0a0a0a]" : "text-white/80 hover:text-white"
+                }`}
+              >
+                {v === "map" ? "Map" : "Street view"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!EMBED_KEY && <StreetViewLink lat={lat} lng={lng} dark />}
         {line && <DirectionsLink line={line} dark />}
         {what3words && <What3WordsLink words={what3words} dark />}
         <button
@@ -356,14 +388,62 @@ function FullscreenMap({
           <Icon name="x" size={16} strokeWidth={2} />
         </button>
       </div>
+
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <MapCanvas lat={lat} lng={lng} zoom={zoom} scrollZoom onTileError={onTileError} />
-        {/* The credit follows the map wherever it goes — the card's footer line
-            is not on screen here, so it has to be restated. */}
-        <span className="pointer-events-auto absolute bottom-2 left-3">
-          <MapCredit dark />
-        </span>
+        {view === "street" && EMBED_KEY ? (
+          <StreetViewPane lat={lat} lng={lng} />
+        ) : (
+          <>
+            <MapCanvas lat={lat} lng={lng} zoom={zoom} scrollZoom onTileError={onTileError} />
+            {/* The credit follows the map wherever it goes — the card's footer
+                line is not on screen here, so it has to be restated. Street
+                view is Google's, and carries its own. */}
+            <span className="pointer-events-auto absolute bottom-2 left-3">
+              <MapCredit dark />
+            </span>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Navigable Street View, embedded.
+ *
+ * Google's Maps Embed API — the tier that is **free and unmetered**, unlike the
+ * Street View Static API which bills per thumbnail. The pano is fully
+ * interactive: look around, and walk up and down the street with the arrows, so
+ * a surveyor can get to the front of the property even when the nearest
+ * panorama is a few doors down.
+ *
+ * `heading` is deliberately NOT set. Given a bare location, Google aims the
+ * camera from the nearest panorama TOWARDS that point — which is the front of
+ * the building. Passing a heading of our own would need the bearing from the
+ * road to the house, which we do not know, and would face the camera at a
+ * hedge as often as at the property.
+ *
+ * Coverage is not pre-checked (that needs the keyed metadata endpoint), so
+ * where Google has no imagery this shows their "no imagery" state. The link out
+ * to full Google Maps is there as the escape hatch.
+ */
+function StreetViewPane({ lat, lng }: { lat: number; lng: number }) {
+  const src = `https://www.google.com/maps/embed/v1/streetview?key=${EMBED_KEY}&location=${lat},${lng}&fov=90`;
+  return (
+    <div className="relative h-full w-full">
+      <iframe
+        key={src}
+        src={src}
+        title="Street view"
+        loading="lazy"
+        allowFullScreen
+        // Google's referrer restrictions need the origin to survive the request.
+        referrerPolicy="no-referrer-when-downgrade"
+        className="h-full w-full border-0"
+      />
+      <span className="absolute bottom-2 right-3">
+        <StreetViewLink lat={lat} lng={lng} dark />
+      </span>
     </div>
   );
 }

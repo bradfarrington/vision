@@ -446,14 +446,31 @@ delete it as each screen moves over** (the lead detail is the last holdout).
   that is load-bearing: the pin is filled with `var(--accent-blue)` from `tenantThemeVars` on the
   app shell root, so a portalled marker silently falls back to platform blue for every tenant with
   a brand colour. `fixed` covers the viewport perfectly well from inside the tree.
-- **Street view is a LINK OUT to Google, not an embed.** OpenStreetMap has no street-level imagery
-  of its own, and the open alternatives (Mapillary, KartaView, Panoramax) are contributor-driven —
-  UK residential coverage is patchy, so they fail on exactly the estates a surveyor needs.
-  `streetViewUrl()` uses Google's documented Maps URLs scheme: no API key, no billing, nothing
-  metered. Coverage is deliberately NOT checked first (that needs the keyed metadata endpoint);
-  where there is no imagery Google lands on the map, which is a soft enough landing. **If an in-app
-  pano is ever wanted, the Maps Embed API is the one to reach for — it is free and unmetered** —
-  and the Street View *Static* API (thumbnails) is the metered one to avoid putting on a list screen.
+- **Street view comes from Google, and the tier matters enormously.** OpenStreetMap has no
+  street-level imagery of its own, and the open alternatives (Mapillary, KartaView, Panoramax) are
+  contributor-driven — UK residential coverage is patchy, so they fail on exactly the estates a
+  surveyor needs. Two paths, both wired:
+  - `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` set → the fullscreen overlay gets a **Map / Street view**
+    toggle backed by the **Maps Embed API**, a navigable pano the user can walk along the street
+    with. That API is **free and unmetered**. The Street View *Static* API is the metered one —
+    **do not** reach for it for thumbnails on a list screen.
+  - No key → a free link out to Google Maps via `streetViewUrl()` (their Maps URLs scheme, no key,
+    no billing). Street view degrades, it does not break.
+  **`heading` is deliberately unset** on the embed: given a bare location Google aims the camera
+  from the nearest panorama *towards* that point, i.e. at the front of the building. Supplying our
+  own heading needs the bearing from road to house, which we do not know, and would face a hedge as
+  often as the property. Coverage is not pre-checked (that needs the keyed metadata endpoint).
+- **The embed key is PUBLIC by necessity** (the browser fetches the iframe), so it must be locked in
+  Google Cloud to the Maps Embed API and to this app's domains by HTTP referrer. It is the only
+  Google key with a `NEXT_PUBLIC_` prefix — `GOOGLE_MAPS_API_KEY` (geocoding) stays server-only.
+- **Why the base map is NOT Google.** Considered and rejected on 2026-07-22: geocoding and street
+  view are cheap or free because they are cached or unmetered, but a **map render cannot be cached
+  — every record view is a billable map load** on the Maps JavaScript API, so cost scales with staff
+  activity forever. MapLibre + OSM is free at any volume, and it is the only option that lets the
+  marker be the tenant's accent colour and that a future drag-to-pin can drive programmatically.
+  (Google's Embed API *can* render a plain map for free, but as an iframe: no tenant-coloured pin,
+  no styling, no programmatic control.) Note that going all-Google would not settle the branding
+  question either — Google's logo is larger than the OSM credit and contractually unhideable.
 - **Inline and fullscreen each own a MapLibre instance** (`MapCanvas`). Sharing one and re-parenting
   the GL canvas was the alternative and it is worse: the inline map comes back showing wherever the
   user panned to in fullscreen. `MapCanvas` keeps the tile-error callback in a latest-ref so a
