@@ -54,6 +54,7 @@ import {
 } from "@/components/crm/relationship-controls";
 import { IllustrativeMap } from "@/components/crm/illustrative-map";
 import { LeadCard, ContractCard } from "@/components/crm/lead-card";
+import { FitRows } from "@/components/crm/fit-rows";
 import { Tabs, TabJump, TabLink } from "@/components/crm/tabs";
 
 // Customer detail — the full contact record across tabs, every field editable
@@ -169,15 +170,17 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
     // denser than the editing tabs: `[&_[data-row]]:py-[5px]` tightens every
     // Row/E/CRow in one place instead of threading a `dense` prop through
     // thirty call sites, and the cards use OV_CARD's tighter padding.
-    <div className="flex max-w-[1320px] flex-col gap-3 [&_[data-row]]:py-[5px] [&_[data-row]>:last-child]:min-w-0 [&_[data-row]>:last-child]:truncate">
-      <SnapshotStrip c={c} liveLeads={liveLeads} />
+    <div className="flex h-full min-h-0 max-w-[1320px] flex-col gap-3 overflow-hidden [&_[data-row]]:py-[5px] [&_[data-row]>:last-child]:min-w-0 [&_[data-row]>:last-child]:truncate">
+      <div className="shrink-0">
+        <SnapshotStrip c={c} liveLeads={liveLeads} />
+      </div>
 
       {/* Bento: four independent column stacks. Cards are different heights by
           nature (Identity is ten rows, Contact is two) — a row-aligned grid
           stretches every card in a row to the tallest, which is where the dead
           space came from. Each column packs its own cards instead. */}
-      <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="flex flex-col gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex min-h-0 flex-col gap-3">
           <Card className={OV_CARD}>
             <CardTitle className="mb-1.5">Identity</CardTitle>
             <E c={c} label="Type" field="customer_type" value={c.customer_type} type="lookup" listKey="customer_type" lookupOptions={lookups.customer_type} />
@@ -200,18 +203,18 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-col gap-3">
           <ContactCard c={c} />
           <AddressSummary c={c} />
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-col gap-3">
           <ConsentSummary c={c} />
           <RecentDocuments c={c} />
           <RecentNotes c={c} />
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-col gap-3">
           <ContractsCard c={c} />
           <LeadsCard c={c} liveLeads={liveLeads} />
         </div>
@@ -225,8 +228,16 @@ function OverviewTab({ c, lookups }: { c: CustomerRecord; lookups: Lookups }) {
 // the tab that owns it (TabLink/TabJump) rather than duplicating its editing —
 // the owning tab stays the single place a field is changed.
 
-/** Overview card padding — tighter than the default Card so the tab fits its panel. */
-const OV_CARD = "!px-[15px] !py-[13px]";
+/**
+ * Overview card recipe. `shrink-0` because a card of FIELDS must never lose a
+ * row — Identity and Flags are editable only here, so dropping one would make it
+ * uneditable. When a column runs out of room the LIST cards give way instead
+ * (OV_LIST_CARD + FitRows): their overflow is reachable from a tab.
+ */
+const OV_CARD = "!px-[15px] !py-[13px] shrink-0";
+
+/** A card whose rows may be dropped to fit the panel: shrinks, clips, measures. */
+const OV_LIST_CARD = "!px-[15px] !py-[13px] flex min-h-0 flex-col";
 
 /**
  * How many rows a digest shows before "View all →" takes over. Kept small on
@@ -317,33 +328,31 @@ function SummaryCard({
   title,
   to,
   linkLabel = "View all →",
-  shown,
   total,
+  fit,
   children,
 }: {
   title: string;
   to: string;
   linkLabel?: string;
-  /** Rows rendered vs rows that exist — "2 of 7" when the cap is hiding some. */
-  shown?: number;
+  /** How many rows exist in total — shown in the header so a trimmed list is honest. */
   total?: number;
+  /** Rows may be dropped to fit the panel — see FitRows. */
+  fit?: boolean;
   children: React.ReactNode;
 }) {
-  const capped = shown != null && total != null && total > shown;
   return (
-    <Card className={OV_CARD}>
-      <div className="mb-1.5 flex items-center gap-2.5">
+    <Card className={fit ? OV_LIST_CARD : OV_CARD}>
+      <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>{title}</CardTitle>
-        {capped && (
-          <span className="text-[11.5px] text-[#a1a1aa]">
-            {shown} of {total}
-          </span>
+        {total != null && total > 0 && (
+          <span className="text-[11.5px] text-[#a1a1aa]">{total}</span>
         )}
         <TabLink to={to} className="ml-auto">
           {linkLabel}
         </TabLink>
       </div>
-      {children}
+      {fit ? <FitRows>{children}</FitRows> : children}
     </Card>
   );
 }
@@ -368,8 +377,8 @@ function ContactCard({ c }: { c: CustomerRecord }) {
   ].filter((r) => r.value && !shown.has(r.value.trim()));
 
   return (
-    <Card className={OV_CARD}>
-      <div className="mb-1.5 flex items-center gap-2.5">
+    <Card className={OV_LIST_CARD}>
+      <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Contact</CardTitle>
         <TabLink to="Address & access" className="ml-auto">
           Edit →
@@ -380,32 +389,22 @@ function ContactCard({ c }: { c: CustomerRecord }) {
           Add a first &amp; last name — the main contact appears here.
         </p>
       ) : (
-        <>
-          {m && (
-            <>
-              <Row label="Name">{m.name}</Row>
-              {m.position_role && <Row label="Role">{m.position_role}</Row>}
-              <CRow id={m.id} label="Email" field="email" value={m.email} />
-              <CRow
-                id={m.id}
-                label="Phone"
-                field="phone"
-                value={m.phone}
-                last={extra.length === 0 && !c.no_whatsapp}
-              />
-            </>
-          )}
-          {extra.map((r, i) => (
-            <Row key={r.label} label={r.label} last={i === extra.length - 1 && !c.no_whatsapp}>
+        <FitRows>
+          {m && <Row label="Name">{m.name}</Row>}
+          {m?.position_role && <Row label="Role">{m.position_role}</Row>}
+          {m && <CRow id={m.id} label="Email" field="email" value={m.email} />}
+          {m && <CRow id={m.id} label="Phone" field="phone" value={m.phone} />}
+          {extra.map((r) => (
+            <Row key={r.label} label={r.label}>
               {r.value}
             </Row>
           ))}
-        </>
-      )}
-      {c.no_whatsapp && (
-        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-[#f4f4f5] pt-2">
-          <Pill tone="neutral">No WhatsApp</Pill>
-        </div>
+          {c.no_whatsapp && (
+            <div className="flex flex-wrap gap-1.5 pt-2">
+              <Pill tone="neutral">No WhatsApp</Pill>
+            </div>
+          )}
+        </FitRows>
       )}
     </Card>
   );
@@ -418,7 +417,7 @@ function AddressSummary({ c }: { c: CustomerRecord }) {
     .join(", ");
   const lines = [line1, c.locality, c.town, c.county].filter(Boolean) as string[];
   return (
-    <SummaryCard title="Address" to="Address & access" linkLabel="Edit →">
+    <SummaryCard title="Address" to="Address & access" linkLabel="Edit →" fit>
       {lines.length === 0 && !c.postcode ? (
         <p className="py-1 text-[12px] text-[#71717a]">No address recorded.</p>
       ) : (
@@ -499,7 +498,7 @@ function ConsentChip({ label, value }: { label: string; value: boolean | null })
 function RecentNotes({ c }: { c: CustomerRecord }) {
   const recent = c.customerNotes.slice(0, DIGEST_ROWS);
   return (
-    <SummaryCard title="Recent notes" to="Notes" shown={recent.length} total={c.customerNotes.length}>
+    <SummaryCard title="Recent notes" to="Notes" total={c.customerNotes.length} fit>
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No notes yet.</p>
       ) : (
@@ -535,15 +534,13 @@ function RecentNotes({ c }: { c: CustomerRecord }) {
 function ContractsCard({ c }: { c: CustomerRecord }) {
   const contracts = c.contracts.slice(0, DIGEST_ROWS);
   return (
-    <Card className={OV_CARD}>
-      <div className="mb-1.5 flex items-center gap-2.5">
+    <Card className={OV_LIST_CARD}>
+      <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Contracts</CardTitle>
         {c.contracts.length > 0 && (
           <span className="ml-auto flex items-center gap-2 text-[11.5px] text-[#71717a]">
             {c.contracts.length}
-            {c.contracts.length > contracts.length && (
-              <TabLink to="Leads & contracts">View all →</TabLink>
-            )}
+            <TabLink to="Leads & contracts">View all →</TabLink>
           </span>
         )}
       </div>
@@ -552,40 +549,42 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
           No contracts yet — they appear here once a lead is won.
         </p>
       ) : (
-        contracts.map((k, i) => {
-          const row = (
-            <div
-              className={`flex flex-col gap-1 py-2 ${
-                i === contracts.length - 1 ? "" : "border-b border-[#f4f4f5]"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
-                  {k.contract_type ?? "Contract"}
-                </span>
-                <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
-                  {gbp(k.gross_value ?? 0)}
-                </span>
+        <FitRows>
+          {contracts.map((k, i) => {
+            const row = (
+              <div
+                className={`flex flex-col gap-1 py-2 ${
+                  i === contracts.length - 1 ? "" : "border-b border-[#f4f4f5]"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <RefChip inverted>{contractRef(k.contract_number)}</RefChip>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                    {k.contract_type ?? "Contract"}
+                  </span>
+                  <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
+                    {gbp(k.gross_value ?? 0)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[11.5px] text-[#a1a1aa]">
+                  {k.contract_date && <span>{longDate(k.contract_date)}</span>}
+                  {k.status && <Pill tone="neutral">{k.status}</Pill>}
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-[11.5px] text-[#a1a1aa]">
-                {k.contract_date && <span>{longDate(k.contract_date)}</span>}
-                {k.status && <Pill tone="neutral">{k.status}</Pill>}
-              </div>
-            </div>
-          );
-          return k.lead_id ? (
-            <Link
-              key={k.id}
-              href={`/leads/${k.lead_id}`}
-              className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
-            >
-              {row}
-            </Link>
-          ) : (
-            <div key={k.id}>{row}</div>
-          );
-        })
+            );
+            return k.lead_id ? (
+              <Link
+                key={k.id}
+                href={`/leads/${k.lead_id}`}
+                className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
+              >
+                {row}
+              </Link>
+            ) : (
+              <div key={k.id}>{row}</div>
+            );
+          })}
+        </FitRows>
       )}
     </Card>
   );
@@ -594,15 +593,13 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
 function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
   const leads = c.leads.slice(0, DIGEST_ROWS);
   return (
-    <Card className={OV_CARD}>
-      <div className="mb-1.5 flex items-center gap-2.5">
+    <Card className={OV_LIST_CARD}>
+      <div className="mb-1.5 flex shrink-0 items-center gap-2.5">
         <CardTitle>Leads</CardTitle>
         {c.leads.length > 0 && (
           <span className="ml-auto flex items-center gap-2 text-[11.5px] text-[#71717a]">
             {c.leads.length} · {liveLeads} live
-            {c.leads.length > leads.length && (
-              <TabLink to="Leads & contracts">View all →</TabLink>
-            )}
+            <TabLink to="Leads & contracts">View all →</TabLink>
           </span>
         )}
       </div>
@@ -617,35 +614,37 @@ function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
           </Link>
         </p>
       ) : (
-        leads.map((l, i) => (
-          <Link
-            key={l.id}
-            href={`/leads/${l.id}`}
-            className={`-mx-2 block rounded px-2 hover:bg-[#fafafa] ${
-              i === leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
-            }`}
-          >
-            <div className="flex flex-col gap-1 py-2">
-              <div className="flex items-center gap-2">
-                <RefChip>{leadRef(l.lead_number)}</RefChip>
-                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
-                  {l.product_type ?? l.product_interest_1 ?? "Lead"}
-                </span>
-                {(l.gross_value ?? l.estimated_value) != null && (
-                  <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
-                    {gbp(l.gross_value ?? l.estimated_value ?? 0)}
+        <FitRows>
+          {leads.map((l, i) => (
+            <Link
+              key={l.id}
+              href={`/leads/${l.id}`}
+              className={`-mx-2 block rounded px-2 hover:bg-[#fafafa] ${
+                i === leads.length - 1 ? "" : "border-b border-[#f4f4f5]"
+              }`}
+            >
+              <div className="flex flex-col gap-1 py-2">
+                <div className="flex items-center gap-2">
+                  <RefChip>{leadRef(l.lead_number)}</RefChip>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-[#3f3f46]">
+                    {l.product_type ?? l.product_interest_1 ?? "Lead"}
                   </span>
-                )}
+                  {(l.gross_value ?? l.estimated_value) != null && (
+                    <span className="shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
+                      {gbp(l.gross_value ?? l.estimated_value ?? 0)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <StageBadge status={l.status} />
+                  {l.lead_date && (
+                    <span className="text-[11.5px] text-[#a1a1aa]">{longDate(l.lead_date)}</span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <StageBadge status={l.status} />
-                {l.lead_date && (
-                  <span className="text-[11.5px] text-[#a1a1aa]">{longDate(l.lead_date)}</span>
-                )}
-              </div>
-            </div>
-          </Link>
-        ))
+            </Link>
+          ))}
+        </FitRows>
       )}
     </Card>
   );
@@ -654,7 +653,7 @@ function LeadsCard({ c, liveLeads }: { c: CustomerRecord; liveLeads: number }) {
 function RecentDocuments({ c }: { c: CustomerRecord }) {
   const recent = c.documents.slice(0, DIGEST_ROWS);
   return (
-    <SummaryCard title="Recent documents" to="Documents" shown={recent.length} total={c.documents.length}>
+    <SummaryCard title="Recent documents" to="Documents" total={c.documents.length} fit>
       {recent.length === 0 ? (
         <p className="py-1 text-[12px] text-[#71717a]">No documents yet.</p>
       ) : (

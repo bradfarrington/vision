@@ -194,6 +194,19 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
 - **Leads and contracts live in column 4 as compact stacks**, not the full-width `LeadCard` /
   `ContractCard`. A column is ~310px, so a row carries reference, what it is, when, how much and the
   stage badge, and links to the lead for everything else.
+- **The overview FILLS its panel and stops — it never scrolls and never spills.** The root is
+  `h-full min-h-0 overflow-hidden`, the grid takes the leftover height, and each column is a flex
+  stack. What gives way when the window is short is decided by which card it is:
+  - **Field cards are `shrink-0` (`OV_CARD`)** — Identity and Flags are editable ONLY on the
+    overview, so losing a row would make that field unreachable. They always render in full.
+  - **List cards shrink (`OV_LIST_CARD` + `FitRows`)** — Contact, Address, Recent documents, Recent
+    notes, Contracts, Leads. `FitRows` (`components/crm/fit-rows.tsx`) measures its box and renders
+    only the rows whose bottom clears it; the rest are hidden with `visibility` (NOT `display`, so
+    the measurement can't oscillate) and the parent clips, so no half-row ever shows. Every one of
+    them carries a total count + a jump, so nothing dropped is unreachable.
+  This is why the row caps alone weren't enough: three notes fit a 27" monitor and not a laptop, so
+  the count has to be decided at runtime. **If you add a card, decide which kind it is** — a card of
+  fields that live nowhere else must be `shrink-0`; anything mirroring a tab should shrink.
 - **The overview's height is BOUNDED BY DESIGN — every card has a fixed budget.** The rule that
   keeps it that way: *no card may grow with the data*. Lists cap at a row count; free text is
   clamped (access notes 2 lines, note snippets 2 lines); **every field row is exactly one line**
