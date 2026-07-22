@@ -368,12 +368,34 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   with per-column detail** — too much detail for a record you open to remind yourself who this is.
   Anyone who wants the full picture with dates, sources and salespeople goes to `/leads`. Keep this
   tab at a glance; push depth to the list screens.
-- **Customisable columns belong to the LIST SCREENS ONLY** (`/leads`, `/customers`), which today
-  hardcode a `GRID` template string. When built: a column registry per entity (key, label, width,
-  renderer, sortable) + a saved preference. **A saved column layout is PER USER, per list** (not per
-  tenant) — a salesperson and a fitter want different columns, and one admin's preference must not
-  become everyone's. A tenant default with user override can layer on later; assume user-scoped
-  storage from the start. Do NOT bring a column picker into the customer record.
+- **Customisable columns belong to the LIST SCREENS ONLY** (`/leads`, `/customers`) — do NOT bring a
+  column picker into the customer record. **Built for `/customers` on 2026-07-22**
+  (`src/components/crm/customers-list.tsx`); `/leads` still hardcodes its `GRID` and is the next to
+  get the same treatment.
+  - **A `COLUMNS` registry per entity is the source of truth** — `{ key, label, width (grid track),
+    cell(view) }`. The primary name column and the row controls (select box, chevron) are FIXED
+    edges, not in the registry; only the middle columns toggle/reorder. New columns default hidden
+    (a release must not force a column into everyone's view).
+  - **The saved layout is PER USER, per list, reusing `user_ui_layouts`** (§ Rearrangeable cards) —
+    `layout_key='customers_columns'`, shape `{ order: string[] }` = the visible columns in order
+    (absence = hidden). `getUserOrder`/`saveUserOrder`, so no new storage. A salesperson and a fitter
+    keep different columns; one admin's choice never becomes everyone's. (Tenant-default-with-override
+    can layer on later; storage is user-scoped from the start.)
+  - **The table is a CLIENT component fed serialisable rows** — the server page computes each row's
+    view (incl. `latestLeadActivity`, whose helper stays in the server data layer) and hands
+    `CustomerRowView[]` to `CustomerTable`. A `CustomerColumnsProvider` shares the column state
+    between the toolbar's "Columns" popover and the table; the grid template is built from the
+    visible columns' widths at render.
+  - **The "Columns" popover is toggle + drag-reorder** (dnd-kit, "Shown" sortable list + "Hidden"
+    section, Airtable-style), persisting on every change with a "Reset". The `DndContext` carries a
+    stable `id` (`cols-customers`) for the SSR/hydration reason in § Rearrangeable cards.
+- **Filters live in a "Filters" POPOVER, not inline pills.** The Town + Has-Live-Lead pills next to
+  the search were removed on 2026-07-22 and folded into the `FiltersButton` popover; the button shows
+  an active-filter count badge (pills gone means the applied state needs to read from somewhere) and a
+  "Clear all". Filters stay URL-param-driven (`useSetParams`) so the server re-queries and the state
+  is shareable/back-button-friendly — only the column layout is a saved preference. Both popovers use
+  `useFloatingMenu` (fixed, in-tree), NOT the base-ui `Popover` (it portals to `document.body`, which
+  drops the tenant accent — see § Popover menus).
 
 ## Bento layout is the house style — decided 2026-07-22
 

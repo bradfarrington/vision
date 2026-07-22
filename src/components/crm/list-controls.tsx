@@ -17,7 +17,7 @@ import {
 // the query string so the server component can read them and re-query — real,
 // shareable, back-button-friendly state (no client data fetching).
 
-function useSetParams() {
+export function useSetParams() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
