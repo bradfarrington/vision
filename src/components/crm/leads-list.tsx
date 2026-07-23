@@ -1,6 +1,6 @@
 "use client";
 
-import { StageBadge } from "@/components/crm/primitives";
+import { RefChip, StageBadge } from "@/components/crm/primitives";
 import { loadLeadRows } from "@/app/(app)/leads/actions";
 import {
   DataListProvider,
@@ -43,16 +43,15 @@ const NAME_CELL = "font-semibold text-[#0a0a0a]";
 
 const COLUMNS: Column[] = [
   {
+    // The ONLY lead-number column: the reference chip, sorted by the underlying
+    // lead_number. A second plain-text "Lead no." column showed the same value
+    // twice in two formats, which read as a duplicate in the column picker.
     key: "ref",
-    label: "Lead",
+    label: "Lead No.",
     group: "Lead",
     w: REF,
     sortField: "lead_number",
-    cell: (l) => (
-      <span className="inline-flex items-center rounded-md bg-[#f4f4f5] px-2 py-1 font-mono text-[11px] font-bold text-[#3f3f46]">
-        {l.ref}
-      </span>
-    ),
+    cell: (l) => <RefChip>{l.ref}</RefChip>,
   },
   {
     key: "title",
@@ -89,7 +88,6 @@ const COLUMNS: Column[] = [
   },
 
   // Lead
-  { key: "lead_number", label: "Lead no.", group: "Lead", w: SHORT, kind: "number" },
   { key: "result", label: "Result", group: "Lead", w: SHORT },
   { key: "result_reason", label: "Result reason", group: "Lead", w: TEXT },
   { key: "result_date", label: "Result date", group: "Lead", w: DATE, kind: "date" },

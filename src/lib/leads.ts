@@ -60,6 +60,25 @@ export const STAGE_TONE_CLASS: Record<StageTone, string> = {
   amber: "bg-[#fdf2dc] text-[#b86e00]",
 };
 
+/**
+ * STAT-TILE styling per stage tone — the leading rule and the figure colour for
+ * the leads list's pipeline strip. Same treatment as the customer overview's
+ * stat tiles (see AGENTS.md § Customer overview): colour lives in a 3px rule
+ * down the leading edge and in the figure, never in a header.
+ *
+ * The figure stays near-black for the open stages and takes the tone only where
+ * the tone IS the news — Won green, Lost red. Colouring every count would make
+ * the strip read as five warnings.
+ */
+export const STAGE_STAT_TONE: Record<StageTone, { rule: string; value: string }> = {
+  neutral: { rule: "bg-[#a1a1aa]", value: "text-[#0a0a0a]" },
+  outline: { rule: "bg-[#d4d4d8]", value: "text-[#0a0a0a]" },
+  dark: { rule: "bg-[#18181b]", value: "text-[#0a0a0a]" },
+  success: { rule: "bg-[#1a7f3e]", value: "text-[#1a7f3e]" },
+  danger: { rule: "bg-[#d64545]", value: "text-[#d64545]" },
+  amber: { rule: "bg-[#b86e00]", value: "text-[#b86e00]" },
+};
+
 /** Human reference for a lead: L-2417. */
 export function leadRef(leadNumber: number | null | undefined): string {
   return leadNumber != null ? `L-${leadNumber}` : "L-—";

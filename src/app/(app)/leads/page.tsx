@@ -2,8 +2,9 @@ import Link from "next/link";
 
 import { getLeads, type LeadFilters, type StageBucket, type ValueCondition } from "@/lib/data/leads";
 import { getUserPref } from "@/lib/data/user-layouts";
-import { PIPELINE_STAGES, leadStage } from "@/lib/leads";
+import { PIPELINE_STAGES, STAGE_STAT_TONE, leadStage } from "@/lib/leads";
 import { gbpCompact } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Icon, btnPrimary } from "@/components/crm/primitives";
 import { SearchBox } from "@/components/crm/list-controls";
 import {
@@ -114,29 +115,43 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 
         {/* Pipeline summary — a fixed set of stage tiles, each a one-click
             filter. Shown in stage order and filled with zeroes so the strip is
-            stable regardless of what data exists. */}
-        <div className="flex gap-2.5">
+            stable regardless of what data exists.
+
+            Styled as STAT TILES, matching the customer overview's strip: a 3px
+            coloured rule down the leading edge, an uppercase label, and the
+            count with its value inline. Two lines instead of three, so the
+            strip costs the table far less height than the old stacked cards. */}
+        <div className="flex flex-wrap gap-2.5">
           {pipelineSummary(pipeline).map((b) => {
             const stage = leadStage(b.key);
+            const tone = STAGE_STAT_TONE[stage.tone];
             const active = sp.stage === b.key;
             return (
               <Link
                 key={b.key}
                 href={stageHref(active ? null : b.key)}
-                className={`flex flex-1 flex-col gap-1 rounded-xl border px-4 py-3 transition-colors ${
+                className={cn(
+                  "relative min-w-[164px] flex-1 overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
                   active
                     ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
-                    : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]"
-                }`}
+                    : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
+                )}
               >
-                <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-[#52525b]">
-                  {stage.tone === "neutral" && <span className="size-1.5 rounded-full bg-[#71717a]" />}
+                <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
+                <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
                   {stage.label}
-                </span>
-                <span className="font-[family-name:var(--font-inter-tight)] text-[22px] font-extrabold text-[#0a0a0a]">
-                  {b.count}
-                </span>
-                <span className="text-[11.5px] text-[#71717a]">{gbpCompact(b.value)}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span
+                    className={cn(
+                      "font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
+                      tone.value,
+                    )}
+                  >
+                    {b.count}
+                  </span>
+                  <span className="text-[11.5px] text-[#71717a]">{gbpCompact(b.value)}</span>
+                </div>
               </Link>
             );
           })}

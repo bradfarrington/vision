@@ -1,6 +1,7 @@
 "use client";
 
-import { CountPill } from "@/components/crm/primitives";
+import { CountPill, RefChip } from "@/components/crm/primitives";
+import { customerRef } from "@/lib/leads";
 import { loadCustomerRows } from "@/app/(app)/customers/actions";
 import {
   DataListProvider,
@@ -67,7 +68,22 @@ const COLUMNS: Column[] = [
     w: SHORT,
     cell: (v) => <span>{titleCase(str(v.c.record.customer_type)) ?? "—"}</span>,
   },
-  { key: "customer_number", label: "Cust No.", group: "Identity", w: SHORT, kind: "number" },
+  {
+    // The reference chip, not a bare integer — matches the lead's L-2431 in the
+    // leads list and the CUST-0002 already shown on the customer record header,
+    // so one identity reads the same wherever it appears.
+    key: "customer_number",
+    label: "Cust No.",
+    group: "Identity",
+    // Wider than SHORT: "CUST-0002" is a 9-character mono chip, where the old
+    // bare integer was one or two digits.
+    w: 132,
+    sortField: "customer_number",
+    cell: (v) => {
+      const n = v.c.record.customer_number;
+      return typeof n === "number" ? <RefChip>{customerRef(n)}</RefChip> : <span className="text-[#a1a1aa]">—</span>;
+    },
+  },
   { key: "property_type", label: "Property type", group: "Identity", w: TEXT },
 
   // Contact
