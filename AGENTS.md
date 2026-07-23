@@ -527,6 +527,32 @@ list's twin, plus one thing of its own.
   own keys by `toLeadRow` and are **not sortable** (there's no `leads` column to ORDER BY).
 - Default order is `lead_date` descending (newest enquiry first) when no `sort` param is present.
 
+### Date-range picker — decided 2026-07-23
+
+A third toolbar button beside Columns and Filters (`DateRangeButton`,
+`src/components/crm/date-range-button.tsx`), presets + a custom range, over `lib/date-range.ts`.
+
+- **The URL carries the PRESET KEY, not the dates it resolves to** — `range=90d`, resolved
+  server-side per request. So "Last 90 days" stays a **rolling window**: a bookmarked or shared link
+  means the same thing next month as it does today. **Only `range=custom` carries explicit
+  `from`/`to`**, because fixed endpoints are the whole point of that one. Absent = all time.
+- **`to` is EXCLUSIVE** — the first instant of the day AFTER the range ends, and the query uses `lt`
+  not `lte`. Lead dates are `timestamptz`, so a `<= 2026-07-23` bound silently drops everything
+  logged later that day.
+- **It ranges `lead_date`** (when the enquiry arrived) — the column the list is ordered by, so it's
+  the one a range is about. A list whose range and default sort disagree is confusing.
+- **The pipeline strip respects the range** (`getLeadPipeline` takes the bounds): tiles counting all
+  time above a table showing 90 days reads as a bug. It deliberately does **NOT** respect the stage
+  filter — the strip is how you switch stage, so narrowing it to the selected one leaves no way back.
+- **Custom endpoints are staged locally and applied on "Apply"**, not written per pick — a param
+  write on each date would re-query the list halfway through choosing and briefly show a window
+  nobody asked for. Either end may be left blank for an open-ended range.
+- Applied at the DB like every other list filter, so paging and the exact count stay correct. It
+  rides in the session view state for free (`ViewStateSaver` saves the whole query string).
+- **The shared toolbar `Popover` is exported from `data-list.tsx`** and takes an `IconName` plus an
+  `active` flag (light the trigger without a numeric badge) and a `close` callback passed to its
+  children. All three toolbar buttons use it — **don't hand-roll a fourth.**
+
 ## The lead record — tabs, notes, documents — built 2026-07-23
 
 The lead detail is a **tabbed record** like the customer's: Overview · Activity · Notes · Documents ·

@@ -108,6 +108,13 @@ export type LeadFilters = {
   stage?: string;
   source?: string;
   page?: number;
+  /**
+   * Date-range bounds on `lead_date` (when the enquiry arrived — the date the
+   * list is ordered by, so it's the one a range means). Resolved from the URL's
+   * `range` preset by the page; `dateTo` is EXCLUSIVE (see lib/date-range).
+   */
+  dateFrom?: string;
+  dateTo?: string;
   /** Allowlisted lead-column filters, keyed by column name (see *_FILTER_COLUMNS). */
   columnFilters?: Record<string, string>;
   /** Advanced field/operator/value conditions, ANDed together. */
@@ -245,6 +252,12 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
   if (filters.stage) query = query.eq("status", filters.stage);
   if (filters.source) query = query.eq("source", filters.source);
 
+  // Date range on lead_date. Applied at the DB so paging and the exact count
+  // stay correct. `lt` (not `lte`) on the upper bound: it is the first instant
+  // AFTER the last day, so the whole final day is included.
+  if (filters.dateFrom) query = query.gte("lead_date", filters.dateFrom);
+  if (filters.dateTo) query = query.lt("lead_date", filters.dateTo);
+
   const q = filters.search?.trim();
   if (q) {
     const like = `%${q}%`;
@@ -295,7 +308,7 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
   const rows = ((data ?? []) as unknown as RawLead[]).map(toLeadRow);
   const [sources, pipeline, filterOptions] = await Promise.all([
     getLeadSources(supabase),
-    getLeadPipeline(supabase),
+    getLeadPipeline(supabase, { dateFrom: filters.dateFrom, dateTo: filters.dateTo }),
     getFilterOptions(supabase),
   ]);
 
@@ -600,9 +613,17 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
 /** Per-stage lead counts + summed value, across the whole tenant. */
 export async function getLeadPipeline(
   supabase?: Awaited<ReturnType<typeof createClient>>,
+  range?: { dateFrom?: string; dateTo?: string },
 ): Promise<StageBucket[]> {
   const client = supabase ?? (await createClient());
-  const { data, error } = await client.from("leads").select("status, gross_value, estimated_value");
+  let q = client.from("leads").select("status, gross_value, estimated_value");
+  // The strip must agree with the table beneath it — a "Last 90 days" range that
+  // filtered the rows but left the tiles counting all time would read as a bug.
+  // Stage filters deliberately DON'T apply: the strip is how you switch stage,
+  // so narrowing it to the selected one would leave no way back.
+  if (range?.dateFrom) q = q.gte("lead_date", range.dateFrom);
+  if (range?.dateTo) q = q.lt("lead_date", range.dateTo);
+  const { data, error } = await q;
   if (error) throw new Error(`getLeadPipeline: ${error.message}`);
 
   const buckets = new Map<string, StageBucket>();

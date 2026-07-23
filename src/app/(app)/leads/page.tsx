@@ -13,7 +13,9 @@ import {
   LeadColumnsProvider,
   LeadTable,
 } from "@/components/crm/leads-list";
+import { DateRangeButton } from "@/components/crm/date-range-button";
 import { ViewStateSaver } from "@/components/crm/view-state";
+import { resolveRange } from "@/lib/date-range";
 
 // Leads list — net-new (no design exists), built on the same shared list
 // machinery as /customers: configurable + resizable + sortable columns saved per
@@ -51,6 +53,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 
   const valueFilters = parseValueFilters(sp.fq);
 
+  // The URL carries the PRESET KEY (a rolling window), not the dates it means —
+  // so a shared "Last 90 days" link still means the last 90 days next month.
+  // Only `range=custom` carries explicit from/to. See lib/date-range.
+  const { from: dateFrom, to: dateTo } = resolveRange(sp.range, { from: sp.from, to: sp.to });
+
   // Default arrangement is newest lead first — the sidebar link carries no
   // query, so leaving and returning always lands here.
   const sort = sp.sort ?? null;
@@ -62,6 +69,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     stage: sp.stage,
     columnFilters,
     valueFilters,
+    dateFrom,
+    dateTo,
     ...(sort ? { sort, dir } : {}),
   };
   const [{ rows, total, pipeline, filterOptions }, columnPref] = await Promise.all([
@@ -86,6 +95,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     stage: sp.stage,
     columnFilters,
     valueFilters,
+    dateFrom,
+    dateTo,
     sort,
     dir,
   });
@@ -105,6 +116,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             {total.toLocaleString("en-GB")}
           </span>
           <div className="ml-auto flex items-center gap-2.5">
+            {/* Ranges lead-date (when the enquiry arrived) — the date this list
+                is ordered by, so it's the one a range is about. */}
+            <DateRangeButton />
             <ColumnsButton />
             <FiltersButton filterOptions={filterOptions} />
             <Link href="/leads/new" className={btnPrimary}>
