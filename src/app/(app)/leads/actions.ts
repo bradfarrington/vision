@@ -116,6 +116,7 @@ const EDITABLE_LEAD_FIELDS = new Set<string>([
   "salesman", "salesperson_type", "source", "sub_source", "product_type",
   "product_interest_1", "product_interest_2", "window_count", "gross_value",
   "estimated_value", "priority", "follow_up_date", "notes",
+  "quote_type", "quote_date", "payment_method", "result_reason", "lead_date",
 ]);
 
 const NUMERIC_LEAD_FIELDS = new Set(["window_count", "gross_value", "estimated_value"]);

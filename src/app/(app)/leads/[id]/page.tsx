@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getLead, type AddressParts, type LeadDetail } from "@/lib/data/leads";
+import { getTenantOptionLists, type TenantOption } from "@/lib/data/customer-record";
+import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
 import { gbp } from "@/lib/format";
 import { Card, CardTitle, Icon, Pill, btnPrimary, btnSecondary } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { updateLeadField } from "@/app/(app)/leads/actions";
-import { IllustrativeMap } from "@/components/crm/illustrative-map";
+import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
+import { AddressMap } from "@/components/crm/address-map";
 import {
   ChecklistToggle,
   NoteComposer,
@@ -22,6 +25,19 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const lead = await getLead(id);
   if (!lead) notFound();
+
+  const [opts, salesStaff] = await Promise.all([
+    getTenantOptionLists([
+      "lead_source",
+      "lead_sub_source",
+      "product_type",
+      "quote_type",
+      "payment_method",
+      "result_reason",
+      "salesperson_type",
+    ]),
+    getSalesStaff(),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col gap-[14px] overflow-y-auto px-[26px] py-[22px]">
@@ -81,7 +97,7 @@ export default async function LeadDetailPage({
       <div className="grid min-h-0 flex-1 grid-cols-[310px_1fr_310px] gap-4">
         {/* Left */}
         <div className="flex min-h-0 flex-col gap-3">
-          <LeadPanel lead={lead} />
+          <LeadPanel lead={lead} opts={opts} salesStaff={salesStaff} />
           <AddressesPanel lead={lead} />
         </div>
 
@@ -98,24 +114,45 @@ export default async function LeadDetailPage({
   );
 }
 
-function LeadPanel({ lead }: { lead: LeadDetail }) {
+function LeadPanel({
+  lead,
+  opts,
+  salesStaff,
+}: {
+  lead: LeadDetail;
+  opts: Record<string, TenantOption[]>;
+  salesStaff: StaffOption[];
+}) {
   return (
     <Card>
       <CardTitle className="mb-1.5 text-[14px]">Lead</CardTitle>
       <FieldRow label="Lead No.">
         <span className="font-mono font-semibold">{lead.leadNumber ?? "—"}</span>
       </FieldRow>
-      <FieldRow label="Date Received">{fmt(lead.leadDate)}</FieldRow>
-      <EL leadId={lead.id} label="Salesperson" field="salesman" value={lead.salesman} />
-      <EL leadId={lead.id} label="Source" field="source" value={lead.source} />
-      <EL leadId={lead.id} label="Sub-Source" field="sub_source" value={lead.subSource} />
-      <EL leadId={lead.id} label="Main Interest" field="product_type" value={lead.productType} />
-      <EL leadId={lead.id} label="Second Interest" field="product_interest_2" value={lead.productInterest2} />
+      <EL leadId={lead.id} label="Date Received" field="lead_date" value={lead.leadDate} type="date" />
+      {/* Salesperson comes from staff_members (not auth users), so it carries its
+          own add/retire handlers rather than a tenant_options list_key. */}
+      <EL
+        leadId={lead.id}
+        label="Salesperson"
+        field="salesman"
+        value={lead.salesman}
+        type="lookup"
+        lookupOptions={salesStaff}
+        onAddNew={addSalesStaff}
+        onDeleteOption={deleteSalesStaff}
+      />
+      <EL leadId={lead.id} label="Salesperson Type" field="salesperson_type" value={lead.salespersonType} type="lookup" listKey="salesperson_type" opts={opts} />
+      <EL leadId={lead.id} label="Source" field="source" value={lead.source} type="lookup" listKey="lead_source" opts={opts} />
+      <EL leadId={lead.id} label="Sub-Source" field="sub_source" value={lead.subSource} type="lookup" listKey="lead_sub_source" opts={opts} />
+      <EL leadId={lead.id} label="Main Interest" field="product_type" value={lead.productType} type="lookup" listKey="product_type" opts={opts} />
+      <EL leadId={lead.id} label="Second Interest" field="product_interest_2" value={lead.productInterest2} type="lookup" listKey="product_type" opts={opts} />
       <EL leadId={lead.id} label="Windows" field="window_count" value={lead.windowCount} type="number" />
       <EL leadId={lead.id} label="Follow-Up Date" field="follow_up_date" value={lead.followUpDate} type="date" />
-      <FieldRow label="Quote Date · Value">
-        {lead.quoteDate ? `${fmt(lead.quoteDate)} · ${gbp(lead.value)}` : "—"}
-      </FieldRow>
+      <EL leadId={lead.id} label="Quote Type" field="quote_type" value={lead.quoteType} type="lookup" listKey="quote_type" opts={opts} />
+      <EL leadId={lead.id} label="Quote Date" field="quote_date" value={lead.quoteDate} type="date" />
+      <EL leadId={lead.id} label="Payment Method" field="payment_method" value={lead.paymentMethod} type="lookup" listKey="payment_method" opts={opts} />
+      <EL leadId={lead.id} label="Result Reason" field="result_reason" value={lead.resultReason} type="lookup" listKey="result_reason" opts={opts} />
       <FieldRow label="Result" last border={false}>
         <Pill tone={lead.result === "lost" ? "danger" : "success"}>{lead.result ?? "alive"}</Pill>
       </FieldRow>
@@ -129,17 +166,39 @@ function EL({
   field,
   value,
   type = "text",
+  listKey,
+  opts,
+  lookupOptions,
+  onAddNew,
+  onDeleteOption,
 }: {
   leadId: string;
   label: string;
   field: string;
   value: string | number | boolean | null;
   type?: EditableType;
+  /** tenant_options list_key — its options are read from `opts`. */
+  listKey?: string;
+  opts?: Record<string, TenantOption[]>;
+  /** Bespoke option source (e.g. staff), used instead of listKey/opts. */
+  lookupOptions?: TenantOption[];
+  onAddNew?: (label: string) => Promise<{ label?: string; error?: string }>;
+  onDeleteOption?: (id: string) => Promise<{ error?: string }>;
 }) {
   return (
     <div className="flex items-center justify-between gap-2.5 border-b border-[#f4f4f5] py-1.5 text-[12px]">
       <span className="text-[#71717a]">{label}</span>
-      <EditableField id={leadId} field={field} value={value} action={updateLeadField} type={type} />
+      <EditableField
+        id={leadId}
+        field={field}
+        value={value}
+        action={updateLeadField}
+        type={type}
+        listKey={listKey}
+        lookupOptions={lookupOptions ?? (listKey ? (opts?.[listKey] ?? []) : undefined)}
+        onAddNew={onAddNew}
+        onDeleteOption={onDeleteOption}
+      />
     </div>
   );
 }
@@ -164,8 +223,15 @@ function AddressesPanel({ lead }: { lead: LeadDetail }) {
           note={lead.fittingDirections}
         />
       </div>
-      {(lead.install.postcode || lead.customer?.address.postcode) && (
-        <IllustrativeMap className="mt-3" />
+      {/* The real map, on the INSTALLATION address — that's the address a
+          surveyor or fitter is actually travelling to. */}
+      {lead.install.postcode && (
+        <AddressMap
+          className="mt-3"
+          height={190}
+          {...lead.install.fields}
+          what3words={lead.install.whatThreeWords}
+        />
       )}
     </Card>
   );

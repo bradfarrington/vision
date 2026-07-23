@@ -187,12 +187,16 @@ export type LeadDetail = {
   source: string | null;
   subSource: string | null;
   salesman: string | null;
+  salespersonType: string | null;
   productType: string | null;
   productInterest1: string | null;
   productInterest2: string | null;
   windowCount: number | null;
   leadDate: string | null;
   quoteDate: string | null;
+  quoteType: string | null;
+  paymentMethod: string | null;
+  resultReason: string | null;
   followUpDate: string | null;
   notes: string | null;
   // Installation address (falls back to customer address).
@@ -218,6 +222,22 @@ export type AddressParts = {
   line2: string | null;
   postcode: string | null;
   whatThreeWords: string | null;
+  /**
+   * The address as loose fields, for AddressMap — it geocodes the FULL address
+   * to land the pin on the building, so it needs house number / street / town
+   * discretely, not the joined display lines. See AGENTS.md § Maps & geocoding.
+   */
+  fields: AddressFields;
+};
+
+export type AddressFields = {
+  houseName: string | null;
+  houseNumber: string | null;
+  street: string | null;
+  locality: string | null;
+  town: string | null;
+  county: string | null;
+  postcode: string | null;
 };
 
 function addr(
@@ -239,6 +259,15 @@ function addr(
     line2: line2 || null,
     postcode: parts.postcode ?? null,
     whatThreeWords: parts.what_3_words ?? null,
+    fields: {
+      houseName: parts.house_name ?? null,
+      houseNumber: parts.house_number ?? null,
+      street: parts.street ?? null,
+      locality: parts.locality ?? null,
+      town: parts.town ?? null,
+      county: parts.county ?? null,
+      postcode: parts.postcode ?? null,
+    },
   };
 }
 
@@ -250,7 +279,8 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
     .select(
       `id, lead_number, status, result, priority, gross_value, estimated_value,
        product_type, product_interest_1, product_interest_2, window_count,
-       source, sub_source, salesman, lead_date, quote_date, follow_up_date, notes,
+       source, sub_source, salesman, salesperson_type, lead_date, quote_date, quote_type,
+       payment_method, result_reason, follow_up_date, notes,
        same_as_customer_address, invoice_same_as_customer, fitting_same_as_customer,
        installation_house_name, installation_house_number, installation_street,
        installation_locality, installation_town, installation_county, installation_postcode,
@@ -304,12 +334,16 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
     source: l.source,
     subSource: l.sub_source,
     salesman: l.salesman,
+    salespersonType: l.salesperson_type,
     productType: l.product_type,
     productInterest1: l.product_interest_1,
     productInterest2: l.product_interest_2,
     windowCount: l.window_count,
     leadDate: l.lead_date,
     quoteDate: l.quote_date,
+    quoteType: l.quote_type,
+    paymentMethod: l.payment_method,
+    resultReason: l.result_reason,
     followUpDate: l.follow_up_date,
     notes: l.notes,
     install,
