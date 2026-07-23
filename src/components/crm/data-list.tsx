@@ -1040,7 +1040,10 @@ export function DataTable<V, F>({
   const hrefOf = spec.rowHref as unknown as (v: V) => string;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e7e7ea]">
+    // Square, and no bottom border — the table meets the panel's bottom edge, so
+    // rounded corners there would cut a notch out of the last row and a bottom
+    // rule would draw a line along an edge that already ends.
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-x border-t border-[#e7e7ea]">
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <div style={{ minWidth: "min-content" }}>
           <div

@@ -12,9 +12,10 @@ import { DialogsProvider } from "@/components/crm/dialogs";
 import { ScreenTooSmall } from "@/components/app-shell/screen-too-small";
 
 // Authenticated app shell: grey canvas, ~62px topbar, 76px icon rail and a
-// white rounded content panel — matching the dashboard frame in the design
-// handoff. The tenant accent is derived from the company row and applied as
-// CSS custom properties on the shell root, so every child rebrands from here.
+// white content panel that runs full-bleed to the right and bottom of the
+// viewport (see the note on <main>). The tenant accent is derived from the
+// company row and applied as CSS custom properties on the shell root, so every
+// child rebrands from here.
 export default async function AppLayout({
   children,
 }: {
@@ -48,7 +49,14 @@ export default async function AppLayout({
           />
           <div className="flex min-h-0 min-w-0 flex-1 items-stretch overflow-hidden">
             <Sidebar />
-            <main className="mr-4 mb-4 flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
+            {/* The panel runs FLUSH to the right and bottom of the viewport — no
+                gutter, so screen height and width go to content. Only the
+                top-left corner is rounded and only the left/top edges are
+                bordered: the other two sit on the viewport edge, where a radius
+                cuts a grey notch out of the panel and a rule draws a line along
+                an edge that already ends. `overflow-hidden` still clips the
+                square-cornered table inside it. */}
+            <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-tl-2xl border-l border-t border-[#e7e7ea] bg-white shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
               {children}
             </main>
           </div>

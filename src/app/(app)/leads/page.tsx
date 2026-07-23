@@ -106,7 +106,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
       {/* Remembers this list's filters/sort for the session so returning here
           restores them instead of resetting to the default. */}
       <ViewStateSaver />
-      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] py-[22px]">
+      {/* No bottom padding: the table runs flush to the panel's bottom edge, so
+          every pixel of height goes to rows. The <main> panel is rounded +
+          overflow-hidden, which clips the table's square corners for us. */}
+      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] pt-[22px]">
         {/* Header */}
         <div className="flex items-center gap-3">
           <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
