@@ -257,28 +257,6 @@ export async function getCustomers(
   };
 }
 
-export type CustomerOption = { id: string; name: string };
-
-/** Minimal customer list for pickers (New Lead form). */
-export async function getCustomerOptions(): Promise<CustomerOption[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id, first_name, last_name, company_name, customer_type")
-    .order("last_name")
-    .limit(500);
-  if (error) throw new Error(`getCustomerOptions: ${error.message}`);
-  return (data ?? []).map((c) => ({
-    id: c.id,
-    name:
-      isCommercial(c.customer_type) && c.company_name
-        ? c.company_name
-        : [c.first_name, c.last_name].filter(Boolean).join(" ").trim() ||
-          c.company_name ||
-          "Unnamed",
-  }));
-}
-
 export type ContractSummary = {
   id: string;
   contract_number: number | null;

@@ -1,12 +1,12 @@
-import Link from "next/link";
-
-import { getCustomerOptions } from "@/lib/data/customers";
+import { getCustomerAsMatch } from "@/lib/data/customer-match";
 import { getTenantOptionLists } from "@/lib/data/customer-record";
 import { getSalesStaff } from "@/lib/data/staff";
 import { LeadForm } from "@/components/crm/lead-form";
 import { RememberedLink } from "@/components/crm/view-state";
 
-// Lookups the create wizard offers as tenant-editable pick-lists.
+// Lookups the create wizard offers as tenant-editable pick-lists. The capture
+// step now mints customers too, so it needs the customer-side lists (title,
+// locality/town/county) alongside the lead's own.
 const LOOKUP_KEYS = [
   "lead_source",
   "lead_sub_source",
@@ -14,6 +14,10 @@ const LOOKUP_KEYS = [
   "quote_type",
   "payment_method",
   "salesperson_type",
+  "title",
+  "locality",
+  "town",
+  "county",
 ];
 
 export default async function NewLeadPage({
@@ -22,10 +26,11 @@ export default async function NewLeadPage({
   searchParams: Promise<{ customer?: string }>;
 }) {
   const sp = await searchParams;
-  const [customers, lookups, salesStaff] = await Promise.all([
-    getCustomerOptions(),
+  const [lookups, salesStaff, linked] = await Promise.all([
     getTenantOptionLists(LOOKUP_KEYS),
     getSalesStaff(),
+    // Arriving from a customer record's "New lead" button — already answered.
+    sp.customer ? getCustomerAsMatch(sp.customer) : Promise.resolve(null),
   ]);
 
   return (
@@ -37,25 +42,15 @@ export default async function NewLeadPage({
         <span className="mx-1 text-[#d4d4d8]">/</span>
         <span className="font-semibold text-[#0a0a0a]">New lead</span>
       </div>
-      {customers.length === 0 ? (
-        <div className="rounded-xl border border-[#e7e7ea] bg-white p-6 text-center text-[13px] text-[#71717a]">
-          You need a customer first.{" "}
-          <Link href="/customers/new" className="font-semibold text-[var(--accent-blue)]">
-            Create a customer →
-          </Link>
-        </div>
-      ) : (
-        // The wizard renders its own sticky heading + step tracker, so the page
-        // contributes only the breadcrumb.
-        <LeadForm
-          customers={customers}
-          defaultCustomerId={sp.customer}
-          cancelHref="/leads"
-          heading="New Lead"
-          lookups={lookups}
-          salesStaff={salesStaff}
-        />
-      )}
+      {/* No "you need a customer first" gate any more: the capture step creates
+          one when the caller isn't on the book. */}
+      <LeadForm
+        initialLinked={linked}
+        cancelHref="/leads"
+        heading="New Lead"
+        lookups={lookups}
+        salesStaff={salesStaff}
+      />
     </div>
   );
 }

@@ -846,20 +846,80 @@ New Customer and New Lead. Extracted when the lead wizard was built, for the sam
 
 ## New Lead wizard — built 2026-07-23
 
-`/leads/new` is a **staged wizard** on the shell above: **Customer → Enquiry → Value → Quote
-(optional) → Notes (optional) → Review**. It replaced a flat form of plain inputs whose Source list
-was a hardcoded seven-item array in the component — the last place in the CRM minting free text.
+`/leads/new` is a **staged wizard** on the shell above: **Contact → Address → Enquiry → Value →
+Quote (optional) → Notes (optional) → Review**. It replaced a flat form of plain inputs whose Source
+list was a hardcoded seven-item array in the component — the last place in the CRM minting free text.
 
 - **Every pick-list is a real tenant-editable lookup** (`lead_source`, `lead_sub_source`,
   `product_type`, `quote_type`, `payment_method`, `salesperson_type`), seeded for all tenants by
   `20260723090000_lead_lookup_defaults.sql`. **Salesperson comes from `staff_members`** via
   `getSalesStaff`/`addSalesStaff`/`deleteSalesStaff`, like the customer's Sales manager.
-- **The customer picker is a searchable `Combo`, not a `<select>`** (a book runs to thousands of
-  names) and is **`clearable={false}`** — it's required, one of the two cases that justifies it.
-  There is **no "add new"** on it: a customer is created on its own screen, never as a side effect of
-  logging a lead.
 - `createLead` accepts `quote_type`, `quote_date`, `payment_method`, `estimated_value` and
   `window_count`, and **`lead_date` can be backdated** for a lead entered after the fact.
+
+### Capture first, match second — decided 2026-07-23
+
+**The wizard no longer OPENS on a customer picker.** It asked the person taking the call a question
+they cannot answer: at four thousand customers nobody remembers whether the voice on the phone is a
+repeat. So the flow inverted — **take the enquiry's details, then search the book with them and
+offer to link.** The `Combo` customer picker and `getCustomerOptions()` (capped at 500 names, so it
+was silently wrong past that anyway) are both **deleted; don't reinstate either.**
+
+- **The lead can now CREATE its customer.** The "You need a customer first → create one →
+  navigate back" dead end is gone. `createLead` links an existing customer OR mints one from the
+  capture, via the shared `insertCustomer()`.
+- **Customer creation lives in ONE place — `src/lib/data/customer-write.ts`** (`insertCustomer` +
+  `syncPersonContact`), shared by `saveCustomer` and `createLead`. A second copy is how a customer
+  created from a lead would quietly arrive without its `CUST-` reference, its salutation or its
+  mirrored "Main" contact. `syncPersonContact` moved here out of `customers/actions.ts`.
+- **Matching lives in `src/lib/data/customer-match.ts`** (`matchCustomers`, `getCustomerAsMatch`);
+  the UI is `components/crm/customer-match.tsx` (`useCustomerMatches` + `CustomerMatchPanel`).
+  Reuse both when contracts/quotes need "do we know them?" — do not fork.
+  - **It SUGGESTS, it never decides.** Linking is always an explicit click. Two different Smiths in
+    the same town is a real thing and merging them is unrecoverable, so nothing auto-links —
+    not even an exact phone match.
+  - **Every candidate says WHY it matched** ("Same mobile", "Same address", "Same surname"), because
+    a score is unjudgeable and those three facts are not equally strong. Phone/email/full-address
+    hits clear the `strong` bar (accent rule + filled button); surname or postcode alone is
+    `possible` (neutral). Below `FLOOR` a candidate isn't shown at all.
+  - **A postcode alone is a NEIGHBOURHOOD, not an identity** (~15 houses — the same fact the map's
+    full-address geocoding exists for). It scores 22; only postcode **+ house number/name** counts
+    as "Same address" at 50.
+  - **ONE query, deliberately loose, then scored exactly in JS.** Phones and postcodes are stored in
+    whatever format they were typed, so the candidate filter uses a wildcard-between-every-character
+    LIKE (`loosePattern`) and every hit is re-checked by normalising both sides (`phoneKey` = last 9
+    digits, so `07700 900123`, `+447700900123` and `07700900123` are one number). Those patterns
+    can't use an index — fine at a few thousand customers; **the upgrade is a normalised
+    phone/postcode column with an index, not a second query.**
+  - **`findCustomerMatches` FAILS SOFT** — matching is an assist, not a gate, and a failed lookup
+    must never stop someone logging the enquiry in front of them.
+  - The lookup is debounced (400ms) and **owned by the FORM, not the panel**, because Review needs
+    it too: a strong candidate still on screen while creating a NEW customer raises the amber
+    "creating a second record splits their history in two" warning, with the same link buttons.
+- **Linking fills blanks and ASKS about conflicts.** A field the customer has **blank** is filled
+  from the capture (an enquiry that yields the first email address on a ten-year-old record should
+  record it). A field that already holds a **different** value is only changed if the user picks
+  "Use the new one" on Review — a mistyped number must never silently replace a good one. The
+  server's `apply_updates` is **derived from the form's values**, not a separate tick state, so the
+  displayed value always IS the answer.
+  - **Names are NOT patchable** (`PATCHABLE_ON_LINK` is contact + address only). A name identifies
+    the customer; correcting one is a deliberate act on the record, not a side effect of taking a call.
+  - **"Not them" restores what was typed.** The pre-link values are snapshotted, so unlinking gives
+    back the caller's details rather than leaving the customer's pulled-through ones behind.
+- **Customer address and site address sit on ONE step, and the site address starts BLANK.** The
+  customer's address pulls through on link; the site address is filled only by the "Same as customer
+  address" copy button or by typing — a pre-filled site address would be a claim nobody made.
+  Landlords and second properties are exactly why it exists.
+  - **A site address that is blank OR identical to the customer's IS the customer's**:
+    `same_as_customer_address = true` with `installation_*` left null, so the lead record keeps
+    rendering the LIVE customer address rather than a frozen copy that drifts when they move.
+    Different → `false` + `installation_*`, which is what `getLead`/`toLeadRow` already read.
+- **Capture fields are `c_`-prefixed in the form, site fields `site_`-prefixed.** The lead and the
+  customer both have a `notes`, a `source` and a `town`; unprefixed they would collide in one
+  `FormData`.
+- **The `?customer=` deep link still works** (a customer record's "New lead" button) — the page
+  loads that customer through `getCustomerAsMatch` and hands it in as `initialLinked`, so it arrives
+  already answered.
 
 ## Lead lookups — decided 2026-07-23
 

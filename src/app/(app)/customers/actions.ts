@@ -16,9 +16,9 @@ import {
   type ActivityLine,
 } from "@/lib/data/customers";
 import { titleCaseName } from "@/lib/data/staff";
+import { insertCustomer, syncPersonContact } from "@/lib/data/customer-write";
 import type { Database } from "@/lib/supabase/types";
 
-type CustomerInsert = Database["public"]["Tables"]["customers"]["Insert"];
 type CustomerUpdate = Database["public"]["Tables"]["customers"]["Update"];
 
 export type CustomerFormState = { error?: string };
@@ -138,9 +138,6 @@ export async function saveCustomer(
   const firstName = str(data.first_name);
   const lastName = str(data.last_name);
 
-  // Salutation defaults to Title + surname (how we address them).
-  data.salutation = [str(data.title), lastName].filter(Boolean).join(" ").trim() || null;
-
   const isCommercial = (str(data.customer_type) ?? "").toLowerCase() === "commercial";
   if (!firstName || !lastName) {
     return { error: "First and last name are required." };
@@ -153,7 +150,9 @@ export async function saveCustomer(
   let customerId: string;
 
   if (typeof id === "string" && id) {
-    // Update — RLS confines this to the caller's own tenant.
+    // Update — RLS confines this to the caller's own tenant. Salutation is
+    // derived here; on insert `insertCustomer` does it.
+    data.salutation = [str(data.title), lastName].filter(Boolean).join(" ").trim() || null;
     const { error } = await supabase
       .from("customers")
       .update(data as CustomerUpdate)
@@ -161,31 +160,11 @@ export async function saveCustomer(
     if (error) return { error: error.message };
     customerId = id;
   } else {
-    const companyId = await getCompanyId();
-    if (!companyId) return { error: "No tenant in session. Please sign in again." };
-    // Per-tenant customer number. The counter starts at 0 for every tenant, so
-    // the first customer is 0001 (displayed zero-padded). next_reference derives
-    // the tenant from the JWT and increments atomically.
-    const { data: customerNumber } = await supabase.rpc("next_reference", {
-      p_name: "customer",
-    });
-    const { data: inserted, error } = await supabase
-      .from("customers")
-      .insert({
-        ...data,
-        company_id: companyId,
-        customer_number: customerNumber != null ? Number(customerNumber) : null,
-      } as CustomerInsert)
-      .select("id")
-      .single();
-    if (error) return { error: error.message };
-    customerId = inserted.id;
-    // Mirror the first person into a (default) linked contact.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await syncPersonContact(supabase as any, companyId, customerId, "primary", firstName, lastName, {
-      email: str(data.email),
-      phone: str(data.phone) ?? str(data.mobile),
-    });
+    // Shared with the New Lead capture, so a customer created either way gets
+    // its CUST- reference, salutation and mirrored primary contact.
+    const res = await insertCustomer(data);
+    if (res.error || !res.id) return { error: res.error ?? "Could not create the customer." };
+    customerId = res.id;
   }
 
   revalidatePath("/customers");
@@ -260,71 +239,6 @@ export async function updateCustomerField(
   revalidatePath(`/customers/${id}`);
   revalidatePath("/customers");
   return {};
-}
-
-// --- Auto-mirror the customer's name fields into contacts -------------------
-// The primary/secondary person on the customer becomes a linked contact,
-// kept in sync by `origin`. The default contact drives the overview "Main" card.
-async function syncPersonContact(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: any,
-  companyId: string,
-  customerId: string,
-  origin: "primary" | "secondary",
-  first: string | null,
-  last: string | null,
-  seed?: { email?: string | null; phone?: string | null },
-) {
-  const name = [first, last].filter(Boolean).join(" ").trim();
-  const existing = (
-    await db
-      .from("customer_contacts")
-      .select("id")
-      .eq("customer_id", customerId)
-      .eq("origin", origin)
-      .limit(1)
-  ).data?.[0];
-
-  // Secondary only exists when both names are present; primary always follows.
-  const wanted = origin === "secondary" ? !!(first && last) : !!name;
-  if (!wanted) {
-    if (existing && origin === "secondary") {
-      await db.from("customer_contacts").delete().eq("id", existing.id);
-    }
-    return;
-  }
-
-  if (existing) {
-    await db.from("customer_contacts").update({ name }).eq("id", existing.id);
-    return;
-  }
-
-  // Primary: adopt the existing default contact (avoids duplicating a contact
-  // that already stands for this person), otherwise create a new default one.
-  if (origin === "primary") {
-    const def = (
-      await db
-        .from("customer_contacts")
-        .select("id")
-        .eq("customer_id", customerId)
-        .eq("is_default", true)
-        .limit(1)
-    ).data?.[0];
-    if (def) {
-      await db.from("customer_contacts").update({ origin: "primary", name }).eq("id", def.id);
-      return;
-    }
-  }
-
-  await db.from("customer_contacts").insert({
-    company_id: companyId,
-    customer_id: customerId,
-    name,
-    origin,
-    is_default: origin === "primary",
-    email: seed?.email ?? null,
-    phone: seed?.phone ?? null,
-  });
 }
 
 // --- Linked contacts --------------------------------------------------------
