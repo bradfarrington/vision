@@ -5,18 +5,30 @@ import Link from "next/link";
 
 import {
   saveCustomer,
-  addTenantOption,
-  deleteTenantOption,
   addSalesStaff,
   deleteSalesStaff,
   type CustomerFormState,
 } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
-import { Combo } from "./combo";
-import { DatePicker } from "./date-picker";
-import { Icon, btnPrimary, btnSecondary } from "./primitives";
+import {
+  Area,
+  CopyButton,
+  DateField,
+  Field,
+  Lookup,
+  ReviewGroup,
+  StepShell,
+  SumRow,
+  TriRow,
+  Txt,
+  WizardFrame,
+  swallowEnter,
+  tri,
+  type LookupList,
+  type WizardStep,
+} from "./wizard";
+import { btnPrimary, btnSecondary } from "./primitives";
 
-type LookupList = { id: string; label: string }[];
 export type Lookups = Record<string, LookupList>;
 
 export type CustomerFormValues = {
@@ -128,11 +140,7 @@ export function CustomerForm({
       className="flex flex-1 flex-col"
       // In the wizard, only the Review step has a submit button; block Enter
       // elsewhere so a keystroke in a field can't create the customer early.
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement)) {
-          e.preventDefault();
-        }
-      }}
+      onKeyDown={swallowEnter}
     >
       {initial.id && <input type="hidden" name="id" value={initial.id} />}
       {/* Every value rides as a hidden input so the native form submits the whole
@@ -164,14 +172,14 @@ type Ctx = {
 // ============================================================================
 // Wizard (create)
 // ============================================================================
-const STEPS = [
+const STEPS: WizardStep[] = [
   { key: "identity", label: "Identity" },
   { key: "contact", label: "Contact" },
   { key: "address", label: "Address" },
   { key: "billing", label: "Billing", optional: true },
   { key: "marketing", label: "Marketing", optional: true },
   { key: "review", label: "Review" },
-] as const;
+];
 
 function Wizard({
   ctx,
@@ -189,7 +197,6 @@ function Wizard({
   const [step, setStep] = useState(0);
   const [touched, setTouched] = useState(false);
   const reviewIndex = STEPS.length - 1;
-  const isReview = step === reviewIndex;
 
   const identityValid =
     !!ctx.values.first_name.trim() &&
@@ -214,122 +221,26 @@ function Wizard({
   }
 
   return (
-    <>
-      {/* Fixed top: title, actions, and the step tracker. Stays put while the
-          step body scrolls. */}
-      <div className="sticky top-0 z-20 -mx-[26px] border-b border-[#e7e7ea] bg-white/95 px-[26px] py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <h1 className="min-w-0 truncate font-[family-name:var(--font-inter-tight)] text-[22px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
-            {heading}
-          </h1>
-          <div className="ml-auto flex shrink-0 items-center gap-2.5">
-            <Link href={cancelHref} className={btnSecondary}>
-              Cancel
-            </Link>
-            {step > 0 && (
-              <button type="button" onClick={() => setStep((s) => s - 1)} className={btnSecondary}>
-                Back
-              </button>
-            )}
-            {/* The final Create action lives in the review card, NOT here — the
-                last "Continue" click lands on Review, and a reflex second click in
-                the same spot must never create the customer before it's read. */}
-            {!isReview && (
-              <button type="button" onClick={goNext} className={btnPrimary}>
-                Continue
-                <Icon name="chevron-right" size={13} strokeWidth={2.2} />
-              </button>
-            )}
-          </div>
-        </div>
-        <Stepper current={step} onSelect={goTo} />
-      </div>
-
-      <div className="mx-auto w-full max-w-3xl py-6">
-        {error && (
-          <div className="mb-4 rounded-lg border border-[#f3c7c7] bg-[#fdecec] px-3.5 py-2.5 text-[13px] font-medium text-[#d64545]">
-            {error}
-          </div>
-        )}
-
-        {step === 0 && <IdentityStep ctx={ctx} showErrors={touched} />}
-        {step === 1 && <ContactStep ctx={ctx} />}
-        {step === 2 && <AddressStep ctx={ctx} />}
-        {step === 3 && <BillingStep ctx={ctx} />}
-        {step === 4 && <MarketingStep ctx={ctx} />}
-        {step === 5 && <ReviewStep ctx={ctx} onEdit={setStep} pending={pending} />}
-      </div>
-    </>
-  );
-}
-
-function Stepper({ current, onSelect }: { current: number; onSelect: (i: number) => void }) {
-  return (
-    <div className="mt-3 flex items-center gap-1.5 overflow-x-auto">
-      {STEPS.map((s, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => onSelect(i)}
-            className="flex shrink-0 items-center gap-2"
-          >
-            <span
-              className={cn(
-                "flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-bold transition-colors",
-                active
-                  ? "bg-[var(--accent-blue)] text-white"
-                  : done
-                    ? "bg-[var(--accent-tint)] text-[var(--accent-blue)]"
-                    : "bg-[#f4f4f5] text-[#a1a1aa]",
-              )}
-            >
-              {done ? <Icon name="check" size={12} strokeWidth={2.6} /> : i + 1}
-            </span>
-            <span
-              className={cn(
-                "text-[12.5px] font-semibold transition-colors",
-                active ? "text-[#0a0a0a]" : done ? "text-[#52525b]" : "text-[#a1a1aa]",
-              )}
-            >
-              {s.label}
-              {"optional" in s && s.optional && (
-                <span className="ml-1 hidden text-[11px] font-medium text-[#c4c4c8] sm:inline">optional</span>
-              )}
-            </span>
-            {i < STEPS.length - 1 && <span className="mx-1.5 h-px w-5 shrink-0 bg-[#e7e7ea] sm:w-8" />}
-          </button>
-        );
-      })}
-    </div>
+    <WizardFrame
+      heading={heading}
+      cancelHref={cancelHref}
+      steps={STEPS}
+      step={step}
+      onStep={goTo}
+      onNext={goNext}
+      error={error}
+    >
+      {step === 0 && <IdentityStep ctx={ctx} showErrors={touched} />}
+      {step === 1 && <ContactStep ctx={ctx} />}
+      {step === 2 && <AddressStep ctx={ctx} />}
+      {step === 3 && <BillingStep ctx={ctx} />}
+      {step === 4 && <MarketingStep ctx={ctx} />}
+      {step === 5 && <ReviewStep ctx={ctx} onEdit={setStep} pending={pending} />}
+    </WizardFrame>
   );
 }
 
 // --- Steps ------------------------------------------------------------------
-function StepShell({
-  title,
-  hint,
-  children,
-  cols = 2,
-}: {
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-  cols?: number;
-}) {
-  return (
-    <div className="rounded-xl border border-[#e7e7ea] bg-white p-6 shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
-      <div className="mb-0.5 font-[family-name:var(--font-inter-tight)] text-[17px] font-bold text-[#0a0a0a]">
-        {title}
-      </div>
-      {hint && <p className="mb-4 text-[12.5px] text-[#71717a]">{hint}</p>}
-      <div className={cn("mt-4 grid gap-x-4 gap-y-3.5", COLS[cols])}>{children}</div>
-    </div>
-  );
-}
-
 function IdentityStep({ ctx, showErrors }: { ctx: Ctx; showErrors: boolean }) {
   const { f, values, lookups } = ctx;
   return (
@@ -656,35 +567,6 @@ function ReviewStep({ ctx, onEdit, pending }: { ctx: Ctx; onEdit: (i: number) =>
   );
 }
 
-function tri(label: string, v: string): string | null {
-  if (v === "true") return `${label}: Yes`;
-  if (v === "false") return `${label}: No`;
-  return null;
-}
-
-function ReviewGroup({ title, onEdit, children }: { title: string; onEdit: () => void; children: React.ReactNode }) {
-  return (
-    <div className="py-3 first:pt-0">
-      <div className="mb-1.5 flex items-center gap-2.5">
-        <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">{title}</div>
-        <button type="button" onClick={onEdit} className="ml-auto text-[12px] font-semibold text-[var(--accent-blue)]">
-          Edit →
-        </button>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function SumRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3 py-1 text-[12.5px]">
-      <span className="w-28 shrink-0 text-[#71717a]">{label}</span>
-      <span className="min-w-0 flex-1 font-medium text-[#3f3f46]">{children}</span>
-    </div>
-  );
-}
-
 // ============================================================================
 // Edit (legacy, single page — basic fields only, so nothing is nulled)
 // ============================================================================
@@ -795,100 +677,10 @@ function EditForm({
 // ============================================================================
 // Inputs & primitives
 // ============================================================================
-const COLS: Record<number, string> = {
-  1: "grid-cols-1",
-  2: "grid-cols-1 sm:grid-cols-2",
-  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-};
+// blank / Yes / No — "Not asked" is a distinct state from a recorded No.
 
-const inputClass =
-  "w-full rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-[13px] text-[#0a0a0a] placeholder:text-[#a1a1aa] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]";
-
-function Txt({
-  value,
-  onChange,
-  mono,
-  uppercase,
-  ...rest
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  mono?: boolean;
-  uppercase?: boolean;
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
-  return (
-    <input
-      {...rest}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(inputClass, mono && "font-mono", uppercase && "uppercase")}
-    />
-  );
-}
-
-function Area({
-  value,
-  onChange,
-  rows = 2,
-  ...rest
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  rows?: number;
-} & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange" | "rows">) {
-  return (
-    <textarea
-      {...rest}
-      rows={rows}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(inputClass, "resize-y")}
-    />
-  );
-}
-
-function toComboOptions(list?: LookupList) {
-  // Stored value IS the label text (no FK), so value === label.
-  return (list ?? []).map((o) => ({ id: o.id, value: o.label, label: o.label }));
-}
-
-function Lookup({
-  value,
-  onChange,
-  options,
-  listKey,
-  onAddNew,
-  onDelete,
-  placeholder,
-  addNounLabel,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options?: LookupList;
-  listKey?: string;
-  onAddNew?: (label: string) => Promise<{ label?: string; error?: string }>;
-  onDelete?: (id: string) => Promise<{ error?: string }>;
-  placeholder?: string;
-  addNounLabel?: string;
-}) {
-  return (
-    <Combo
-      variant="input"
-      options={toComboOptions(options)}
-      value={value || null}
-      onChange={onChange}
-      placeholder={placeholder}
-      addNounLabel={addNounLabel}
-      onAddNew={onAddNew ?? (listKey ? (label) => addTenantOption(listKey, label) : undefined)}
-      onDelete={onDelete ?? (listKey ? (id) => deleteTenantOption(id) : undefined)}
-    />
-  );
-}
-
-function DateField({ value, onChange }: { value: string; onChange: (v: string | null) => void }) {
-  return <DatePicker variant="input" value={value || null} onChange={onChange} />;
-}
-
+// Residential vs Commercial — customer-specific, so it stays here rather than in
+// the shared wizard primitives.
 function SegType({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="inline-flex rounded-lg border border-[#e7e7ea] bg-[#fafafa] p-0.5">
@@ -913,99 +705,6 @@ function SegType({ value, onChange }: { value: string; onChange: (v: string) => 
           </button>
         );
       })}
-    </div>
-  );
-}
-
-// blank / Yes / No — "Not asked" is a distinct state from a recorded No.
-function Tristate({ value, onChange, danger }: { value: string; onChange: (v: string) => void; danger?: boolean }) {
-  return (
-    <div className="inline-flex shrink-0 rounded-lg border border-[#e7e7ea] bg-[#fafafa] p-0.5">
-      {[
-        { v: "", label: "Not asked" },
-        { v: "true", label: "Yes" },
-        { v: "false", label: "No" },
-      ].map((o) => {
-        const active = value === o.v;
-        const activeClass = !active
-          ? "text-[#a1a1aa] hover:text-[#3f3f46]"
-          : o.v === "true"
-            ? danger
-              ? "bg-[#fdecec] text-[#d64545]"
-              : "bg-[#e7f4ec] text-[#1a7f3e]"
-            : "bg-white text-[#3f3f46] shadow-[0_1px_2px_rgba(10,10,10,0.08)]";
-        return (
-          <button
-            key={o.v}
-            type="button"
-            onClick={() => onChange(o.v)}
-            className={cn("rounded-md px-2.5 py-1 text-[12px] font-semibold transition-colors", activeClass)}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function TriRow({
-  label,
-  value,
-  onChange,
-  danger,
-  last,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  danger?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <div className={cn("flex items-center justify-between gap-3 py-2", !last && "border-b border-[#f4f4f5]")}>
-      <span className="text-[12.5px] font-medium text-[#52525b]">{label}</span>
-      <Tristate value={value} onChange={onChange} danger={danger} />
-    </div>
-  );
-}
-
-function CopyButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent-blue)] bg-[var(--accent-tint)] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent-blue)] transition-colors hover:bg-[var(--accent-blue)] hover:text-white"
-    >
-      <Icon name="download" size={12} strokeWidth={2} />
-      {children}
-    </button>
-  );
-}
-
-function Field({
-  label,
-  required,
-  full,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  full?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  // A <div>, not a <label>: several children are custom button controls (Combo,
-  // date picker, segmented tristate), and a <label> would forward stray clicks.
-  return (
-    <div className={cn("flex flex-col gap-1.5", full && "col-span-full")}>
-      <span className="text-[12px] font-medium text-[#52525b]">
-        {label}
-        {required && <span className="text-[#d64545]"> *</span>}
-        {error && <span className="ml-1.5 font-semibold text-[#d64545]">· {error}</span>}
-      </span>
-      {children}
     </div>
   );
 }

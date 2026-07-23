@@ -38,8 +38,13 @@ const TEXT_FIELDS = [
   "salesperson_type",
   "status",
   "priority",
+  "quote_type",
+  "payment_method",
   "notes",
 ] as const;
+
+/** Submitted as text, stored as a number. */
+const NUMERIC_FIELDS = ["gross_value", "estimated_value", "window_count"] as const;
 
 /** Create a lead. Reference number comes from the tenant counter (RPC). */
 export async function createLead(
@@ -58,17 +63,22 @@ export async function createLead(
   const data: Record<string, unknown> = {};
   for (const f of TEXT_FIELDS) data[f] = get(f);
 
-  const grossRaw = get("gross_value");
-  if (grossRaw != null) {
-    const n = Number(grossRaw.replace(/[^0-9.]/g, ""));
-    if (Number.isFinite(n)) data.gross_value = n;
+  for (const f of NUMERIC_FIELDS) {
+    const raw = get(f);
+    if (raw == null) continue;
+    const n = Number(raw.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(n)) data[f] = n;
   }
   const followUp = get("follow_up_date");
   if (followUp) data.follow_up_date = followUp;
+  const quoteDate = get("quote_date");
+  if (quoteDate) data.quote_date = quoteDate;
 
   data.status ??= "new";
   data.priority ??= "medium";
-  data.lead_date = new Date().toISOString();
+  // The date the enquiry arrived — defaults to now, but the wizard lets it be
+  // backdated for a lead being entered after the fact.
+  data.lead_date = get("lead_date") ?? new Date().toISOString();
 
   const supabase = await createClient();
   const companyId = await getCompanyId();
