@@ -617,7 +617,7 @@ function ReviewStep({ ctx, onEdit, pending }: { ctx: Ctx; onEdit: (i: number) =>
 
         <ReviewGroup title="Address" onEdit={() => onEdit(2)}>
           <SumRow label="Address">{addr || "—"}</SumRow>
-          {values.what_3_words && <SumRow label="what3words">/// {values.what_3_words}</SumRow>}
+          {values.what_3_words && <SumRow label="what3words">{`/// ${values.what_3_words}`}</SumRow>}
           {values.directions && <SumRow label="Access">{values.directions}</SumRow>}
         </ReviewGroup>
 

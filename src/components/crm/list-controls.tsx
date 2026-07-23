@@ -3,19 +3,14 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { cn } from "@/lib/utils";
 import { Icon } from "./icon";
-import { pillActive, pillDefault } from "./primitives";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
-// Shared URL-param helpers for list screens. Filtering/pagination all live in
+// Shared URL-param helpers for list screens. Search/filters/sort all live in
 // the query string so the server component can read them and re-query — real,
 // shareable, back-button-friendly state (no client data fetching).
+//
+// The columns/filters popovers themselves live in `data-list.tsx`; this file
+// is just the URL plumbing and the search box shared by every list.
 
 export function useSetParams() {
   const router = useRouter();
@@ -81,138 +76,4 @@ export function SearchBox({
       />
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-export function FilterDropdown({
-  param,
-  label,
-  options,
-}: {
-  param: string;
-  label: string;
-  options: { value: string; label: string }[];
-}) {
-  const { setParams, searchParams } = useSetParams();
-  const current = searchParams.get(param);
-  const active = options.find((o) => o.value === current);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className={active ? pillActive : pillDefault}>
-        {label}
-        {active ? `: ${active.label}` : ": All"}
-        <Icon name="chevron-down" size={11} className="text-[#71717a]" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-        <DropdownMenuItem onClick={() => setParams({ [param]: null })}>
-          All
-        </DropdownMenuItem>
-        {options.map((o) => (
-          <DropdownMenuItem
-            key={o.value}
-            onClick={() => setParams({ [param]: o.value })}
-          >
-            {o.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ---------------------------------------------------------------------------
-export function TogglePill({ param, label }: { param: string; label: string }) {
-  const { setParams, searchParams } = useSetParams();
-  const on = searchParams.get(param) === "1";
-  return (
-    <button
-      type="button"
-      className={on ? pillActive : pillDefault}
-      onClick={() => setParams({ [param]: on ? null : "1" })}
-    >
-      {label}
-      {on && <span aria-hidden>✕</span>}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-export function Pagination({
-  page,
-  pageCount,
-}: {
-  page: number;
-  pageCount: number;
-}) {
-  const { setParams } = useSetParams();
-  const go = (p: number) =>
-    setParams({ page: p <= 1 ? null : String(p) }, { resetPage: false });
-
-  const pages = pageWindow(page, pageCount);
-
-  return (
-    <div className="ml-auto flex items-center gap-1.5">
-      <PageButton disabled={page <= 1} onClick={() => go(page - 1)}>
-        ‹
-      </PageButton>
-      {pages.map((p, i) =>
-        p === "…" ? (
-          <span key={`gap-${i}`} className="px-1 text-[#a1a1aa]">
-            …
-          </span>
-        ) : (
-          <PageButton key={p} active={p === page} onClick={() => go(p)}>
-            {p}
-          </PageButton>
-        ),
-      )}
-      <PageButton disabled={page >= pageCount} onClick={() => go(page + 1)}>
-        ›
-      </PageButton>
-    </div>
-  );
-}
-
-function PageButton({
-  children,
-  active,
-  disabled,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-[7px] text-[12.5px]",
-        active
-          ? "bg-[#18181b] font-semibold text-white"
-          : "border border-[#e7e7ea] bg-white text-[#3f3f46] hover:bg-[#fafafa]",
-        disabled && "cursor-not-allowed text-[#a1a1aa] hover:bg-white",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-// [1] 2 3 … 143 — condensed page window around the current page.
-function pageWindow(page: number, pageCount: number): (number | "…")[] {
-  if (pageCount <= 7)
-    return Array.from({ length: pageCount }, (_, i) => i + 1);
-  const out: (number | "…")[] = [1];
-  const start = Math.max(2, page - 1);
-  const end = Math.min(pageCount - 1, page + 1);
-  if (start > 2) out.push("…");
-  for (let p = start; p <= end; p++) out.push(p);
-  if (end < pageCount - 1) out.push("…");
-  out.push(pageCount);
-  return out;
 }

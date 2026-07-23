@@ -2,7 +2,74 @@ import { createClient } from "@/lib/supabase/server";
 import { isLiveLead, leadRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
 
-export const LEADS_PAGE_SIZE = 12;
+// Lead columns a user may filter the list by, applied server-side so paging and
+// counts stay correct. Allowlisted (never interpolated from input) — the value
+// is bound by PostgREST. Selects match an exact value; bools match yes/no.
+export const SELECT_FILTER_COLUMNS = [
+  "status",
+  "result",
+  "source",
+  "sub_source",
+  "product_type",
+  "salesman",
+  "salesperson_type",
+  "quote_type",
+  "payment_method",
+  "priority",
+  "sales_area",
+  "contract_type",
+] as const;
+
+export const BOOL_FILTER_COLUMNS = [
+  "supply_only",
+  "on_hold",
+  "contract_cancelled",
+  "same_as_customer_address",
+] as const;
+
+// Text lead columns the advanced value-filter builder may query. Allowlisted —
+// the column name is never interpolated from input, and the value is bound by
+// PostgREST (plus LIKE metacharacters are escaped).
+export const VALUE_FILTER_COLUMNS = new Set<string>([
+  "status", "result", "result_reason", "priority",
+  "source", "sub_source", "product_type", "product_interest_1", "product_interest_2",
+  "salesman", "salesperson_type", "quote_type", "payment_method",
+  "office_reference", "office_reference_2", "notes",
+  "installation_house_name", "installation_house_number", "installation_street",
+  "installation_locality", "installation_town", "installation_county",
+  "installation_postcode", "installation_what_3_words",
+  "sales_area", "sales_director", "contract_type", "delivery_method",
+  "installation_manager", "hold_reason", "cancel_reason",
+]);
+
+export type ValueCondition = { f: string; op: string; v: string };
+
+// Escape LIKE metacharacters so a user's % or _ is matched literally.
+function escapeLike(v: string): string {
+  return v.replace(/[\\%_]/g, "\\$&");
+}
+
+// Real lead columns the list may be ORDERED by (allowlisted — never an
+// interpolated name). Computed/composite columns (customer name, the joined
+// address, the stage badge) aren't here.
+const SORTABLE_COLUMNS = new Set<string>([
+  "lead_number", "status", "result", "result_date", "result_reason", "priority",
+  "gross_value", "estimated_value", "window_count",
+  "source", "sub_source", "product_type", "product_interest_1", "product_interest_2",
+  "salesman", "salesperson_type", "quote_type", "quote_date", "payment_method",
+  "lead_date", "follow_up_date", "created_at",
+  "office_reference", "office_reference_2",
+  "installation_house_name", "installation_house_number", "installation_street",
+  "installation_locality", "installation_town", "installation_county",
+  "installation_postcode",
+  "sales_area", "sales_director", "contract_type", "delivery_method",
+  "installation_manager", "supply_only", "on_hold", "contract_cancelled",
+  "contract_number", "contract_date",
+]);
+
+// Chunk size for the list's infinite scroll — big enough to fill a tall
+// container on first load, small enough to keep each fetch cheap at scale.
+export const LEADS_PAGE_SIZE = 40;
 
 export type LeadRow = {
   id: string;
@@ -20,7 +87,12 @@ export type LeadRow = {
   customerId: string | null;
   customerName: string;
   customerTown: string | null;
+  /** Installation address street line (falls back to the customer's). */
+  addressLine: string | null;
   live: boolean;
+  // Every raw lead column, so the list's configurable columns can render any
+  // field without threading each one through a typed property.
+  record: Record<string, unknown>;
 };
 
 export type LeadFilters = {
@@ -28,6 +100,13 @@ export type LeadFilters = {
   stage?: string;
   source?: string;
   page?: number;
+  /** Allowlisted lead-column filters, keyed by column name (see *_FILTER_COLUMNS). */
+  columnFilters?: Record<string, string>;
+  /** Advanced field/operator/value conditions, ANDed together. */
+  valueFilters?: ValueCondition[];
+  /** Column to order by (allowlisted; ignored otherwise) and direction. */
+  sort?: string;
+  dir?: "asc" | "desc";
 };
 
 export type StageBucket = { key: string; count: number; value: number };
@@ -39,17 +118,17 @@ export type LeadListResult = {
   pageCount: number;
   sources: string[];
   pipeline: StageBucket[];
+  /** Distinct values per select-filter column, for the Filters popover. */
+  filterOptions: Record<string, string[]>;
 };
 
-const SELECT = `id, lead_number, status, result, gross_value, estimated_value, product_type,
-  product_interest_1, source, sub_source, salesman, lead_date, quote_date, follow_up_date,
-  customer_id, customers(id, first_name, last_name, company_name, customer_type, town)`;
+const CUSTOMER_EMBED = `customers(id, first_name, last_name, company_name, customer_type,
+  house_name, house_number, street, town, county, postcode)`;
 
-type RawLead = {
+type RawLead = Record<string, unknown> & {
   id: string;
   lead_number: number | null;
   status: string | null;
-  result: string | null;
   gross_value: number | null;
   estimated_value: number | null;
   product_type: string | null;
@@ -61,18 +140,27 @@ type RawLead = {
   quote_date: string | null;
   follow_up_date: string | null;
   customer_id: string | null;
+  same_as_customer_address: boolean | null;
+  installation_house_name: string | null;
+  installation_house_number: string | null;
+  installation_street: string | null;
   customers: {
     id: string;
     first_name: string | null;
     last_name: string | null;
     company_name: string | null;
     customer_type: string | null;
+    house_name: string | null;
+    house_number: string | null;
+    street: string | null;
     town: string | null;
+    county: string | null;
+    postcode: string | null;
   } | null;
 };
 
 function toLeadRow(l: RawLead): LeadRow {
-  const c = l.customers;
+  const { customers: c, ...rest } = l;
   const customerName = c
     ? isCommercial(c.customer_type) && c.company_name
       ? c.company_name
@@ -80,6 +168,21 @@ function toLeadRow(l: RawLead): LeadRow {
         c.company_name ||
         "Unknown"
     : "Unknown customer";
+
+  // The installation address is the lead's own unless it mirrors the customer's.
+  const useCustomerAddr = l.same_as_customer_address !== false;
+  const street = useCustomerAddr && c
+    ? [c.house_name, c.house_number, c.street]
+    : [l.installation_house_name, l.installation_house_number, l.installation_street];
+
+  // The list's generic columns read from `record`, so the customer-derived
+  // values are folded in under their own keys rather than left on the embed.
+  const record: Record<string, unknown> = {
+    ...rest,
+    customer_name: customerName,
+    customer_town: useCustomerAddr ? (c?.town ?? null) : (rest.installation_town ?? null),
+    customer_postcode: useCustomerAddr ? (c?.postcode ?? null) : (rest.installation_postcode ?? null),
+  };
 
   return {
     id: l.id,
@@ -96,12 +199,18 @@ function toLeadRow(l: RawLead): LeadRow {
     quoteDate: l.quote_date,
     customerId: l.customer_id,
     customerName,
-    customerTown: c?.town ?? null,
+    customerTown: (record.customer_town as string | null) ?? null,
+    addressLine: street.filter(Boolean).join(" ").trim() || null,
     live: isLiveLead(l.status),
+    record,
   };
 }
 
-/** Paginated, filtered leads for the list screen, plus pipeline aggregates. */
+/**
+ * Paginated, filtered leads for the list screen, plus pipeline aggregates. RLS
+ * scopes every read to the caller's tenant. Selects `*` so the configurable
+ * columns can render any lead field without a per-column query change.
+ */
 export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResult> {
   const supabase = await createClient();
   const page = Math.max(1, filters.page ?? 1);
@@ -110,35 +219,76 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
 
   let query = supabase
     .from("leads")
-    .select(SELECT, { count: "exact" })
-    .order("lead_date", { ascending: false, nullsFirst: false })
-    .range(from, to);
+    .select(`*, ${CUSTOMER_EMBED}`, { count: "exact" });
 
+  // Sort: an allowlisted column asc/desc, else newest lead first. A stable
+  // secondary key (id) keeps paging deterministic when the sort column ties.
+  if (filters.sort && SORTABLE_COLUMNS.has(filters.sort)) {
+    query = query
+      .order(filters.sort, { ascending: filters.dir !== "desc", nullsFirst: false })
+      .order("id", { ascending: true });
+  } else {
+    query = query.order("lead_date", { ascending: false, nullsFirst: false });
+  }
+  query = query.range(from, to);
+
+  // The pipeline strip's stage selection, kept as its own param so the strip
+  // stays a one-click filter independent of the Filters popover.
   if (filters.stage) query = query.eq("status", filters.stage);
   if (filters.source) query = query.eq("source", filters.source);
 
   const q = filters.search?.trim();
   if (q) {
     const like = `%${q}%`;
-    // Numeric lead ref search when the query is a number.
+    // Numeric lead ref search when the query is a number ("L-2431" or "2431").
     const asNumber = Number(q.replace(/^l-?/i, ""));
     const parts = [
       `product_type.ilike.${like}`,
       `product_interest_1.ilike.${like}`,
       `source.ilike.${like}`,
       `salesman.ilike.${like}`,
+      `installation_town.ilike.${like}`,
+      `installation_postcode.ilike.${like}`,
+      `office_reference.ilike.${like}`,
     ];
     if (Number.isFinite(asNumber)) parts.push(`lead_number.eq.${asNumber}`);
     query = query.or(parts.join(","));
+  }
+
+  // Allowlisted lead-column filters — applied at the DB so paging/counts stay
+  // correct at any number of rows.
+  const cf = filters.columnFilters ?? {};
+  for (const col of SELECT_FILTER_COLUMNS) {
+    const v = cf[col];
+    if (v) query = query.eq(col, v);
+  }
+  for (const col of BOOL_FILTER_COLUMNS) {
+    const v = cf[col];
+    if (v === "1" || v === "0") query = query.eq(col, v === "1");
+  }
+
+  // Advanced field/operator/value conditions — each ANDs onto the query.
+  for (const c of filters.valueFilters ?? []) {
+    if (!VALUE_FILTER_COLUMNS.has(c.f)) continue;
+    const v = (c.v ?? "").trim();
+    switch (c.op) {
+      case "contains": if (v) query = query.ilike(c.f, `%${escapeLike(v)}%`); break;
+      case "equals": if (v) query = query.ilike(c.f, escapeLike(v)); break;
+      case "begins": if (v) query = query.ilike(c.f, `${escapeLike(v)}%`); break;
+      case "ends": if (v) query = query.ilike(c.f, `%${escapeLike(v)}`); break;
+      case "empty": query = query.is(c.f, null); break;
+      case "notempty": query = query.not(c.f, "is", null); break;
+    }
   }
 
   const { data, count, error } = await query;
   if (error) throw new Error(`getLeads: ${error.message}`);
 
   const rows = ((data ?? []) as unknown as RawLead[]).map(toLeadRow);
-  const [sources, pipeline] = await Promise.all([
+  const [sources, pipeline, filterOptions] = await Promise.all([
     getLeadSources(supabase),
     getLeadPipeline(supabase),
+    getFilterOptions(supabase),
   ]);
 
   const total = count ?? rows.length;
@@ -149,7 +299,32 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
     pageCount: Math.max(1, Math.ceil(total / LEADS_PAGE_SIZE)),
     sources,
     pipeline,
+    filterOptions,
   };
+}
+
+/**
+ * Distinct values for each select-filter column, so the Filters popover can
+ * offer real choices. One capped read rather than a query per column — same
+ * approach and same scale caveat as the customers list.
+ */
+async function getFilterOptions(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<Record<string, string[]>> {
+  const cols = SELECT_FILTER_COLUMNS.join(", ");
+  const { data } = await supabase.from("leads").select(cols).limit(5000);
+
+  const sets: Record<string, Set<string>> = {};
+  for (const col of SELECT_FILTER_COLUMNS) sets[col] = new Set();
+  for (const r of (data ?? []) as unknown as Record<string, unknown>[]) {
+    for (const col of SELECT_FILTER_COLUMNS) {
+      const v = r[col];
+      if (typeof v === "string" && v.trim()) sets[col].add(v);
+    }
+  }
+  return Object.fromEntries(
+    SELECT_FILTER_COLUMNS.map((c) => [c, [...sets[c]].sort((a, b) => a.localeCompare(b))]),
+  );
 }
 
 export type LeadNote = {

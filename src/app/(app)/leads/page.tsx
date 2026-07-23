@@ -1,206 +1,168 @@
 import Link from "next/link";
 
-import { getLeads, LEADS_PAGE_SIZE, type LeadRow, type StageBucket } from "@/lib/data/leads";
+import { getLeads, type LeadFilters, type StageBucket, type ValueCondition } from "@/lib/data/leads";
+import { getUserPref } from "@/lib/data/user-layouts";
 import { PIPELINE_STAGES, leadStage } from "@/lib/leads";
-import { gbp, gbpCompact } from "@/lib/format";
-import { Avatar, Icon, StageBadge, btnPrimary, btnSecondary } from "@/components/crm/primitives";
-import { FilterDropdown, Pagination, SearchBox } from "@/components/crm/list-controls";
+import { gbpCompact } from "@/lib/format";
+import { Icon, btnPrimary } from "@/components/crm/primitives";
+import { SearchBox } from "@/components/crm/list-controls";
+import {
+  ColumnsButton,
+  FiltersButton,
+  LeadColumnsProvider,
+  LeadTable,
+} from "@/components/crm/leads-list";
+import { ViewStateSaver } from "@/components/crm/view-state";
 
-// Leads list — net-new (no design exists), built to mirror the Customers-list
-// template plus a stage-pipeline summary. See AGENTS.md § Phase 4.
-const GRID = "grid-cols-[2.3fr_2fr_1.2fr_1fr_1.1fr_1.3fr_28px]";
+// Leads list — net-new (no design exists), built on the same shared list
+// machinery as /customers: configurable + resizable + sortable columns saved per
+// user, a filters popover with the advanced value builder, and continuous
+// scroll. The pipeline strip above it is this list's own addition — a one-click
+// stage filter that also states where the money is. See AGENTS.md § Lists.
 
-type SearchParams = Promise<{
-  search?: string;
-  stage?: string;
-  source?: string;
-  page?: string;
-}>;
+type SearchParams = Promise<Record<string, string | undefined>>;
+
+/** Parse the `fq` param (JSON array of {f,op,v}); tolerate anything malformed. */
+function parseValueFilters(raw: string | undefined): ValueCondition[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (c): c is ValueCondition =>
+          c && typeof c.f === "string" && typeof c.op === "string" && typeof c.v === "string",
+      )
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
 
 export default async function LeadsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const { rows, total, page, pageCount, sources, pipeline } = await getLeads({
+  // Every `f_<column>` param is a lead-column filter; collect them for the
+  // server to apply against its allowlist.
+  const columnFilters: Record<string, string> = {};
+  for (const [k, v] of Object.entries(sp)) {
+    if (k.startsWith("f_") && typeof v === "string" && v !== "") columnFilters[k.slice(2)] = v;
+  }
+
+  const valueFilters = parseValueFilters(sp.fq);
+
+  // Default arrangement is newest lead first — the sidebar link carries no
+  // query, so leaving and returning always lands here.
+  const sort = sp.sort ?? null;
+  const dir = sp.dir === "desc" ? "desc" : "asc";
+  // The list scrolls continuously — the first chunk renders server-side, and
+  // LeadTable fetches further chunks (via loadLeadRows) as it scrolls.
+  const filters: LeadFilters = {
     search: sp.search,
     stage: sp.stage,
-    source: sp.source,
-    page: sp.page ? Number(sp.page) : 1,
-  });
-
-  const from = total === 0 ? 0 : (page - 1) * LEADS_PAGE_SIZE + 1;
-  const to = Math.min(page * LEADS_PAGE_SIZE, total);
+    columnFilters,
+    valueFilters,
+    ...(sort ? { sort, dir } : {}),
+  };
+  const [{ rows, total, pipeline, filterOptions }, columnPref] = await Promise.all([
+    getLeads({ ...filters, page: 1 }),
+    getUserPref("leads_columns"),
+  ]);
 
   const stageHref = (key: string | null) => {
     const params = new URLSearchParams();
-    if (sp.search) params.set("search", sp.search);
-    if (sp.source) params.set("source", sp.source);
+    for (const [k, v] of Object.entries(sp)) {
+      if (k !== "stage" && typeof v === "string" && v !== "") params.set(k, v);
+    }
     if (key) params.set("stage", key);
     const qs = params.toString();
     return qs ? `/leads?${qs}` : "/leads";
   };
 
-  return (
-    <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] py-[22px]">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
-          Leads
-        </h1>
-        <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
-          {total.toLocaleString("en-GB")}
-        </span>
-        <div className="ml-auto flex items-center gap-2.5">
-          <button className={btnSecondary} type="button">
-            <Icon name="export" size={13} /> Export
-          </button>
-          <Link href="/leads/new" className={btnPrimary}>
-            <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
-          </Link>
-        </div>
-      </div>
+  // Re-mount the table (resetting its scroll list) whenever the query changes,
+  // so a new sort/filter/search starts from a fresh first chunk.
+  const viewKey = JSON.stringify({
+    search: sp.search,
+    stage: sp.stage,
+    columnFilters,
+    valueFilters,
+    sort,
+    dir,
+  });
 
-      {/* Pipeline summary */}
-      <div className="flex gap-2.5">
-        {pipeline_summary(pipeline).map((b) => {
-          const stage = leadStage(b.key);
-          const active = sp.stage === b.key;
-          return (
-            <Link
-              key={b.key}
-              href={stageHref(active ? null : b.key)}
-              className={`flex flex-1 flex-col gap-1 rounded-xl border px-4 py-3 transition-colors ${
-                active
-                  ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
-                  : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]"
-              }`}
-            >
-              <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-[#52525b]">
-                {stage.tone === "neutral" && (
-                  <span className="size-1.5 rounded-full bg-[#71717a]" />
-                )}
-                {stage.label}
-              </span>
-              <span className="font-[family-name:var(--font-inter-tight)] text-[22px] font-extrabold text-[#0a0a0a]">
-                {b.count}
-              </span>
-              <span className="text-[11.5px] text-[#71717a]">{gbpCompact(b.value)}</span>
+  return (
+    <LeadColumnsProvider saved={columnPref}>
+      {/* Remembers this list's filters/sort for the session so returning here
+          restores them instead of resetting to the default. */}
+      <ViewStateSaver />
+      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] py-[22px]">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
+            Leads
+          </h1>
+          <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
+            {total.toLocaleString("en-GB")}
+          </span>
+          <div className="ml-auto flex items-center gap-2.5">
+            <ColumnsButton />
+            <FiltersButton filterOptions={filterOptions} />
+            <Link href="/leads/new" className={btnPrimary}>
+              <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
             </Link>
-          );
-        })}
-      </div>
+          </div>
+        </div>
 
-      {/* Search + filters */}
-      <div className="flex items-center gap-2">
-        <SearchBox placeholder="Lead no., product, source…" />
-        <FilterDropdown
-          param="source"
-          label="Source"
-          options={sources.map((s) => ({ value: s, label: s }))}
+        {/* Pipeline summary — a fixed set of stage tiles, each a one-click
+            filter. Shown in stage order and filled with zeroes so the strip is
+            stable regardless of what data exists. */}
+        <div className="flex gap-2.5">
+          {pipelineSummary(pipeline).map((b) => {
+            const stage = leadStage(b.key);
+            const active = sp.stage === b.key;
+            return (
+              <Link
+                key={b.key}
+                href={stageHref(active ? null : b.key)}
+                className={`flex flex-1 flex-col gap-1 rounded-xl border px-4 py-3 transition-colors ${
+                  active
+                    ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
+                    : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]"
+                }`}
+              >
+                <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-[#52525b]">
+                  {stage.tone === "neutral" && <span className="size-1.5 rounded-full bg-[#71717a]" />}
+                  {stage.label}
+                </span>
+                <span className="font-[family-name:var(--font-inter-tight)] text-[22px] font-extrabold text-[#0a0a0a]">
+                  {b.count}
+                </span>
+                <span className="text-[11.5px] text-[#71717a]">{gbpCompact(b.value)}</span>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="flex items-center gap-2">
+          <SearchBox placeholder="Lead no., product, source, town…" />
+        </div>
+
+        <LeadTable
+          key={viewKey}
+          initialViews={rows}
+          total={total}
+          filters={filters}
+          sort={sort}
+          dir={dir}
         />
-        {sp.stage && (
-          <Link
-            href={stageHref(null)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-blue)] bg-[var(--accent-tint)] px-3 py-[7px] text-[12.5px] font-semibold text-[var(--accent-blue)]"
-          >
-            Stage: {leadStage(sp.stage).label} <span aria-hidden>✕</span>
-          </Link>
-        )}
-        <span className="ml-auto flex items-center gap-1.5 text-[12.5px] text-[#71717a]">
-          Sort: Newest
-          <Icon name="chevron-down" size={11} className="text-[#71717a]" />
-        </span>
       </div>
-
-      {/* Table */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#e7e7ea]">
-        <div
-          className={`grid ${GRID} items-center border-b border-[#e7e7ea] bg-[#fafafa] px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]`}
-        >
-          <span>Lead</span>
-          <span>Customer</span>
-          <span>Stage</span>
-          <span>Value</span>
-          <span>Source</span>
-          <span>Received · follow-up</span>
-          <span />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {rows.length === 0 ? (
-            <EmptyState />
-          ) : (
-            rows.map((l) => <LeadRowItem key={l.id} l={l} />)
-          )}
-        </div>
-        <div className="flex items-center border-t border-[#e7e7ea] bg-[#fafafa] px-4 py-3 text-[12.5px] text-[#71717a]">
-          <span>
-            {total === 0 ? "No leads" : `Showing ${from}–${to} of ${total.toLocaleString("en-GB")}`}
-          </span>
-          <Pagination page={page} pageCount={pageCount} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LeadRowItem({ l }: { l: LeadRow }) {
-  return (
-    <Link
-      href={`/leads/${l.id}`}
-      className={`grid ${GRID} items-center border-b border-[#f4f4f5] px-4 py-[11px] text-[13px] transition-colors last:border-b-0 hover:bg-[#fafafa]`}
-    >
-      <span className="flex min-w-0 items-center gap-2.5">
-        <span className="inline-flex shrink-0 items-center rounded-md bg-[#f4f4f5] px-2 py-1 font-mono text-[11px] font-bold text-[#3f3f46]">
-          {l.ref}
-        </span>
-        <span className="min-w-0 truncate font-semibold text-[#0a0a0a]">{l.title}</span>
-      </span>
-      <span className="flex min-w-0 items-center gap-2">
-        <Avatar name={l.customerName} size={26} />
-        <span className="min-w-0">
-          <span className="block truncate text-[#3f3f46]">{l.customerName}</span>
-          {l.customerTown && (
-            <span className="block truncate text-[11.5px] text-[#71717a]">{l.customerTown}</span>
-          )}
-        </span>
-      </span>
-      <span>
-        <StageBadge status={l.status} />
-      </span>
-      <span className="font-semibold text-[#0a0a0a]">{gbp(l.value)}</span>
-      <span className="truncate text-[#3f3f46]">{l.source ?? "—"}</span>
-      <span className="min-w-0">
-        <span className="block truncate text-[#3f3f46]">{dateShort(l.leadDate)}</span>
-        {l.followUpDate && l.live && (
-          <span className="block truncate text-[11.5px] font-semibold text-[#b86e00]">
-            follow-up {dateShort(l.followUpDate)}
-          </span>
-        )}
-      </span>
-      <span className="text-center text-[#a1a1aa]">›</span>
-    </Link>
+    </LeadColumnsProvider>
   );
 }
 
 // Show the fixed pipeline stages in order, filling zero-count stages so the bar
 // is stable regardless of what data exists.
-function pipeline_summary(pipeline: StageBucket[]): StageBucket[] {
+function pipelineSummary(pipeline: StageBucket[]): StageBucket[] {
   const byKey = new Map(pipeline.map((b) => [b.key, b]));
-  return PIPELINE_STAGES.map(
-    (s) => byKey.get(s.key) ?? { key: s.key, count: 0, value: 0 },
-  );
-}
-
-function dateShort(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 py-16 text-center">
-      <p className="text-sm font-semibold text-[#3f3f46]">No leads found</p>
-      <p className="text-[12.5px] text-[#71717a]">Adjust your filters or create a new lead.</p>
-    </div>
-  );
+  return PIPELINE_STAGES.map((s) => byKey.get(s.key) ?? { key: s.key, count: 0, value: 0 });
 }

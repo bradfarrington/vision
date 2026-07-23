@@ -8,7 +8,6 @@ import { getCompanyId } from "@/lib/company";
 import {
   DOCUMENTS_BUCKET,
   OWNER_FK,
-  type DocumentOwnerType,
   buildDocumentPath,
   isDocumentOwnerType,
   ownerRevalidatePath,

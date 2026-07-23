@@ -7,11 +7,25 @@ import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { LEAD_STAGES } from "@/lib/leads";
 import { addNote } from "@/app/(app)/notes/actions";
+import { LEADS_PAGE_SIZE, getLeads, type LeadFilters, type LeadRow } from "@/lib/data/leads";
 import type { Database } from "@/lib/supabase/types";
 
 type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
 
 export type LeadFormState = { error?: string };
+
+/**
+ * Load one more chunk of lead rows for the list's infinite scroll. Same
+ * allowlisted filter/sort path as the initial server render, so paging stays
+ * correct and injection-safe.
+ */
+export async function loadLeadRows(
+  filters: LeadFilters,
+  page: number,
+): Promise<{ views: LeadRow[]; total: number; hasMore: boolean }> {
+  const { rows, total } = await getLeads({ ...filters, page });
+  return { views: rows, total, hasMore: page * LEADS_PAGE_SIZE < total };
+}
 
 const TEXT_FIELDS = [
   "customer_id",

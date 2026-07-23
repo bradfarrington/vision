@@ -10,6 +10,7 @@ import { EditableField, type EditableType } from "@/components/crm/editable-fiel
 import { updateLeadField } from "@/app/(app)/leads/actions";
 import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
 import { AddressMap } from "@/components/crm/address-map";
+import { RememberedLink } from "@/components/crm/view-state";
 import {
   ChecklistToggle,
   NoteComposer,
@@ -43,9 +44,10 @@ export default async function LeadDetailPage({
     <div className="flex flex-1 flex-col gap-[14px] overflow-y-auto px-[26px] py-[22px]">
       {/* Breadcrumb */}
       <div className="text-[12.5px] text-[#71717a]">
-        <Link href="/leads" className="hover:text-[#3f3f46]">
+        {/* Restores the list's remembered filters/sort rather than the bare route. */}
+        <RememberedLink href="/leads" className="hover:text-[#3f3f46]">
           Leads
-        </Link>
+        </RememberedLink>
         <span className="mx-1 text-[#d4d4d8]">/</span>
         {lead.customer ? (
           <Link href={`/customers/${lead.customer.id}`} className="hover:text-[#3f3f46]">
