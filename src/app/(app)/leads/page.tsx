@@ -161,7 +161,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
                 <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
                   {stage.label}
                 </div>
-                <div className="flex items-baseline gap-1.5">
+                {/* Count left, value hard RIGHT — the two answer different
+                    questions ("how many" vs "how much"), and sitting them side
+                    by side read as one run-on figure. `justify-between` needs
+                    the tile's min-width to exceed this row, which it does. */}
+                <div className="flex items-baseline justify-between gap-3">
                   <span
                     className={cn(
                       "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
@@ -170,7 +174,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
                   >
                     {b.count}
                   </span>
-                  <span className="text-[11.5px] text-[#71717a]">{gbpCompact(b.value)}</span>
+                  <span className="shrink-0 text-[11.5px] text-[#71717a]">
+                    {gbpCompact(b.value)}
+                  </span>
                 </div>
               </Link>
             );
