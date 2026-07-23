@@ -53,12 +53,16 @@ Goal: if the platform ever outgrows one database, tenants can be moved in groups
 - [x] Base components: Button (primary/secondary/ghost/danger), Input, Select, status Chip, Card, Table, Dialog, Toast, Tabs, ProgressBar — shadcn set already in `src/components/ui`, mapped to Vision tokens in `globals.css`; added `chip.tsx` (semantic tints, accent tone rebrands)
 - [x] Verify the whole shell rebrands correctly by switching between Vision and BSW seed tenants — accent flows from `companies.brand_color_1`; log in as a Vision user (blue `#2f7de1`) vs a BSW user (red `#e5040a`) to see the rail/CTAs/accent surfaces re-colour. Not yet visually smoke-tested in a browser.
 
-## Phase 4 — Customers & leads (core CRM)
-- [ ] Customers list: search, filters, pagination; create/edit forms with UK address fields + postcode
-- [ ] Leads list with stage pipeline; lead create (source, product interest, salesperson)
-- [ ] Lead detail: overview, checklist items, tasks, notes, activity timeline
-- [ ] Lead stage transitions + stage badges per design
-- [ ] Dashboard v1: KPI stats, pipeline by stage, lead sources, today's diary (live data)
+## Phase 4 — Customers & leads (core CRM) — DONE 2026-07-23
+- [x] Customers list: search, filters, configurable/resizable/sortable columns, continuous scroll; New Customer wizard with UK address fields + postcode
+- [x] Leads list with stage pipeline; New Lead wizard (source, product interest, salesperson — all tenant-editable lookups)
+- [x] Lead detail: tabbed record — overview, checklist items, notes, documents, activity timeline
+- [x] Lead stage transitions + stage badges per design
+- [x] Dashboard v1: KPI stats, pipeline by stage, lead sources, today's diary (live data)
+
+Carried into later phases by design: the lead record's **Quotes** tab and the "Convert to Contract"
+button (Phase 5), "Book survey" (Phase 6), and the dashboard's richer analytics widgets (team
+performance / revenue-by-month still show representative figures until their data paths land).
 
 ## Phase 5 — Quoting & contracts
 - [ ] Quote builder: line items, pricing, gross/net, VAT
