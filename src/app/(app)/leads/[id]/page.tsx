@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getLead, type AddressParts, type LeadDetail } from "@/lib/data/leads";
 import { getTenantOptionLists, type TenantOption } from "@/lib/data/customer-record";
 import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
-import { gbp } from "@/lib/format";
+import { gbp, humanLabel } from "@/lib/format";
 import { Card, CardTitle, Icon, Pill, btnPrimary, btnSecondary } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { updateLeadField } from "@/app/(app)/leads/actions";
@@ -70,7 +70,7 @@ export default async function LeadDetailPage({
         <StageChanger leadId={lead.id} status={lead.status} />
         {lead.priority && (
           <Pill tone="amber" className="bg-[var(--accent-tint)] text-[var(--accent-blue)]">
-            Priority · {capitalise(lead.priority)}
+            Priority · {humanLabel(lead.priority)}
           </Pill>
         )}
         <span className="ml-1 text-[14px] font-bold text-[#0a0a0a]">{gbp(lead.value)}</span>
@@ -233,7 +233,7 @@ function LeadPanel({
       <EL leadId={lead.id} label="Payment Method" field="payment_method" value={lead.paymentMethod} type="lookup" listKey="payment_method" opts={opts} />
       <EL leadId={lead.id} label="Result Reason" field="result_reason" value={lead.resultReason} type="lookup" listKey="result_reason" opts={opts} />
       <FieldRow label="Result" last border={false}>
-        <Pill tone={lead.result === "lost" ? "danger" : "success"}>{lead.result ?? "alive"}</Pill>
+        <Pill tone={lead.result === "lost" ? "danger" : "success"}>{humanLabel(lead.result ?? "alive")}</Pill>
       </FieldRow>
     </Card>
   );
@@ -341,7 +341,7 @@ function ActivityPanel({ lead }: { lead: LeadDetail }) {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[12.5px] text-[#3f3f46]">
-                  <span className="font-semibold text-[#0a0a0a]">{capitalise(a.type)}</span>
+                  <span className="font-semibold text-[#0a0a0a]">{humanLabel(a.type)}</span>
                   <span className="text-[#a1a1aa]"> · {fmtDateTime(a.created_at)}</span>
                 </div>
                 <p className="mt-1 text-[12.5px] text-[#3f3f46]">{a.description}</p>
@@ -471,10 +471,6 @@ function iconForActivity(type: string): "envelope" | "phone" | "message" | "eye"
   if (t.includes("sms") || t.includes("message")) return "message";
   if (t.includes("view") || t.includes("quote")) return "eye";
   return "calendar";
-}
-
-function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ");
 }
 
 function fmt(value: string | null): string {

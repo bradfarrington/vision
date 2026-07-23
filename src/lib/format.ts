@@ -89,6 +89,34 @@ export function isCommercial(type: string | null | undefined): boolean {
   return (type ?? "").toLowerCase() === "commercial";
 }
 
+/**
+ * Turn a raw DB enum value into something a person reads: `survey_booked` →
+ * "Survey booked", `won` → "Won".
+ *
+ * **Snake case must never reach the UI.** Values like `leads.status`,
+ * `leads.result` and `customers.customer_type` are stored lowercase/underscored
+ * and were leaking straight into filter dropdowns and list cells. Run any raw
+ * enum through this at the point of DISPLAY — never rewrite what's stored, or
+ * every query that compares against it breaks.
+ *
+ * SENTENCE case, not Title Case, so it matches the canonical stage labels
+ * ("Survey booked", not "Survey Booked"). Where a canonical label already
+ * exists — `leadStage(v).label` — prefer that; this is the fallback for values
+ * that have no registry behind them.
+ *
+ * Does NOT apply to tenant-entered text (lookup options, custom-field values):
+ * those are already written the way the tenant wants them.
+ */
+export function humanLabel(value: string | null | undefined): string {
+  const v = (value ?? "").trim();
+  if (!v) return "";
+  // Leave anything already containing a capital or a space alone — it's
+  // tenant-entered text, not a DB enum.
+  if (/[A-Z]/.test(v) || v.includes(" ")) return v;
+  const words = v.replace(/[_-]+/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function toNumber(value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = typeof value === "number" ? value : Number(value);

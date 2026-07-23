@@ -26,6 +26,7 @@ import { useSetParams } from "@/components/crm/list-controls";
 import { useFloatingMenu } from "@/components/crm/floating-menu";
 import { resetUserLayout, saveUserPref } from "@/app/(app)/preferences/actions";
 import { cn } from "@/lib/utils";
+import { humanLabel } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // The shared list machinery behind /customers and /leads (and whatever comes
@@ -40,7 +41,8 @@ import { cn } from "@/lib/utils";
 // drift apart.
 // ---------------------------------------------------------------------------
 
-export type ColumnKind = "text" | "bool" | "number" | "date";
+/** `label` = a raw DB enum, displayed via humanLabel (never snake_case in the UI). */
+export type ColumnKind = "text" | "bool" | "number" | "date" | "label";
 
 export type ListColumn<V> = {
   key: string;
@@ -56,7 +58,18 @@ export type ListColumn<V> = {
   sortField?: string;
 };
 
-export type FilterDef = { key: string; label: string; group: string; kind: "select" | "bool" };
+export type FilterDef = {
+  key: string;
+  label: string;
+  group: string;
+  kind: "select" | "bool";
+  /**
+   * How to DISPLAY an option value. Defaults to `humanLabel`, which un-snakes
+   * raw DB enums. Supply this where a canonical label already exists (the lead
+   * stage registry). The stored/queried value is always the raw one.
+   */
+  formatOption?: (value: string) => string;
+};
 
 export type ListSpec<V, F> = {
   /**
@@ -255,6 +268,7 @@ function renderCell(
   if (val == null || val === "") return <span className="text-[#a1a1aa]">—</span>;
   if (col.kind === "bool") return val ? "Yes" : "No";
   if (col.kind === "date") return shortDate(String(val));
+  if (col.kind === "label") return humanLabel(String(val));
   return String(val);
 }
 
@@ -617,6 +631,7 @@ export function FiltersButton({ filterOptions }: { filterOptions: Record<string,
                         key={f.key}
                         label={f.label}
                         value={searchParams.get(`f_${f.key}`)}
+                        format={f.formatOption ?? humanLabel}
                         options={filterOptions[f.key] ?? []}
                         open={openKey === f.key}
                         onOpen={() => setOpenKey(openKey === f.key ? null : f.key)}
@@ -888,6 +903,7 @@ function SelectFilter({
   label,
   value,
   options,
+  format,
   open,
   onOpen,
   onChange,
@@ -895,6 +911,8 @@ function SelectFilter({
   label: string;
   value: string | null;
   options: string[];
+  /** Display only — the value written to the URL and queried stays raw. */
+  format: (v: string) => string;
   open: boolean;
   onOpen: () => void;
   onChange: (v: string | null) => void;
@@ -913,7 +931,7 @@ function SelectFilter({
             value ? "font-medium text-[var(--accent-blue)]" : "text-[#a1a1aa]",
           )}
         >
-          {value ?? "Any"}
+          {value ? format(value) : "Any"}
         </span>
         <Icon
           name="chevron-down"
@@ -928,7 +946,7 @@ function SelectFilter({
             <p className="px-2 py-1 text-[12px] text-[#a1a1aa]">No values yet.</p>
           )}
           {options.map((o) => (
-            <RadioRow key={o} label={o} checked={value === o} onClick={() => onChange(o)} />
+            <RadioRow key={o} label={format(o)} checked={value === o} onClick={() => onChange(o)} />
           ))}
         </div>
       )}

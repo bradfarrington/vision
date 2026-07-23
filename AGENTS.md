@@ -753,6 +753,33 @@ Salesperson type are **tenant-editable lookups**, not free text (they were free 
   enquiry arrive" — and a tenant must be able to curate them apart. Don't merge them.
 - `product_type` backs Main Interest AND Second Interest — one vocabulary, two fields.
 
+## snake_case NEVER reaches the UI — decided 2026-07-23
+
+**No raw DB enum is ever displayed as stored.** `leads.status` is `survey_booked`, `leads.result` is
+`won`, `customers.customer_type` is `residential` — and those were leaking straight into filter
+dropdowns and list cells. Run every raw enum through **`humanLabel()`** (`src/lib/format.ts`) at the
+point of DISPLAY.
+
+- **Format on display, never rewrite what's stored.** The value in the URL, the filter param and the
+  query stays raw — changing it breaks every comparison against the column.
+- **`humanLabel` is SENTENCE case**, not Title Case, so it matches the canonical stage labels
+  ("Survey booked", not "Survey Booked"). It leaves anything already containing a capital or a space
+  alone, so tenant-entered text passes through untouched.
+- **Where a canonical label already exists, prefer it.** `leadStage(v).label` beats un-snaking a
+  string: the leads list's Stage filter passes `formatOption: (v) => leadStage(v).label` so the
+  dropdown, the badges and the board columns all read identically.
+- **The hooks:** `FilterDef.formatOption` (defaults to `humanLabel`) for filter dropdowns, and
+  `ListColumn.kind: "label"` for a column whose values are a raw enum. Use `kind: "label"` for any
+  new enum-backed column — plain `text` renders it raw.
+- **The one exception the user named:** custom-field keys sent into personalised SMS/email merge tags,
+  when that lands. Nothing in the CRM's own chrome.
+- **Known open issue:** `customers.customer_type` is written lowercase (`residential`) by the New
+  Customer wizard but offered as a Title Case `tenant_options` list on the record, so the column holds
+  two spellings of the same thing. `isCommercial()` lowercases before comparing so nothing is broken
+  functionally, and `humanLabel` makes both display the same — but the filter dropdown can show the
+  value twice. The real fix is a data migration normalising the column; do that before adding more
+  customer_type UI.
+
 ## UI label casing — Title Case — decided 2026-07-22
 
 **Any multi-word field/UI label is Title Case** ("First Name", "House Number", "Payment Terms",

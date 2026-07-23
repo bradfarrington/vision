@@ -2,6 +2,7 @@
 
 import { CountPill, RefChip } from "@/components/crm/primitives";
 import { customerRef } from "@/lib/leads";
+import { humanLabel } from "@/lib/format";
 import { loadCustomerRows } from "@/app/(app)/customers/actions";
 import {
   DataListProvider,
@@ -66,7 +67,7 @@ const COLUMNS: Column[] = [
     label: "Type",
     group: "Identity",
     w: SHORT,
-    cell: (v) => <span>{titleCase(str(v.c.record.customer_type)) ?? "—"}</span>,
+    cell: (v) => <span>{humanLabel(str(v.c.record.customer_type) ?? "") || "—"}</span>,
   },
   {
     // The reference chip, not a bare integer — matches the lead's L-2431 in the
@@ -280,7 +281,3 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v : null;
 }
 
-function titleCase(v: string | null): string | null {
-  if (!v) return null;
-  return v.charAt(0).toUpperCase() + v.slice(1);
-}

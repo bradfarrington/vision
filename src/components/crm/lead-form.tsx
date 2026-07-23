@@ -6,6 +6,7 @@ import { createLead, type LeadFormState } from "@/app/(app)/leads/actions";
 import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
 import type { CustomerOption } from "@/lib/data/customers";
 import { LEAD_STAGES } from "@/lib/leads";
+import { humanLabel } from "@/lib/format";
 import { Combo } from "./combo";
 import { btnPrimary } from "./primitives";
 import {
@@ -307,7 +308,7 @@ function ReviewStep({
         </ReviewGroup>
 
         <ReviewGroup title="Stage & value" onEdit={() => onEdit(2)}>
-          <SumRow label="Stage">{stage?.label ?? values.status}</SumRow>
+          <SumRow label="Stage">{stage?.label ?? humanLabel(values.status)}</SumRow>
           <SumRow label="Priority">{cap(values.priority)}</SumRow>
           <SumRow label="Salesperson">{values.salesman || "—"}</SumRow>
           <SumRow label="Estimated">{money(values.estimated_value)}</SumRow>

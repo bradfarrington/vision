@@ -1,6 +1,7 @@
 "use client";
 
 import { RefChip, StageBadge } from "@/components/crm/primitives";
+import { leadStage } from "@/lib/leads";
 import { loadLeadRows } from "@/app/(app)/leads/actions";
 import {
   DataListProvider,
@@ -88,10 +89,10 @@ const COLUMNS: Column[] = [
   },
 
   // Lead
-  { key: "result", label: "Result", group: "Lead", w: SHORT },
+  { key: "result", label: "Result", group: "Lead", w: SHORT, kind: "label" },
   { key: "result_reason", label: "Result reason", group: "Lead", w: TEXT },
   { key: "result_date", label: "Result date", group: "Lead", w: DATE, kind: "date" },
-  { key: "priority", label: "Priority", group: "Lead", w: SHORT },
+  { key: "priority", label: "Priority", group: "Lead", w: SHORT, kind: "label" },
   { key: "estimated_value", label: "Estimated value", group: "Lead", w: MONEY, kind: "number" },
   { key: "window_count", label: "Windows", group: "Lead", w: SHORT, kind: "number" },
   { key: "product_interest_1", label: "Interest 1", group: "Lead", w: TEXT },
@@ -170,7 +171,9 @@ const DEFAULT_VISIBLE = ["ref", "title", "customer", "stage", "value", "source",
 
 // ---------------------------------------------------------------------------
 const FILTERS: FilterDef[] = [
-  { key: "status", label: "Stage", group: "Lead", kind: "select" },
+  // The stage registry owns these labels ("Survey booked"), so the filter
+  // shows exactly what the badges and board columns show.
+  { key: "status", label: "Stage", group: "Lead", kind: "select", formatOption: (v) => leadStage(v).label },
   { key: "result", label: "Result", group: "Lead", kind: "select" },
   { key: "priority", label: "Priority", group: "Lead", kind: "select" },
   { key: "product_type", label: "Product type", group: "Lead", kind: "select" },
