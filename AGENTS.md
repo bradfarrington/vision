@@ -488,13 +488,15 @@ missing.
   are bordered**: the other two sit on the viewport edge, where a radius cuts a grey notch out of the
   panel and a rule draws a line along an edge that already ends. It keeps `overflow-hidden`, which is
   what clips the square-cornered table inside it.
-- **A list table is SQUARE and runs flush to the bottom of the panel** (2026-07-23). The page drops its
-  bottom padding (`pt-[22px]`, not `py-`), and the table carries `border-x border-t` with **no rounding
-  and no bottom border** — height on a list screen is rows, and a rounded bottom edge plus a rule plus
-  22px of padding spent three separate times to say "the table ends here". The `<main>` panel is
-  `rounded-2xl overflow-hidden`, so it clips the table's square corners; **don't re-round the table to
-  "fix" a corner** — check the panel's clipping first. Everything above the table keeps the side
-  padding, so the header, strip and table stay aligned on the same gutter. **Don't reintroduce paging here;**
+- **A list table is EDGE TO EDGE and square** (2026-07-23). The page root carries **no side or bottom
+  padding** (`pt-[22px]` only); the 26px gutter moves onto a wrapper around **everything above the
+  table** (header, pipeline strip, search), so the toolbar stays inset while the table runs the full
+  width of the panel and flush to its bottom. The table's ONLY border is `border-t`, separating it
+  from the toolbar — no rounding, no side or bottom borders, since those edges are the panel's.
+  Height and width on a list screen are rows and columns; a radius, three rules and 22px of padding
+  were spending it several times over to say "the table ends here". **Don't re-round the table or
+  give it side borders** — and note `<main>` is `overflow-hidden`, so it clips the square corners.
+  **Don't reintroduce paging here;**
   `/leads` got the same infinite scroll on 2026-07-23. `FilterDropdown`, `TogglePill` and `Pagination`
   were deleted from `list-controls.tsx` once both lists scrolled — that file is now just the URL
   plumbing (`useSetParams`) and the shared `SearchBox`.

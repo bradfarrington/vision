@@ -91,30 +91,33 @@ export default async function CustomersPage({
           restores them instead of resetting to the default. */}
       <ViewStateSaver />
       {/* saved carries { order, widths } — the provider sanitises the shape. */}
-      {/* No bottom padding: the table runs flush to the panel's bottom edge, so
-          every pixel of height goes to rows. The <main> panel is rounded +
-          overflow-hidden, which clips the table's square corners for us. */}
-      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] pt-[22px]">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
-            Customers
-          </h1>
-          <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
-            {total.toLocaleString("en-GB")}
-          </span>
-          <div className="ml-auto flex items-center gap-2.5">
-            <ColumnsButton />
-            <FiltersButton filterOptions={filterOptions} />
-            <Link href="/customers/new" className={btnPrimary}>
-              <Icon name="plus" size={13} strokeWidth={2.2} /> New Customer
-            </Link>
+      {/* The page has NO side or bottom padding — the table is edge to edge and
+          flush to the bottom, so every pixel goes to rows. The padding lives on
+          the toolbar block below instead, which keeps its 26px gutter. */}
+      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden pt-[22px]">
+        {/* Everything above the table keeps the page gutter. */}
+        <div className="flex flex-col gap-[14px] px-[26px]">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
+              Customers
+            </h1>
+            <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
+              {total.toLocaleString("en-GB")}
+            </span>
+            <div className="ml-auto flex items-center gap-2.5">
+              <ColumnsButton />
+              <FiltersButton filterOptions={filterOptions} />
+              <Link href="/customers/new" className={btnPrimary}>
+                <Icon name="plus" size={13} strokeWidth={2.2} /> New Customer
+              </Link>
+            </div>
           </div>
-        </div>
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <SearchBox placeholder="Name, postcode, phone…" />
+          {/* Search */}
+          <div className="flex items-center gap-2">
+            <SearchBox placeholder="Name, postcode, phone…" />
+          </div>
         </div>
 
         <CustomerTable

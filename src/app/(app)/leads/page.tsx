@@ -106,89 +106,92 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
       {/* Remembers this list's filters/sort for the session so returning here
           restores them instead of resetting to the default. */}
       <ViewStateSaver />
-      {/* No bottom padding: the table runs flush to the panel's bottom edge, so
-          every pixel of height goes to rows. The <main> panel is rounded +
-          overflow-hidden, which clips the table's square corners for us. */}
-      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden px-[26px] pt-[22px]">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
-            Leads
-          </h1>
-          <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
-            {total.toLocaleString("en-GB")}
-          </span>
-          <div className="ml-auto flex items-center gap-2.5">
-            {/* Ranges lead-date (when the enquiry arrived) — the date this list
-                is ordered by, so it's the one a range is about. */}
-            <DateRangeButton />
-            <ColumnsButton />
-            <FiltersButton filterOptions={filterOptions} />
-            <Link href="/leads/new" className={btnPrimary}>
-              <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
-            </Link>
-          </div>
-        </div>
-
-        {/* Pipeline summary — a fixed set of stage tiles, each a one-click
-            filter. Shown in stage order and filled with zeroes so the strip is
-            stable regardless of what data exists.
-
-            Styled as STAT TILES, matching the customer overview's strip: a 3px
-            coloured rule down the leading edge, an uppercase label, and the
-            count with its value inline. Two lines instead of three, so the
-            strip costs the table far less height than the old stacked cards. */}
-        {/* Each tile is sized BY ITS OWN CONTENT, between a min and a max — not
-            an equal share of the row. Stage names vary in length, and stretching
-            them all to match left "Won" swimming in white space. Past the max a
-            long name WRAPS (never truncates — a stage the tenant renamed must
-            stay readable), which grows that tile; `items-stretch` keeps the row
-            level so one tall tile doesn't leave the others short. */}
-        <div className="flex flex-wrap items-stretch gap-2.5">
-          {pipelineSummary(pipeline).map((b) => {
-            const stage = leadStage(b.key);
-            const tone = STAGE_STAT_TONE[stage.tone];
-            const active = sp.stage === b.key;
-            return (
-              <Link
-                key={b.key}
-                href={stageHref(active ? null : b.key)}
-                className={cn(
-                  "relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
-                  active
-                    ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
-                    : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
-                )}
-              >
-                <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
-                <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
-                  {stage.label}
-                </div>
-                {/* Count left, value hard RIGHT — the two answer different
-                    questions ("how many" vs "how much"), and sitting them side
-                    by side read as one run-on figure. `justify-between` needs
-                    the tile's min-width to exceed this row, which it does. */}
-                <div className="flex items-baseline justify-between gap-3">
-                  <span
-                    className={cn(
-                      "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
-                      tone.value,
-                    )}
-                  >
-                    {b.count}
-                  </span>
-                  <span className="shrink-0 text-[11.5px] text-[#71717a]">
-                    {gbpCompact(b.value)}
-                  </span>
-                </div>
+      {/* The page has NO side or bottom padding — the table is edge to edge and
+          flush to the bottom, so every pixel goes to rows. The padding lives on
+          the toolbar block below instead, which keeps its 26px gutter. */}
+      <div className="flex flex-1 flex-col gap-[14px] overflow-hidden pt-[22px]">
+        {/* Everything above the table keeps the page gutter. */}
+        <div className="flex flex-col gap-[14px] px-[26px]">
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
+              Leads
+            </h1>
+            <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
+              {total.toLocaleString("en-GB")}
+            </span>
+            <div className="ml-auto flex items-center gap-2.5">
+              {/* Ranges lead-date (when the enquiry arrived) — the date this list
+                  is ordered by, so it's the one a range is about. */}
+              <DateRangeButton />
+              <ColumnsButton />
+              <FiltersButton filterOptions={filterOptions} />
+              <Link href="/leads/new" className={btnPrimary}>
+                <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
               </Link>
-            );
-          })}
-        </div>
+            </div>
+          </div>
 
-        {/* Search */}
-        <div className="flex items-center gap-2">
-          <SearchBox placeholder="Lead no., product, source, town…" />
+          {/* Pipeline summary — a fixed set of stage tiles, each a one-click
+              filter. Shown in stage order and filled with zeroes so the strip is
+              stable regardless of what data exists.
+
+              Styled as STAT TILES, matching the customer overview's strip: a 3px
+              coloured rule down the leading edge, an uppercase label, and the
+              count with its value inline. Two lines instead of three, so the
+              strip costs the table far less height than the old stacked cards. */}
+          {/* Each tile is sized BY ITS OWN CONTENT, between a min and a max — not
+              an equal share of the row. Stage names vary in length, and stretching
+              them all to match left "Won" swimming in white space. Past the max a
+              long name WRAPS (never truncates — a stage the tenant renamed must
+              stay readable), which grows that tile; `items-stretch` keeps the row
+              level so one tall tile doesn't leave the others short. */}
+          <div className="flex flex-wrap items-stretch gap-2.5">
+            {pipelineSummary(pipeline).map((b) => {
+              const stage = leadStage(b.key);
+              const tone = STAGE_STAT_TONE[stage.tone];
+              const active = sp.stage === b.key;
+              return (
+                <Link
+                  key={b.key}
+                  href={stageHref(active ? null : b.key)}
+                  className={cn(
+                    "relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
+                    active
+                      ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
+                      : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
+                  )}
+                >
+                  <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
+                  <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+                    {stage.label}
+                  </div>
+                  {/* Count left, value hard RIGHT — the two answer different
+                      questions ("how many" vs "how much"), and sitting them side
+                      by side read as one run-on figure. `justify-between` needs
+                      the tile's min-width to exceed this row, which it does. */}
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span
+                      className={cn(
+                        "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
+                        tone.value,
+                      )}
+                    >
+                      {b.count}
+                    </span>
+                    <span className="shrink-0 text-[11.5px] text-[#71717a]">
+                      {gbpCompact(b.value)}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Search */}
+          <div className="flex items-center gap-2">
+            <SearchBox placeholder="Lead no., product, source, town…" />
+          </div>
         </div>
 
         <LeadTable
