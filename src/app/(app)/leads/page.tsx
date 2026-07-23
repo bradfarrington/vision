@@ -3,13 +3,12 @@ import Link from "next/link";
 import {
   getLeadBoard,
   getLeads,
-  type BoardColumn,
   type LeadFilters,
   type StageBucket,
   type ValueCondition,
 } from "@/lib/data/leads";
 import { getUserPref } from "@/lib/data/user-layouts";
-import { PIPELINE_STAGES, STAGE_STAT_TONE, leadStage } from "@/lib/leads";
+import { leadStage } from "@/lib/leads";
 import { gbpCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Icon, TOOLBAR_H, btnPrimary } from "@/components/crm/primitives";
@@ -94,17 +93,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   const listData = board ? null : (data as Awaited<ReturnType<typeof getLeads>>);
   const total = boardData ? boardData.total : listData!.total;
   const filterOptions = boardData ? boardData.filterOptions : listData!.filterOptions;
-  const pipeline: StageBucket[] = listData?.pipeline ?? [];
-
-  const stageHref = (key: string | null) => {
-    const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(sp)) {
-      if (k !== "stage" && typeof v === "string" && v !== "") params.set(k, v);
-    }
-    if (key) params.set("stage", key);
-    const qs = params.toString();
-    return qs ? `/leads?${qs}` : "/leads";
-  };
+  // Both loaders return the pipeline aggregate in the same shape, so the
+  // summary tiles above are identical in either view.
+  const pipeline: StageBucket[] = boardData ? boardData.pipeline : listData!.pipeline;
 
   // Re-mount the table (resetting its scroll list) whenever the query changes,
   // so a new sort/filter/search starts from a fresh first chunk.
@@ -164,62 +155,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               long name WRAPS (never truncates — a stage the tenant renamed must
               stay readable), which grows that tile; `items-stretch` keeps the row
               level so one tall tile doesn't leave the others short. */}
-          {/* The stage strip and the view toggle share a row. The toggle is
-              bottom-aligned on the far right, so it sits directly above the
-              container it switches. The row renders in BOTH views — in board
-              view the tiles are gone, but the toggle still lives here rather
-              than jumping back up to the toolbar. */}
+          {/* Summary tiles + the view toggle share a row, identically in BOTH
+              views. The per-stage breakdown lives on the KANBAN, where each
+              column header carries its own count and value and you can act on
+              it — repeating it here as a strip of tiles said the same thing
+              twice and cost the list a band of height. */}
           <div className="flex items-end justify-between gap-3">
-            {/* List only: on the board the columns ARE this strip, with the same
-                rule colour, count and value in each header. */}
-            {!board ? (
-            <div className="flex min-w-0 flex-wrap items-stretch gap-2.5">
-              {pipelineSummary(pipeline).map((b) => {
-                const stage = leadStage(b.key);
-                const tone = STAGE_STAT_TONE[stage.tone];
-                const active = sp.stage === b.key;
-                return (
-                  <Link
-                    key={b.key}
-                    href={stageHref(active ? null : b.key)}
-                    className={cn(
-                      "relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
-                      active
-                        ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
-                        : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
-                    )}
-                  >
-                    <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
-                    <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
-                      {stage.label}
-                    </div>
-                    {/* Count left, value hard RIGHT — the two answer different
-                        questions ("how many" vs "how much"), and sitting them side
-                        by side read as one run-on figure. `justify-between` needs
-                        the tile's min-width to exceed this row, which it does. */}
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span
-                        className={cn(
-                          "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
-                          tone.value,
-                        )}
-                      >
-                        {b.count}
-                      </span>
-                      <span className="shrink-0 text-[11.5px] text-[#71717a]">
-                        {gbpCompact(b.value)}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-            ) : (
-              /* Board view: the per-stage numbers are in the column headers, so
-                 this states what they can't — the board's TOTALS. Open excludes
-                 won and lost, which is the figure a pipeline is actually about. */
-              <BoardTotals columns={boardData!.columns} />
-            )}
+            <LeadSummary total={total} pipeline={pipeline} />
             <div className="shrink-0">
               <ViewToggle />
             </div>
@@ -244,38 +186,41 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 }
 
 /**
- * The board's headline figures, as STAT TILES matching the list view's stage
- * strip — same geometry, same 3px leading rule, so the row reads the same
- * whichever view you're in.
+ * The list's headline figures, as stat tiles — the same row in list and board
+ * view. Derived from the pipeline aggregate already loaded, so it costs no
+ * query.
  *
- * Deliberately NOT a repeat of the stage strip: the column headers already give
- * each stage, so this gives what they can't — the open pipeline (everything not
- * yet won or lost) and what has been won. Derived from the columns already
- * loaded, so it costs no query.
+ * "Open" is every stage still live (not won, not lost) — the figure a pipeline
+ * is actually about. Everything here respects the current filters and date
+ * range, like the rest of the screen.
  */
-function BoardTotals({ columns }: { columns: BoardColumn[] }) {
-  const open = columns.filter((c) => leadStage(c.key).live);
-  const won = columns.find((c) => c.key === "won");
-  const openValue = open.reduce((n, c) => n + c.value, 0);
+function LeadSummary({ total, pipeline }: { total: number; pipeline: StageBucket[] }) {
+  const live = pipeline.filter((b) => leadStage(b.key).live);
+  const liveCount = live.reduce((n, b) => n + b.count, 0);
+  const openValue = live.reduce((n, b) => n + b.value, 0);
+  const wonValue = pipeline.find((b) => b.key === "won")?.value ?? 0;
+  const lostValue = pipeline.find((b) => b.key === "lost")?.value ?? 0;
+  const n = (v: number) => v.toLocaleString("en-GB");
 
   return (
     <div className="flex min-w-0 flex-wrap items-stretch gap-2.5">
-      {/* Open is the tenant accent — it's the live figure, same as the customer
-          overview's live-leads tile. Won is platform green. */}
+      <StatTile label="Total Leads" value={n(total)} rule="bg-[#a1a1aa]" tone="text-[#0a0a0a]" />
+      {/* Live and Open pipeline are the SAME population counted two ways — how
+          many, and how much — so they share the accent. */}
       <StatTile
-        label="Open pipeline"
+        label="Live Leads"
+        value={n(liveCount)}
+        rule="bg-[var(--accent-blue)]"
+        tone="text-[var(--accent-blue)]"
+      />
+      <StatTile
+        label="Open Pipeline"
         value={gbpCompact(openValue)}
         rule="bg-[var(--accent-blue)]"
         tone="text-[var(--accent-blue)]"
       />
-      {won && (
-        <StatTile
-          label="Won"
-          value={gbpCompact(won.value)}
-          rule="bg-[#1a7f3e]"
-          tone="text-[#1a7f3e]"
-        />
-      )}
+      <StatTile label="Won" value={gbpCompact(wonValue)} rule="bg-[#1a7f3e]" tone="text-[#1a7f3e]" />
+      <StatTile label="Lost" value={gbpCompact(lostValue)} rule="bg-[#d64545]" tone="text-[#d64545]" />
     </div>
   );
 }
@@ -307,11 +252,4 @@ function StatTile({
       </div>
     </div>
   );
-}
-
-// Show the fixed pipeline stages in order, filling zero-count stages so the bar
-// is stable regardless of what data exists.
-function pipelineSummary(pipeline: StageBucket[]): StageBucket[] {
-  const byKey = new Map(pipeline.map((b) => [b.key, b]));
-  return PIPELINE_STAGES.map((s) => byKey.get(s.key) ?? { key: s.key, count: 0, value: 0 });
 }

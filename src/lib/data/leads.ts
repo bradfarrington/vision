@@ -432,10 +432,17 @@ export async function getBoardColumn(
   return { cards: rows, total, hasMore: page * BOARD_COLUMN_SIZE < total };
 }
 
-/** Every column's first page, in pipeline order, plus the filter options. */
-export async function getLeadBoard(
-  filters: LeadFilters,
-): Promise<{ columns: BoardColumn[]; filterOptions: Record<string, string[]>; total: number }> {
+/**
+ * Every column's first page, in pipeline order, plus the aggregates the page
+ * header needs — returned in the SAME shape the list returns them, so one
+ * summary component serves both views.
+ */
+export async function getLeadBoard(filters: LeadFilters): Promise<{
+  columns: BoardColumn[];
+  filterOptions: Record<string, string[]>;
+  pipeline: StageBucket[];
+  total: number;
+}> {
   const supabase = await createClient();
   const search = await resolveSearch(supabase, filters.search);
 
@@ -463,6 +470,7 @@ export async function getLeadBoard(
   return {
     columns,
     filterOptions,
+    pipeline,
     total: columns.reduce((n, c) => n + c.total, 0),
   };
 }

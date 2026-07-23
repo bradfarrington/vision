@@ -600,15 +600,22 @@ per lead, drag a card between columns to move it. `LeadBoard`
   board scrolling as a whole — means a stage with 300 leads makes its neighbours 300 cards tall.
   No visible scrollbar; that's app-wide (§ App frame), so a column has to look scrollable from its
   content.
-- **The toggle's row carries BOARD TOTALS in board view**, not a repeat of the strip: the columns
-  already give each stage, so this gives what they can't — open pipeline (everything not yet won or
-  lost) and won. They are **stat tiles with the same geometry and leading rule as the list's stage
-  strip**, so the row reads the same in either view. Derived from the already-loaded columns, so it
-  costs no query. Without it that row was a blank band holding one small control.
-- **Neither the heading nor the tiles carry a count** (2026-07-23) — the heading's count pill was
-  removed from `/leads` and the tiles show value only. Note this reverses the "the header pill is the
-  ONE place a list states its total" line under § continuous scroll for this screen; `/customers`
-  still has its pill.
+- **ONE summary row serves BOTH views, and it is NOT a per-stage strip** (changed 2026-07-23). Five
+  stat tiles — Total Leads · Live Leads · Open Pipeline · Won · Lost — sharing the row with the view
+  toggle, identical in list and board view. **The per-stage breakdown lives on the kanban**, where a
+  column header carries its own count and value AND you can act on it by dragging; repeating it as a
+  strip of tiles on the list said the same thing twice and cost a band of height.
+  - Live/Open Pipeline are the same population counted two ways (how many, how much), so they share
+    the tenant accent; Won green, Lost red, Total neutral.
+  - Derived from the pipeline aggregate already loaded — `getLeadBoard` returns `pipeline` in the
+    SAME shape `getLeads` does precisely so one component serves both views. No extra query.
+  - **Consequence: the stage strip's one-click stage filter is gone.** Stage is still filterable via
+    the Filters popover (`f_status`), and `sp.stage` is still read so an old link keeps working, but
+    nothing in the UI sets it any more.
+- **The heading carries no count pill on `/leads`** (2026-07-23), and the tiles show a figure with no
+  secondary count. Note this reverses the "the header pill is the ONE place a list states its total"
+  line under § continuous scroll for this screen — Total Leads is now that place. `/customers` still
+  has its pill.
 - **Lost gets a column.** The strip uses `PIPELINE_STAGES` (which excludes it), but a board must have
   somewhere to drop every state, so the board iterates `LEAD_STAGES`.
 - **The toggle sits on the STAGE-TILE row, bottom-aligned far right** — directly above the container
