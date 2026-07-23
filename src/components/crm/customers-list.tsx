@@ -252,13 +252,16 @@ const CUSTOMERS_SPEC: ListSpec<CustomerRowView, CustomerFilters> = {
 
 export function CustomerColumnsProvider({
   saved,
+  persist = true,
   children,
 }: {
   saved: Record<string, unknown> | null;
+  /** False while a saved view owns the columns — see DataListProvider. */
+  persist?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <DataListProvider spec={CUSTOMERS_SPEC} saved={saved}>
+    <DataListProvider persist={persist} spec={CUSTOMERS_SPEC} saved={saved}>
       {children}
     </DataListProvider>
   );

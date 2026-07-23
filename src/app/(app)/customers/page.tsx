@@ -18,6 +18,8 @@ import {
   type CustomerRowView,
 } from "@/components/crm/customers-list";
 import { ViewStateSaver } from "@/components/crm/view-state";
+import { getSavedViews, getSavedView } from "@/lib/data/saved-views";
+import { ViewSwitcher } from "@/components/crm/view-switcher";
 
 // Customers list — transcribed from `Vision CRM Screens.dc.html` screen 02.
 // Search / filters / pagination are URL-driven so the server re-queries; the
@@ -73,10 +75,18 @@ export default async function CustomersPage({
     sort,
     dir,
   };
-  const [{ rows, total, filterOptions }, columnPref] = await Promise.all([
+  const [{ rows, total, filterOptions }, columnPref, savedViews, activeView] = await Promise.all([
     getCustomers({ ...filters, page: 1 }),
     getUserPref("customers_columns"),
+    getSavedViews("customers"),
+    getSavedView("customers", sp.sv),
   ]);
+
+  // A saved view can pin its own column layout; when one does it OWNS the
+  // columns, so changes are held for its Save rather than written to the user's
+  // personal default.
+  const viewColumns = activeView?.columns ?? null;
+  const columnLayout = viewColumns ?? columnPref;
 
   // Derive each row's "last activity" here (the helper lives with the server
   // data layer), so the client table renders without re-importing server code.
@@ -87,7 +97,7 @@ export default async function CustomersPage({
   const viewKey = JSON.stringify({ search: sp.search, live: sp.live, columnFilters, valueFilters, sort, dir });
 
   return (
-    <CustomerColumnsProvider saved={columnPref}>
+    <CustomerColumnsProvider saved={columnLayout} persist={!viewColumns}>
       {/* Remembers this list's filters/sort for the session so returning here
           restores them instead of resetting to the default. */}
       <ViewStateSaver />
@@ -103,6 +113,10 @@ export default async function CustomersPage({
             <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
               Customers
             </h1>
+            <span className="text-[#d4d4d8]">/</span>
+            {/* The view is the SUBJECT of the screen, so it sits on the title —
+                not as another button among the controls that modify it. */}
+            <ViewSwitcher entity="customers" views={savedViews} activeId={sp.sv} />
             <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
               {total.toLocaleString("en-GB")}
             </span>

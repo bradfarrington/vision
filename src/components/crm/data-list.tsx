@@ -114,6 +114,8 @@ type AnySpec = ListSpec<never, never>;
 
 type ListCtx = {
   spec: AnySpec;
+  /** Current layout, so a saved view can capture it (see lib/views). */
+  layout: { order: string[]; widths: Record<string, number> };
   columnMap: Map<string, ListColumn<never>>;
   allKeys: string[];
   visible: string[];
@@ -135,6 +137,15 @@ function useList(): ListCtx {
   return ctx;
 }
 
+/**
+ * The list's current column layout, for whoever needs to SAVE it — the view
+ * switcher. Returns null outside a provider so a screen with no column picker
+ * (a board-only list) can still host the switcher.
+ */
+export function useListLayout(): { order: string[]; widths: Record<string, number> } | null {
+  return useContext(ListContext)?.layout ?? null;
+}
+
 /** Resolve each column's sortField once: real DB columns sort by their own field. */
 function prepare(spec: AnySpec): Map<string, ListColumn<never>> {
   const noSort = new Set(spec.noSort);
@@ -147,10 +158,20 @@ function prepare(spec: AnySpec): Map<string, ListColumn<never>> {
 export function DataListProvider<V, F>({
   spec,
   saved,
+  persist = true,
   children,
 }: {
   spec: ListSpec<V, F>;
   saved: Record<string, unknown> | null;
+  /**
+   * Whether a column change writes straight to the user's own preference.
+   *
+   * FALSE while a saved view is loaded: the columns then belong to the VIEW,
+   * so a change is held in state and marks the view dirty until you Save —
+   * otherwise fiddling with a column on someone's shared view would silently
+   * rewrite your personal default instead.
+   */
+  persist?: boolean;
   children: React.ReactNode;
 }) {
   const anySpec = spec as unknown as AnySpec;
@@ -165,8 +186,9 @@ export function DataListProvider<V, F>({
   const [widths, setWidths] = useState<Record<string, number>>(() => init.widths);
   const hidden = allKeys.filter((k) => !visible.includes(k));
 
-  const save = (order: string[], w: Record<string, number>) =>
-    void saveUserPref(layoutKey, { order, widths: w });
+  const save = (order: string[], w: Record<string, number>) => {
+    if (persist) void saveUserPref(layoutKey, { order, widths: w });
+  };
 
   // These read `visible`/`widths` from the render closure. That's safe: toggle
   // and reorder run on discrete clicks (closure is current), and commitWidth
@@ -193,13 +215,14 @@ export function DataListProvider<V, F>({
   const reset = () => {
     setVisible(defaultVisible);
     setWidths({});
-    void resetUserLayout(layoutKey);
+    if (persist) void resetUserLayout(layoutKey);
   };
 
   return (
     <ListContext.Provider
       value={{
         spec: anySpec,
+        layout: { order: visible, widths },
         columnMap,
         allKeys,
         visible,

@@ -225,13 +225,16 @@ const LEADS_SPEC: ListSpec<LeadRow, LeadFilters> = {
 
 export function LeadColumnsProvider({
   saved,
+  persist = true,
   children,
 }: {
   saved: Record<string, unknown> | null;
+  /** False while a saved view owns the columns — see DataListProvider. */
+  persist?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <DataListProvider spec={LEADS_SPEC} saved={saved}>
+    <DataListProvider persist={persist} spec={LEADS_SPEC} saved={saved}>
       {children}
     </DataListProvider>
   );

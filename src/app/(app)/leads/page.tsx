@@ -25,6 +25,8 @@ import { ViewToggle } from "@/components/crm/view-toggle";
 import { CollapsibleSummary } from "@/components/crm/collapsible-summary";
 import { ViewStateSaver } from "@/components/crm/view-state";
 import { resolveRange } from "@/lib/date-range";
+import { getSavedViews, getSavedView } from "@/lib/data/saved-views";
+import { ViewSwitcher } from "@/components/crm/view-switcher";
 
 // Leads list — net-new (no design exists), built on the same shared list
 // machinery as /customers: configurable + resizable + sortable columns saved per
@@ -87,11 +89,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   // Board or list — both run the SAME filters, so switching view never changes
   // which leads you are looking at, only how they are arranged.
   const board = sp.view === "board";
-  const [data, columnPref, summaryPref] = await Promise.all([
+  const [data, columnPref, summaryPref, views, activeView] = await Promise.all([
     board ? getLeadBoard(filters) : getLeads({ ...filters, page: 1 }),
     getUserPref("leads_columns"),
     getUserPref("leads_summary"),
+    getSavedViews("leads"),
+    getSavedView("leads", sp.sv),
   ]);
+
+  // A saved view can pin its own column layout. When one does, it OWNS the
+  // columns — changes are held for its Save rather than written to the user's
+  // personal default (see DataListProvider's `persist`).
+  const viewColumns = activeView?.columns ?? null;
+  const columnLayout = viewColumns ?? columnPref;
 
   const boardData = board ? (data as Awaited<ReturnType<typeof getLeadBoard>>) : null;
   const listData = board ? null : (data as Awaited<ReturnType<typeof getLeads>>);
@@ -122,7 +132,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   });
 
   return (
-    <LeadColumnsProvider saved={columnPref}>
+    <LeadColumnsProvider saved={columnLayout} persist={!viewColumns}>
       {/* Remembers this list's filters/sort for the session so returning here
           restores them instead of resetting to the default. */}
       <ViewStateSaver />
@@ -137,6 +147,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
               Leads
             </h1>
+            <span className="text-[#d4d4d8]">/</span>
+            {/* The view is the SUBJECT of the screen, so it sits on the title —
+                not as a sixth button among the controls that modify it. */}
+            <ViewSwitcher entity="leads" views={views} activeId={sp.sv} />
             <div className="ml-auto flex items-center gap-2.5">
               <SearchButton placeholder="Lead no., customer, address, product…" />
               {/* Ranges lead-date (when the enquiry arrived) — the date this list

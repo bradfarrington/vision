@@ -499,6 +499,48 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   session/tab-scoped by design; a DB-backed per-user default would be the cross-device upgrade. Reuse
   `ViewStateSaver`/`RememberedLink` for `/leads` when its grid lands.
 
+## Saved views — built 2026-07-23
+
+A **view** is a named bundle of everything that shapes a list screen: its query (filters, advanced
+conditions, date range, sort, list-vs-board) AND its column layout. `/leads` and `/customers` both
+have them; contracts gets them free.
+
+- **The switcher sits on the PAGE TITLE, not in the toolbar** — `Leads / All leads ▾`. The toolbar
+  buttons are VERBS that modify what you're looking at; a view is the SUBJECT, and it *contains*
+  those filters. Putting it next to Filters would have it sitting beside the thing it holds.
+- **Selecting a view EXPANDS its query into the URL.** The server keeps reading plain params and
+  knows nothing about views, so the URL stays shareable and the back button keeps working.
+  `sv=<id>` rides alongside purely to record which view is loaded. **`view` was already taken** by
+  the list/board switch — hence `sv`; don't rename `view` and break existing links.
+- **The DIRTY state is the point of the feature.** Once the URL's view-params differ from the saved
+  ones, the title grows `Modified · Save · Save as new · Reset`. Without it nobody can tell a saved
+  view from one they fiddled with two clicks ago — which is the failure mode a switcher alone has.
+- **A view owns BOTH halves, query and columns.** "Live leads for Dave" showing whatever columns you
+  last set globally would defeat the point. So while a view with pinned columns is loaded,
+  `DataListProvider` runs with **`persist={false}`**: column changes are held in state and mark the
+  view dirty, instead of quietly rewriting your personal default. With no view loaded, columns
+  persist to `user_ui_layouts` exactly as before.
+- **`search` is deliberately NOT part of a view.** A search term is "find me this one thing", not a
+  saved arrangement; baking one in would leave people staring at a filtered list with no idea why.
+  Nor are `page` or `sv` — bookkeeping.
+- **SYSTEM views are defined in CODE** (`src/lib/views/system-views.ts`), not seeded rows. Seeded
+  defaults are the trap the lookup lists have: every new one needs a migration re-seeding every
+  existing tenant, they drift once edited, and a tenant can delete one for good. Code-defined views
+  appear everywhere automatically, can't be deleted, and improve in a release; a tenant customises
+  one by **duplicating it** into their own. Ids are `sys:`-prefixed so they can never collide with a
+  uuid. **Every system view must be expressible in EXISTING params** — if one needs a filter the list
+  can't apply, add the filter first; a view that silently does nothing is worse than no view.
+- **Storage is `public.saved_views`** (`20260723091000`, **apply BY HAND**), NOT `user_ui_layouts`:
+  that table is one opaque blob per (user, surface) and is a preference, where a view is a named,
+  listable, shareable record with its own lifecycle.
+  - **`owner_user_id` nullable is the sharing model** — set = personal, **null = shared with the whole
+    tenant**. Designed in from the start because retrofitting it is painful. RLS: everyone READS
+    their own plus shared; writes are restricted to `owner_user_id = auth.uid()`, so a shared view
+    can't yet be created from the app. That's the safe default until the admin path exists — **add
+    the role check, don't loosen the policy.**
+- **`getSavedViews` FAILS SOFT.** Schema is applied by hand here, so until the migration runs the
+  screens still work with their system views rather than erroring out.
+
 ## The customers list scrolls continuously — no pagination — decided 2026-07-22
 
 The `/customers` list is **one continuously-scrolling list, not paged**. The fixed 9-per-page
@@ -1252,7 +1294,10 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   and embeds resolve; (4) **regenerate + commit the generated types** (see the types bullet above) —
   skipping this is what let them drift. **Every migration through `20260722096000` was applied to the
   remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
-  **`20260723090000_lead_lookup_defaults.sql` is NOT yet applied** — it is data-only (inserts into
+  **`20260723090000_lead_lookup_defaults.sql` and `20260723091000_saved_views.sql` are NOT yet
+  applied.** The saved-views one DOES need the schema-cache reload and a types regen (it creates a
+  table); `getSavedViews` fails soft until it runs, so the list screens show only their built-in
+  views in the meantime. The lookup one is data-only (inserts into
   `tenant_options`), so it needs no schema-cache reload and no types regen, but until it is run the
   lead record's Source / Product type / Quote type / Payment method / Result reason dropdowns open
   empty and every value has to be added by hand. Like `097000`, it is safe to re-run
