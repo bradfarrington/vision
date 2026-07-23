@@ -48,13 +48,25 @@ export function NotesPanel({
   notes,
   documents,
   linkTargets,
+  fixedLeadId,
 }: {
+  /**
+   * The customer the notes and their files hang off. Required even in
+   * lead context: a lead's documents still nest under the owning customer
+   * (see AGENTS.md § Documents), and a lead note keeps `customer_id` set so it
+   * reads from the customer record AND from the lead it is about.
+   */
   customerId: string;
   notes: NoteItem[];
   /** All the customer's documents — attachments are the ones carrying note_id. */
   documents: DocumentItem[];
   /** Leads + contracts a note can be pinned to. */
   linkTargets: NoteLinkTarget[];
+  /**
+   * Set on a lead record: every new note is about THIS lead, so the link is
+   * fixed and its picker is hidden rather than offering other leads.
+   */
+  fixedLeadId?: string;
 }) {
   // The composer's open state lives here so the empty state's button can open
   // it — with no notes there's one call to action, not a link and a card.
@@ -103,6 +115,7 @@ export function NotesPanel({
           {(!empty || composing) && (
             <NoteComposer
               customerId={customerId}
+              fixedLeadId={fixedLeadId}
               linkTargets={linkTargets}
               documents={documents}
               open={composing}
@@ -118,6 +131,7 @@ export function NotesPanel({
                   <NoteRow
                     key={n.id}
                     customerId={customerId}
+                    fixedLeadId={fixedLeadId}
                     note={n}
                     attachments={attachmentsFor(n.id)}
                     linkTargets={linkTargets}
@@ -175,12 +189,14 @@ function EmptyNotes({ onAdd }: { onAdd: () => void }) {
 // --- Composer ---------------------------------------------------------------
 function NoteComposer({
   customerId,
+  fixedLeadId,
   linkTargets,
   documents,
   open,
   setOpen,
 }: {
   customerId: string;
+  fixedLeadId?: string;
   linkTargets: NoteLinkTarget[];
   documents: DocumentItem[];
   open: boolean;
@@ -213,8 +229,10 @@ function NoteComposer({
     start(async () => {
       const res = await addNote({
         customerId,
-        leadId: target?.kind === "lead" ? target.id : null,
-        contractId: target?.kind === "contract" ? target.id : null,
+        // On a lead record the link is the lead itself; elsewhere it comes from
+        // the picker.
+        leadId: fixedLeadId ?? (target?.kind === "lead" ? target.id : null),
+        contractId: fixedLeadId ? null : target?.kind === "contract" ? target.id : null,
         content: text,
       });
       if (res.error || !res.id) {
@@ -269,9 +287,13 @@ function NoteComposer({
       />
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <div className="min-w-[220px] flex-1">
-          <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
-        </div>
+        {/* On a lead record the note is about that lead by definition — offering
+            a picker of other leads would only be a way to file it wrongly. */}
+        {!fixedLeadId && (
+          <div className="min-w-[220px] flex-1">
+            <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
+          </div>
+        )}
         <DocumentPicker
           documents={documents}
           exclude={picked.map((d) => d.id)}
@@ -363,6 +385,7 @@ function NoteComposer({
 // --- One note ---------------------------------------------------------------
 function NoteRow({
   customerId,
+  fixedLeadId,
   note,
   attachments,
   linkTargets,
@@ -372,6 +395,7 @@ function NoteRow({
   onPreview,
 }: {
   customerId: string;
+  fixedLeadId?: string;
   note: NoteItem;
   attachments: DocumentItem[];
   linkTargets: NoteLinkTarget[];
@@ -403,7 +427,14 @@ function NoteRow({
       const res = await updateNote(
         note.id,
         text,
-        { leadId: t?.kind === "lead" ? t.id : null, contractId: t?.kind === "contract" ? t.id : null },
+        // With the picker hidden, an edit must not silently unlink the note —
+        // keep whatever it is already filed under.
+        fixedLeadId
+          ? { leadId: note.leadId ?? fixedLeadId, contractId: note.contractId ?? null }
+          : {
+              leadId: t?.kind === "lead" ? t.id : null,
+              contractId: t?.kind === "contract" ? t.id : null,
+            },
         { customerId },
       );
       if (res.error) {
@@ -465,9 +496,11 @@ function NoteRow({
             onChange={(e) => setDraft(e.target.value)}
             className="w-full resize-y rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-[12.5px] text-[#0a0a0a] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
           />
-          <div className="mt-2 max-w-[280px]">
-            <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
-          </div>
+          {!fixedLeadId && (
+            <div className="mt-2 max-w-[280px]">
+              <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
+            </div>
+          )}
           <p className="mt-1.5 text-[11px] text-[#a1a1aa]">
             The current wording is kept in this note&rsquo;s history — nothing is overwritten.
           </p>

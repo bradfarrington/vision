@@ -88,12 +88,18 @@ export type DocumentItem = {
    * only ever stored, named and numbered once.
    */
   notes: { id: string; number: number | null }[];
+  /**
+   * The lead this file is filed against, if any. The lead record loads its
+   * customer's documents too (so an existing file can be attached rather than
+   * uploaded twice), and needs this to tell its own files from the customer's.
+   */
+  leadId: string | null;
 };
 
 // Columns selected for a document row, plus the uploader name join. Kept here so
 // getCustomerRecord (and future lead/contract loaders) select an identical shape.
 export const DOCUMENT_SELECT =
-  "id, document_number, name, file_name, file_type, file_size, file_url, category, created_at, uploaded_by, uploader:uploaded_by(first_name, last_name), notes:note_attachments(note_id, note:note_id(note_number))";
+  "id, document_number, name, file_name, file_type, file_size, file_url, category, created_at, lead_id, uploaded_by, uploader:uploaded_by(first_name, last_name), notes:note_attachments(note_id, note:note_id(note_number))";
 
 // Same shape minus anything added by a migration that may not be applied yet.
 // Schema is applied by hand here (see AGENTS.md), so a loader that asks for a
@@ -101,7 +107,7 @@ export const DOCUMENT_SELECT =
 // as if the customer had no files. Falling back keeps the record readable —
 // references just show as "D-—" until the migration lands.
 export const DOCUMENT_SELECT_BASE =
-  "id, name, file_name, file_type, file_size, file_url, category, created_at, uploaded_by, uploader:uploaded_by(first_name, last_name)";
+  "id, name, file_name, file_type, file_size, file_url, category, created_at, lead_id, uploaded_by, uploader:uploaded_by(first_name, last_name)";
 
 /**
  * Run a select that uses newest-migration columns, retrying with a safe subset
@@ -126,6 +132,7 @@ type RawDocRow = {
   file_url: string;
   category: string | null;
   created_at: string;
+  lead_id: string | null;
   notes: { note_id: string; note: { note_number: number | null } | null }[] | null;
   uploaded_by: string | null;
   uploader: { first_name: string | null; last_name: string | null } | null;
@@ -143,6 +150,7 @@ export function mapDocumentRow(row: RawDocRow): DocumentItem {
     storage_path: row.file_url,
     category: row.category,
     created_at: row.created_at,
+    leadId: row.lead_id ?? null,
     uploaded_by: row.uploaded_by,
     notes: (row.notes ?? []).map((a) => ({
       id: a.note_id,

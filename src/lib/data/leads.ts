@@ -1,6 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { isLiveLead, leadRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
+import {
+  DOCUMENT_SELECT,
+  DOCUMENT_SELECT_BASE,
+  mapDocumentRow,
+  selectWithFallback,
+  type DocumentItem,
+} from "./documents";
+import { NOTE_SELECT, NOTE_SELECT_BASE, mapNoteRow, type NoteItem } from "./notes";
 
 // Lead columns a user may filter the list by, applied server-side so paging and
 // counts stay correct. Allowlisted (never interpolated from input) — the value
@@ -390,6 +398,17 @@ export type LeadDetail = {
   leadNotes: LeadNote[];
   checklist: LeadChecklistItem[];
   activities: LeadActivity[];
+  /**
+   * The lead's note thread, in the shared stamped/versioned NoteItem shape.
+   * Distinct from `notes` above, which is the lead row's own free-text column.
+   */
+  noteThread: NoteItem[];
+  /**
+   * Documents reachable from this lead: its own plus the owning customer's, so
+   * the tab can attach an existing file instead of re-uploading it (the same
+   * duplicate-free path the customer record offers).
+   */
+  documents: DocumentItem[];
 };
 
 export type AddressParts = {
@@ -478,6 +497,29 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const l = data as any;
   const c = l.customers;
+
+  // Notes + documents are separate reads because they need the shared
+  // stamped/versioned selects (with their author joins and their
+  // pending-migration fallbacks), which don't compose into the embed above.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as unknown as { from(t: string): any };
+  const [notesRes, docsRes] = await Promise.all([
+    selectWithFallback(
+      () => db.from("lead_notes").select(NOTE_SELECT).eq("lead_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
+      () => db.from("lead_notes").select(NOTE_SELECT_BASE).eq("lead_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
+    ),
+    // The owning customer's documents when there is one, so an existing file
+    // can be attached rather than uploaded twice; otherwise just the lead's.
+    c?.id
+      ? selectWithFallback(
+          () => db.from("documents").select(DOCUMENT_SELECT).or(`customer_id.eq.${c.id},lead_id.eq.${id}`).order("created_at", { ascending: false }),
+          () => db.from("documents").select(DOCUMENT_SELECT_BASE).or(`customer_id.eq.${c.id},lead_id.eq.${id}`).order("created_at", { ascending: false }),
+        )
+      : selectWithFallback(
+          () => db.from("documents").select(DOCUMENT_SELECT).eq("lead_id", id).order("created_at", { ascending: false }),
+          () => db.from("documents").select(DOCUMENT_SELECT_BASE).eq("lead_id", id).order("created_at", { ascending: false }),
+        ),
+  ]);
   const customerName = c
     ? isCommercial(c.customer_type) && c.company_name
       ? c.company_name
@@ -548,6 +590,10 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
     activities: (l.activities ?? []).sort(
       (a: LeadActivity, b: LeadActivity) => +new Date(b.created_at) - +new Date(a.created_at),
     ),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    noteThread: ((notesRes.data ?? []) as any[]).map(mapNoteRow),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    documents: ((docsRes.data ?? []) as any[]).map(mapDocumentRow),
   };
 }
 

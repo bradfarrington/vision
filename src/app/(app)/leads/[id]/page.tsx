@@ -11,11 +11,11 @@ import { updateLeadField } from "@/app/(app)/leads/actions";
 import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
 import { AddressMap } from "@/components/crm/address-map";
 import { RememberedLink } from "@/components/crm/view-state";
-import {
-  ChecklistToggle,
-  NoteComposer,
-  StageChanger,
-} from "@/components/crm/lead-interactions";
+import { Tabs } from "@/components/crm/tabs";
+import { NotesPanel } from "@/components/crm/notes-panel";
+import { DocumentsPanel } from "@/components/crm/documents-panel";
+import { getUserOrder } from "@/lib/data/user-layouts";
+import { ChecklistToggle, StageChanger } from "@/components/crm/lead-interactions";
 
 // Lead detail — transcribed from `Vision CRM Screens.dc.html` screen 04.
 export default async function LeadDetailPage({
@@ -27,7 +27,7 @@ export default async function LeadDetailPage({
   const lead = await getLead(id);
   if (!lead) notFound();
 
-  const [opts, salesStaff] = await Promise.all([
+  const [opts, salesStaff, tabOrder] = await Promise.all([
     getTenantOptionLists([
       "lead_source",
       "lead_sub_source",
@@ -36,8 +36,10 @@ export default async function LeadDetailPage({
       "payment_method",
       "result_reason",
       "salesperson_type",
+      "document_category",
     ]),
     getSalesStaff(),
+    getUserOrder("lead_tabs"),
   ]);
 
   return (
@@ -85,33 +87,108 @@ export default async function LeadDetailPage({
         </div>
       </div>
 
-      {/* Tab bar (Overview is live; other tabs arrive with their modules) */}
-      <div className="flex items-end gap-0.5 border-b border-[#e7e7ea]">
-        <Tab label="Overview" active />
-        <Tab label="Communications" count={lead.activities.length} />
-        <Tab label="Quotes" />
-        <Tab label="Notes" count={lead.leadNotes.length} />
-        <Tab label="Documents" />
-        <Tab label="Checklist" count={lead.checklist.length} />
+      {/* Real tabs, drag-reorderable and saved per user — the same shell the
+          customer record uses. Quotes isn't here: it arrives with Phase 5, and a
+          dead tab is worse than a missing one. */}
+      <Tabs
+        layoutKey="lead_tabs"
+        savedOrder={tabOrder}
+        tabs={[
+          {
+            label: "Overview",
+            content: <OverviewTab lead={lead} opts={opts} salesStaff={salesStaff} />,
+          },
+          { label: "Activity", count: lead.activities.length, content: <ActivityPanel lead={lead} /> },
+          {
+            label: "Notes",
+            count: lead.noteThread.length,
+            content: lead.customer ? (
+              // The shared notes panel: stamped, versioned, with attachments.
+              // `fixedLeadId` files every new note against THIS lead while
+              // keeping customer_id set, so it reads from both records.
+              <NotesPanel
+                customerId={lead.customer.id}
+                fixedLeadId={lead.id}
+                notes={lead.noteThread}
+                documents={lead.documents}
+                linkTargets={[]}
+              />
+            ) : (
+              <NoCustomer what="Notes" />
+            ),
+          },
+          {
+            label: "Documents",
+            count: lead.documents.filter((d) => d.leadId === lead.id).length,
+            content: lead.customer ? (
+              <DocumentsPanel
+                ownerType="lead"
+                ownerId={lead.id}
+                customerId={lead.customer.id}
+                documents={lead.documents}
+                categoryOptions={opts.document_category ?? []}
+              />
+            ) : (
+              <NoCustomer what="Documents" />
+            ),
+          },
+          { label: "Checklist", count: lead.checklist.length, content: <ChecklistPanel lead={lead} /> },
+        ]}
+      />
+    </div>
+  );
+}
+
+/**
+ * Overview — a BENTO of independent column stacks (the house style, see
+ * AGENTS.md § Bento layout), not a row-aligned grid: the Lead card is a dozen
+ * rows and the Location card is a fixed-height map, so a row grid would stretch
+ * one to the other's height.
+ */
+function OverviewTab({
+  lead,
+  opts,
+  salesStaff,
+}: {
+  lead: LeadDetail;
+  opts: Record<string, TenantOption[]>;
+  salesStaff: StaffOption[];
+}) {
+  return (
+    <div className="grid max-w-[1320px] items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="flex flex-col gap-4">
+        <LeadPanel lead={lead} opts={opts} salesStaff={salesStaff} />
       </div>
-
-      {/* Three-column grid */}
-      <div className="grid min-h-0 flex-1 grid-cols-[310px_1fr_310px] gap-4">
-        {/* Left */}
-        <div className="flex min-h-0 flex-col gap-3">
-          <LeadPanel lead={lead} opts={opts} salesStaff={salesStaff} />
-          <AddressesPanel lead={lead} />
-        </div>
-
-        {/* Centre */}
-        <ActivityPanel lead={lead} />
-
-        {/* Right */}
-        <div className="flex min-h-0 flex-col gap-3">
-          <NotesPanel lead={lead} />
-          <ChecklistPanel lead={lead} />
-        </div>
+      <div className="flex flex-col gap-4">
+        <AddressesPanel lead={lead} />
       </div>
+      <div className="flex flex-col gap-4">
+        {/* "Where is this?" is its own question — the map is its own card rather
+            than decoration wedged under the address rows. */}
+        {lead.install.postcode && (
+          <Card>
+            <CardTitle className="mb-2 text-[14px]">Location</CardTitle>
+            <AddressMap
+              height={220}
+              {...lead.install.fields}
+              what3words={lead.install.whatThreeWords}
+            />
+          </Card>
+        )}
+        <ChecklistPanel lead={lead} />
+      </div>
+    </div>
+  );
+}
+
+/** A tab that needs the owning customer (for file storage) but hasn't got one. */
+function NoCustomer({ what }: { what: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 py-16 text-center">
+      <p className="text-sm font-semibold text-[#3f3f46]">{what} need a customer</p>
+      <p className="text-[12.5px] text-[#71717a]">
+        Link this lead to a customer first — that&rsquo;s where its files and notes are filed.
+      </p>
     </div>
   );
 }
@@ -277,33 +354,6 @@ function ActivityPanel({ lead }: { lead: LeadDetail }) {
   );
 }
 
-function NotesPanel({ lead }: { lead: LeadDetail }) {
-  return (
-    <Card>
-      <div className="flex items-center gap-2">
-        <CardTitle className="text-[14px]">Notes</CardTitle>
-        <span className="ml-auto text-[11px] text-[#a1a1aa]">{lead.leadNotes.length}</span>
-      </div>
-      <NoteComposer leadId={lead.id} />
-      <div className="mt-3 flex flex-col">
-        {lead.leadNotes.length === 0 ? (
-          <p className="py-2 text-[12px] text-[#71717a]">No notes yet.</p>
-        ) : (
-          lead.leadNotes.map((n, i) => (
-            <div
-              key={n.id}
-              className={`py-2.5 ${i < lead.leadNotes.length - 1 ? "border-b border-[#f4f4f5]" : ""}`}
-            >
-              <p className="text-[12.5px] text-[#3f3f46]">{n.content}</p>
-              <p className="mt-1 text-[11px] text-[#a1a1aa]">{fmt(n.created_at)}</p>
-            </div>
-          ))
-        )}
-      </div>
-    </Card>
-  );
-}
-
 function ChecklistPanel({ lead }: { lead: LeadDetail }) {
   return (
     <Card className="min-h-0 flex-1 overflow-y-auto">
@@ -344,22 +394,6 @@ function ChecklistPanel({ lead }: { lead: LeadDetail }) {
 }
 
 // --- small building blocks -------------------------------------------------
-function Tab({ label, count, active }: { label: string; count?: number; active?: boolean }) {
-  return (
-    <span
-      className={`relative px-3.5 pb-[11px] pt-[9px] text-[13px] ${
-        active ? "font-bold text-[#0a0a0a]" : "font-medium text-[#71717a]"
-      }`}
-    >
-      {label}
-      {count != null && count > 0 && <span className="ml-1 text-[11px] text-[#a1a1aa]">{count}</span>}
-      {active && (
-        <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-sm bg-[var(--accent-blue)]" />
-      )}
-    </span>
-  );
-}
-
 function FieldRow({
   label,
   children,
