@@ -875,10 +875,10 @@ merges them:
 - **`contracts` has its OWN parallel `fitting_*` block — deliberately NOT touched** (contracts is a
   future phase and no `src/` code reads it yet). If contracts should share the site-address concept,
   merge it when that phase lands.
-- **⚠️ NOT YET APPLIED.** The migration is by-hand (see the migration checklist): apply the SQL,
-  reload PostgREST, regenerate + commit `types.ts` (still stale — a hand-edit was avoided because the
-  contracts `fitting_*` block is byte-identical and a bulk edit would corrupt it). Until then the
-  leads screens error against the remote.
+- **APPLIED 2026-07-23** — the migration is live on the remote, the schema cache was reloaded and
+  `types.ts` was regenerated (via `supabase gen types --linked`) and committed, so the `site_*`
+  columns are reflected. (A hand-edit of `types.ts` was deliberately avoided because the contracts
+  `fitting_*` block is byte-identical and a bulk edit would have corrupted it — the regen was clean.)
 
 ## The lead record — tabs, notes, documents — built 2026-07-23
 
@@ -1493,12 +1493,8 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`, then `npx tsc --noEmit`,
   then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
   doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
-  2026-07-23**, through `20260723091000_saved_views`. **⚠️ STALE for the leads table:
-  `20260723092000_site_address_merge` renamed/merged the lead address columns but is NOT yet applied
-  or regenerated — `types.ts` still shows the old `installation_*`/`fitting_*`/`same_as_customer_address`
-  columns. The code compiles only because the leads layer uses hand-written `RawLead` + `as any`; regen
-  is required after the migration is applied (a hand-edit was avoided because the `contracts` `fitting_*`
-  block is byte-identical to leads' and a bulk edit would corrupt it).**
+  2026-07-23**, through `20260723092000_site_address_merge` — applied to the remote and regenerated,
+  so the leads table's `site_*` columns are reflected and nothing is stale.
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
@@ -1511,11 +1507,10 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
   **EVERY migration through `20260723091000_saved_views` was applied to the remote on 2026-07-23**,
   with the schema cache reloaded and the types regenerated, committed and their loose casts
-  tightened. **OUTSTANDING: `20260723092000_site_address_merge` is NOT yet applied** — apply it by
-  hand, reload PostgREST, then regenerate + commit `types.ts`. It RENAMEs `installation_*` address
-  columns → `site_*`, folds `fitting_*` in as a fallback, and DROPs the `fitting_*` address columns +
-  `fitting_same_as_customer`; the code already speaks `site_*`, so until it is applied the leads
-  screens will error against the remote. See § Site address below.
+  tightened. **`20260723092000_site_address_merge` was applied to the remote on 2026-07-23**, the
+  schema cache reloaded and `types.ts` regenerated + committed. It RENAMEd `installation_*` address
+  columns → `site_*`, folded `fitting_*` in as a fallback, and DROPped the `fitting_*` address columns
+  + `fitting_same_as_customer`. Nothing is outstanding. See § Site address below.
   Two of this session's are safe to RE-RUN as tenants are added, and should be:
   `20260723090000_lead_lookup_defaults` and the earlier `20260721097000_lookup_defaults` are both
   `insert … on conflict do nothing`, so a new tenant gets its pick-lists by re-running them (until
