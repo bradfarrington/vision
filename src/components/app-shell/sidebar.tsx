@@ -51,6 +51,14 @@ function RailLink({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       onClick={onClick}
+      // NO PREFETCH. The rail is on screen on every page, and every destination
+      // behind it is a DYNAMIC route (they all read searchParams). Next's client
+      // router cache keeps dynamic payloads for 0s by default, so a prefetch is
+      // never fresh and the rail re-requests every route it can see — which is
+      // why the dev terminal fills with `GET /leads?_rsc=…` while you sit on
+      // another screen. These are deliberate clicks, not hovers over a row, so
+      // fetching on click is the right trade.
+      prefetch={false}
       title={item.label}
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
