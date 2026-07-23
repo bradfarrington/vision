@@ -65,6 +65,27 @@ Design coverage from `Vision CRM Screens.dc.html` is uneven, so this records wha
 - **Dashboard v1 wires live data** for the pieces the schema supports (KPI counts, pipeline value, lead sources by `leads.source`, today's diary from `fitting_appointments`); the richer analytics widgets (team performance, revenue-by-month bars) stay visually faithful with representative figures until their data paths land in later phases.
 - **`PROPOSED`/amber-badged fields in the design are not-yet-in-schema** annotations — rendered only where a real column backs them, otherwise omitted.
 
+### Phase 4 closed 2026-07-23 — where the shared pieces live
+
+The lead side was brought level with the customer side in one session, and most of it landed as
+SHARED machinery rather than per-screen code. Before building a new list, record or create-flow,
+start from these — forking any of them is how the screens drift apart:
+
+| Concern | Module | Section |
+| --- | --- | --- |
+| List columns, filters, sort, infinite scroll | `components/crm/data-list.tsx` (a `ListSpec` per list) | § One list machinery |
+| Staged create wizards | `components/crm/wizard.tsx` (`WizardFrame` + field primitives) | § The wizard shell is shared |
+| Toolbar controls (Search · Date Range · Columns · Filters) | `list-controls.tsx`, `date-range-button.tsx`, the `Popover` in `data-list.tsx`, all on `TOOLBAR_H` | § Lists & columns |
+| List ⇄ board switch | `components/crm/view-toggle.tsx` | § The leads board |
+| Kanban | `components/crm/lead-board.tsx` | § The leads board |
+| Notes / documents panels | `notes-panel.tsx`, `documents-panel.tsx` — already owner-agnostic | § The lead record |
+| Reference chips | `leadRef`/`contractRef`/`customerRef`/… + `RefChip` | § Notes — stamped, versioned |
+| Enum display | `humanLabel()` in `lib/format.ts` | § snake_case NEVER reaches the UI |
+
+**Contracts is the next entity through all of this**, and it is deliberately the third use of each
+piece: a `ListSpec` for its list, the same `ViewToggle` + board, the same wizard shell. If something
+needs forking to fit contracts, change the shared module rather than copying it.
+
 ## Lookup dropdowns (tenant-editable pick-lists) — decided 2026-07-21
 
 Any field that should be a controlled pick-list (title, property type, payment terms, marketing source, relationship types, lead source, etc.) uses the tenant-editable dropdown pattern, NOT free text, to avoid mixed/inconsistent data:
@@ -516,7 +537,7 @@ missing.
   **Don't reintroduce paging here;**
   `/leads` got the same infinite scroll on 2026-07-23. `FilterDropdown`, `TogglePill` and `Pagination`
   were deleted from `list-controls.tsx` once both lists scrolled — that file is now just the URL
-  plumbing (`useSetParams`) and the shared `SearchBox`.
+  plumbing (`useSetParams`), the debounced-search hook and the expanding `SearchButton`.
 - **There is no Export button** on the list header (removed 2026-07-22 — it was a non-wired placeholder).
 
 ## One list machinery, many lists — `data-list.tsx` — decided 2026-07-23
@@ -553,10 +574,10 @@ list's twin, plus one thing of its own.
 
 - **~45 columns** grouped **Lead · Customer · Source · Quote · Dates**, defaulting to
   ref · product · customer · stage · value · source · dates. New columns default hidden.
-- **The pipeline strip stays** — the fixed `PIPELINE_STAGES` tiles above the table, each a one-click
-  stage filter that also states the money in it. It's the one thing leads has that customers doesn't,
-  and it earns its height. It rides in its own `stage` param (not `f_status`) so it stays independent
-  of the Filters popover, and it **preserves the other query params** rather than dropping them.
+- **The per-stage strip is GONE** (removed 2026-07-23, late in the same day it was built). It was
+  replaced by the five summary tiles described below — the stage breakdown now lives only on the
+  kanban, where it is also actionable. The `stage` filter param survives (the board pins it per
+  column, and an old link still works) but nothing in the list UI sets it.
 - **Customer name / town / postcode come from the embed**, so they're folded into `record` under their
   own keys by `toLeadRow` and are **not sortable** (there's no `leads` column to ORDER BY).
 - Default order is `lead_date` descending (newest enquiry first) when no `sort` param is present.
@@ -574,9 +595,14 @@ per lead, drag a card between columns to move it. `LeadBoard`
 - **One query PER STAGE, not one flat page grouped client-side.** A first page dominated by "New"
   would leave "Quoted" looking empty when it isn't. Each column gets its own top-25
   (`BOARD_COLUMN_SIZE`), its own true total, and its own infinite scroll (`loadBoardColumn`).
-- **Column headers carry the stage's rule colour, its TRUE total and its whole value** — the same
-  three things the list's pipeline strip shows, which is why **the strip is hidden in board view**:
-  the columns are the strip. The Columns button hides too — a board has none.
+- **A column header is a LABEL, not a stat tile.** One compact line: the stage's 3px rule, the name,
+  a circular count badge beside it, and the value in its own pill pushed right. It was briefly built
+  as a full stat tile (label line + big figure) and that was wrong — the header ended up heavier than
+  the cards under it, and the figures that deserve tile weight are already in the summary row above
+  the board. **Both badges stay neutral**: the rule carries the stage colour, so a tinted badge would
+  add a second colour to the same 288px for no meaning. The count badge uses `min-w` + padding, not a
+  fixed square, so a three-figure stage grows into a pill instead of clipping.
+- **The Columns button is hidden in board view** — a board has no columns to configure.
 - **Values come from the pipeline aggregate, not the loaded cards.** Summing the 25 cards on screen
   and labelling it the column's worth would be a lie that changes as you scroll.
 - **`applyLeadFilters` is THE one place a lead query is filtered** — list rows, board columns and the
@@ -638,9 +664,11 @@ A third toolbar button beside Columns and Filters (`DateRangeButton`,
   logged later that day.
 - **It ranges `lead_date`** (when the enquiry arrived) — the column the list is ordered by, so it's
   the one a range is about. A list whose range and default sort disagree is confusing.
-- **The pipeline strip respects the range** (`getLeadPipeline` takes the bounds): tiles counting all
-  time above a table showing 90 days reads as a bug. It deliberately does **NOT** respect the stage
-  filter — the strip is how you switch stage, so narrowing it to the selected one leaves no way back.
+- **The summary tiles and the board's column values respect the range** (both come from
+  `getLeadPipeline`, which now runs through `applyLeadFilters`): figures counting all time above a
+  table showing 90 days reads as a bug. The aggregate deliberately does **NOT** apply the `stage`
+  filter — the board pins stage per column, so applying it would make every column report the same
+  one.
 - **Custom endpoints are staged locally and applied on "Apply"**, not written per pick — a param
   write on each date would re-query the list halfway through choosing and briefly show a window
   nobody asked for. Either end may be left blank for an open-ended range.
@@ -927,6 +955,18 @@ the customer record; reuse it for leads/contracts rather than forking.
   one silently repoints every email/job sheet/history entry that quotes it. Gaps are expected and
   fine (`next_reference` is gap-tolerant by design). If a screen wants "3rd note on this customer",
   that is a positional label computed at render time, NOT the reference.
+- **A reference is always shown as a `RefChip`, and ONCE per record** (decided 2026-07-23). The
+  helpers in `src/lib/leads.ts` are the only source of the string — `leadRef` L-2431 · `contractRef`
+  C-1892 · `customerRef` CUST-0002 · `documentRef` DOC-0104 · `noteRef` NOTE-0018 — and
+  `RefChip` (`primitives.tsx`) is the only way to render one. Don't hand-roll the mono chip styling;
+  the leads list had a copy of it until it was folded back.
+  - **Never show the same identity twice in two formats.** The leads list carried both a plain
+    integer "Lead no." column and the `L-2444` chip column, which read as a duplicate in the column
+    picker; there is now ONE column (the chip, labelled "Lead No.", sorted by `lead_number`). The
+    customers list's "Cust No." got the same treatment — `CUST-0002` in a chip, matching the customer
+    record's header, rather than a bare integer.
+  - A chip column is **wider than a numeric one** (`CUST-0002` is nine mono characters where the
+    integer was one or two), so size it accordingly in the registry.
 - **Attaching to a note offers "Choose file" (already on the record) or "Upload".** Choosing an
   existing document is the duplicate-free path — `attachExistingDocument` shares the storage object
   and the name/category/reference carry across. Prefer offering the picker anywhere files can be
