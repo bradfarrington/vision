@@ -22,14 +22,15 @@ import {
 import { DateRangeButton } from "@/components/crm/date-range-button";
 import { LeadBoard } from "@/components/crm/lead-board";
 import { ViewToggle } from "@/components/crm/view-toggle";
+import { CollapsibleSummary } from "@/components/crm/collapsible-summary";
 import { ViewStateSaver } from "@/components/crm/view-state";
 import { resolveRange } from "@/lib/date-range";
 
 // Leads list — net-new (no design exists), built on the same shared list
 // machinery as /customers: configurable + resizable + sortable columns saved per
 // user, a filters popover with the advanced value builder, and continuous
-// scroll. The pipeline strip above it is this list's own addition — a one-click
-// stage filter that also states where the money is. See AGENTS.md § Lists.
+// scroll, plus a kanban board view. The summary tiles above it are shared by
+// both views; the per-stage breakdown lives on the board. See AGENTS.md § Lists.
 
 type SearchParams = Promise<Record<string, string | undefined>>;
 
@@ -84,9 +85,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   // Board or list — both run the SAME filters, so switching view never changes
   // which leads you are looking at, only how they are arranged.
   const board = sp.view === "board";
-  const [data, columnPref] = await Promise.all([
+  const [data, columnPref, summaryPref] = await Promise.all([
     board ? getLeadBoard(filters) : getLeads({ ...filters, page: 1 }),
     getUserPref("leads_columns"),
+    getUserPref("leads_summary"),
   ]);
 
   const boardData = board ? (data as Awaited<ReturnType<typeof getLeadBoard>>) : null;
@@ -97,15 +99,21 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   // summary tiles above are identical in either view.
   const pipeline: StageBucket[] = boardData ? boardData.pipeline : listData!.pipeline;
 
-  // Re-mount the table (resetting its scroll list) whenever the query changes,
-  // so a new sort/filter/search starts from a fresh first chunk.
+  // Re-mount the table/board (resetting its scroll list) whenever the query
+  // changes, so a new sort/filter/search starts from a fresh first chunk.
+  //
+  // Keyed on the RAW range params, never the resolved instants: a preset
+  // resolves through `new Date()`, so `dateFrom`/`dateTo` differ on every
+  // render — keying on those would remount the list on every server render,
+  // throwing away the scroll position and refetching chunk 1 each time.
   const viewKey = JSON.stringify({
     search: sp.search,
     stage: sp.stage,
     columnFilters,
     valueFilters,
-    dateFrom,
-    dateTo,
+    range: sp.range,
+    from: sp.from,
+    to: sp.to,
     sort,
     dir,
     view: sp.view,
@@ -135,37 +143,23 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               {/* A board has no columns to configure. */}
               {!board && <ColumnsButton />}
               <FiltersButton filterOptions={filterOptions} />
+              <ViewToggle />
               <Link href="/leads/new" className={cn(TOOLBAR_H, btnPrimary)}>
                 <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
               </Link>
             </div>
           </div>
 
-          {/* Pipeline summary — a fixed set of stage tiles, each a one-click
-              filter. Shown in stage order and filled with zeroes so the strip is
-              stable regardless of what data exists.
-
-              Styled as STAT TILES, matching the customer overview's strip: a 3px
-              coloured rule down the leading edge, an uppercase label, and the
-              count with its value inline. Two lines instead of three, so the
-              strip costs the table far less height than the old stacked cards. */}
-          {/* Each tile is sized BY ITS OWN CONTENT, between a min and a max — not
-              an equal share of the row. Stage names vary in length, and stretching
-              them all to match left "Won" swimming in white space. Past the max a
-              long name WRAPS (never truncates — a stage the tenant renamed must
-              stay readable), which grows that tile; `items-stretch` keeps the row
-              level so one tall tile doesn't leave the others short. */}
-          {/* Summary tiles + the view toggle share a row, identically in BOTH
-              views. The per-stage breakdown lives on the KANBAN, where each
-              column header carries its own count and value and you can act on
-              it — repeating it here as a strip of tiles said the same thing
-              twice and cost the list a band of height. */}
-          <div className="flex items-end justify-between gap-3">
-            <LeadSummary total={total} pipeline={pipeline} />
-            <div className="shrink-0">
-              <ViewToggle />
-            </div>
-          </div>
+          {/* Summary tiles, identical in BOTH views, with their own collapse
+              control on the right. The per-stage breakdown lives on the KANBAN,
+              where each column header carries its own count and value and you
+              can act on it — repeating it here as a strip of tiles said the
+              same thing twice and cost the list a band of height. */}
+          <CollapsibleSummary
+            layoutKey="leads_summary"
+            initialHidden={summaryPref?.hidden === true}
+            summary={<LeadSummary total={total} pipeline={pipeline} />}
+          />
         </div>
 
         {boardData ? (

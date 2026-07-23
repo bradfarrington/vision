@@ -588,6 +588,11 @@ list's twin, plus one thing of its own.
 per lead, drag a card between columns to move it. `LeadBoard`
 (`src/components/crm/lead-board.tsx`), toggled by the generic `ViewToggle`.
 
+- **A list's remount `key` uses the RAW query params, never resolved values.** `/leads` keys its
+  table/board on `range`/`from`/`to` as they appear in the URL — NOT on the instants
+  `resolveRange()` produces, because a preset resolves through `new Date()` and so differs on every
+  render. Keying on those remounts the list on every server render, throwing away the scroll position
+  and refetching the first chunk each time. Same trap for anything else derived from the clock.
 - **List and board are the SAME query.** Both go through `applyLeadFilters`, so search, filters,
   advanced conditions and the date range all carry across, and switching view never changes WHICH
   leads you're looking at — only how they're arranged. `view` is a URL param like everything else, so
@@ -644,11 +649,14 @@ per lead, drag a card between columns to move it. `LeadBoard`
   has its pill.
 - **Lost gets a column.** The strip uses `PIPELINE_STAGES` (which excludes it), but a board must have
   somewhere to drop every state, so the board iterates `LEAD_STAGES`.
-- **The toggle sits on the STAGE-TILE row, bottom-aligned far right** — directly above the container
-  it switches, not up in the toolbar with the buttons that filter it. That row therefore renders in
-  BOTH views; in board view the tiles are gone but the toggle stays put rather than jumping back to
-  the toolbar. It is **icon-only** (rows vs columns), which says what the two views are more directly
-  than the words; the labels remain as `title` + `aria-label`.
+- **The toggle lives in the TOOLBAR, between Filters and the New button** (moved there 2026-07-23
+  after a spell on the summary row). It is **icon-only** (rows vs columns), which says what the two
+  views are more directly than the words; the labels remain as `title` + `aria-label`.
+- **The summary tiles can be HIDDEN, per user** (`CollapsibleSummary`, `layout_key='leads_summary'`).
+  The chevron on the right of that row collapses them and the choice persists in `user_ui_layouts`,
+  like the column layout — someone who works the list all day shouldn't have to re-hide them every
+  visit, and one person's choice must not become everyone's. The tiles stay SERVER-rendered and are
+  passed in as a prop, so hiding costs no round trip and showing needs no refetch.
 
 ### Date-range picker — decided 2026-07-23
 
