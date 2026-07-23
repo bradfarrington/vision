@@ -561,6 +561,42 @@ list's twin, plus one thing of its own.
   own keys by `toLeadRow` and are **not sortable** (there's no `leads` column to ORDER BY).
 - Default order is `lead_date` descending (newest enquiry first) when no `sort` param is present.
 
+### The leads board (kanban) — built 2026-07-23
+
+`/leads?view=board` is the same list as a kanban: one column per stage, one card
+per lead, drag a card between columns to move it. `LeadBoard`
+(`src/components/crm/lead-board.tsx`), toggled by the generic `ViewToggle`.
+
+- **List and board are the SAME query.** Both go through `applyLeadFilters`, so search, filters,
+  advanced conditions and the date range all carry across, and switching view never changes WHICH
+  leads you're looking at — only how they're arranged. `view` is a URL param like everything else, so
+  it's shareable and rides in the saved session view state.
+- **One query PER STAGE, not one flat page grouped client-side.** A first page dominated by "New"
+  would leave "Quoted" looking empty when it isn't. Each column gets its own top-25
+  (`BOARD_COLUMN_SIZE`), its own true total, and its own infinite scroll (`loadBoardColumn`).
+- **Column headers carry the stage's rule colour, its TRUE total and its whole value** — the same
+  three things the list's pipeline strip shows, which is why **the strip is hidden in board view**:
+  the columns are the strip. The Columns button hides too — a board has none.
+- **Values come from the pipeline aggregate, not the loaded cards.** Summing the 25 cards on screen
+  and labelling it the column's worth would be a lie that changes as you scroll.
+- **`applyLeadFilters` is THE one place a lead query is filtered** — list rows, board columns and the
+  pipeline aggregate all call it, so a stage tile can never count a different set than the rows under
+  it. The one deliberate exception stays: the pipeline aggregate drops the `stage` filter, because the
+  strip is how you switch stage.
+- **Moves are OPTIMISTIC and revert on failure.** The card lands where you dropped it immediately (a
+  card that hangs for a round-trip reads as broken), and the pre-drag columns are captured so a failed
+  write puts everything back with the error shown. `moveLeadToStage` RETURNS its error rather than
+  throwing like `setLeadStage`, precisely because the board needs to decide.
+- **A card is both a drag handle and a link**, separated by the sensor's 6px threshold — and the click
+  that follows a drop is suppressed with a `justDragged` ref cleared on the next macrotask. Without
+  it every successful drop also navigates away from the board.
+- **The whole column is the drop target**, not an insertion line — a card-sized thing needs a
+  card-sized target. `DndContext` carries the stable id `board-leads` (see § Rearrangeable cards).
+- **Columns are fixed-width (288px) in a horizontal scroller**, not equal shares: six stages on a
+  laptop would give each ~190px, narrower than the card content needs.
+- **Lost gets a column.** The strip uses `PIPELINE_STAGES` (which excludes it), but a board must have
+  somewhere to drop every state, so the board iterates `LEAD_STAGES`.
+
 ### Date-range picker — decided 2026-07-23
 
 A third toolbar button beside Columns and Filters (`DateRangeButton`,

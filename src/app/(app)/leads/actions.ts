@@ -7,7 +7,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { LEAD_STAGES } from "@/lib/leads";
 import { addNote } from "@/app/(app)/notes/actions";
-import { LEADS_PAGE_SIZE, getLeads, type LeadFilters, type LeadRow } from "@/lib/data/leads";
+import {
+  LEADS_PAGE_SIZE,
+  getBoardColumn,
+  getLeads,
+  type LeadFilters,
+  type LeadRow,
+} from "@/lib/data/leads";
 import type { Database } from "@/lib/supabase/types";
 
 type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
@@ -25,6 +31,37 @@ export async function loadLeadRows(
 ): Promise<{ views: LeadRow[]; total: number; hasMore: boolean }> {
   const { rows, total } = await getLeads({ ...filters, page });
   return { views: rows, total, hasMore: page * LEADS_PAGE_SIZE < total };
+}
+
+/** One more page of a single board column, for its own infinite scroll. */
+export async function loadBoardColumn(
+  filters: LeadFilters,
+  stage: string,
+  page: number,
+): Promise<{ cards: LeadRow[]; total: number; hasMore: boolean }> {
+  return getBoardColumn(filters, stage, page);
+}
+
+/**
+ * Move a lead to a stage from the board's drag-and-drop.
+ *
+ * Unlike `setLeadStage` (which throws, because its caller is a fire-and-forget
+ * click), this RETURNS the error: the board moves the card optimistically, so
+ * it needs to know whether to keep the move or put the card back.
+ */
+export async function moveLeadToStage(
+  leadId: string,
+  status: string,
+): Promise<{ error?: string }> {
+  if (!LEAD_STAGES.some((s) => s.key === status)) {
+    return { error: `"${status}" is not a lead stage.` };
+  }
+  try {
+    await setLeadStage(leadId, status);
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not move the lead." };
+  }
 }
 
 const TEXT_FIELDS = [

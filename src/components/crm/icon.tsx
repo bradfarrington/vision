@@ -34,7 +34,9 @@ export type IconName =
   | "minimize"
   | "minus"
   | "paperclip"
-  | "clock";
+  | "clock"
+  | "list"
+  | "board";
 
 // Each entry: array of <path d> strings (default), or a render fn for icons
 // that need circles/rects.
@@ -44,6 +46,9 @@ const PATHS: Record<IconName, string[]> = {
   "chevron-right": ["M9 18l6-6-6-6"],
   plus: ["M12 5v14M5 12h14"],
   columns: [], // rect + lines, custom below
+  // Rows of content: a bullet plus its line, three times over.
+  list: ["M4 6h.01M4 12h.01M4 18h.01", "M9 6h11M9 12h11M9 18h11"],
+  board: [], // three standing columns, custom below
   filters: ["M3 6h18M7 12h10M10 18h4"],
   export: ["M12 3v12M7 10l5 5 5-5M4 21h16"],
   check: ["M5 13l5 5L20 7"],
@@ -106,6 +111,15 @@ export function Icon({ name, size = 14, strokeWidth = 2, className }: IconProps)
         <>
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <path d="M9 3v18M15 3v18" />
+        </>
+      )}
+      {/* Kanban: three standing columns of unequal fill, so it reads as a board
+          rather than as the (framed) "columns" icon next to it. */}
+      {name === "board" && (
+        <>
+          <rect x="3" y="4" width="5" height="16" rx="1.5" />
+          <rect x="9.5" y="4" width="5" height="11" rx="1.5" />
+          <rect x="16" y="4" width="5" height="7" rx="1.5" />
         </>
       )}
       {PATHS[name].map((d) => (

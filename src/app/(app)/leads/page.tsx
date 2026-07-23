@@ -1,6 +1,12 @@
 import Link from "next/link";
 
-import { getLeads, type LeadFilters, type StageBucket, type ValueCondition } from "@/lib/data/leads";
+import {
+  getLeadBoard,
+  getLeads,
+  type LeadFilters,
+  type StageBucket,
+  type ValueCondition,
+} from "@/lib/data/leads";
 import { getUserPref } from "@/lib/data/user-layouts";
 import { PIPELINE_STAGES, STAGE_STAT_TONE, leadStage } from "@/lib/leads";
 import { gbpCompact } from "@/lib/format";
@@ -14,6 +20,8 @@ import {
   LeadTable,
 } from "@/components/crm/leads-list";
 import { DateRangeButton } from "@/components/crm/date-range-button";
+import { LeadBoard } from "@/components/crm/lead-board";
+import { ViewToggle } from "@/components/crm/view-toggle";
 import { ViewStateSaver } from "@/components/crm/view-state";
 import { resolveRange } from "@/lib/date-range";
 
@@ -73,10 +81,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     dateTo,
     ...(sort ? { sort, dir } : {}),
   };
-  const [{ rows, total, pipeline, filterOptions }, columnPref] = await Promise.all([
-    getLeads({ ...filters, page: 1 }),
+  // Board or list — both run the SAME filters, so switching view never changes
+  // which leads you are looking at, only how they are arranged.
+  const board = sp.view === "board";
+  const [data, columnPref] = await Promise.all([
+    board ? getLeadBoard(filters) : getLeads({ ...filters, page: 1 }),
     getUserPref("leads_columns"),
   ]);
+
+  const boardData = board ? (data as Awaited<ReturnType<typeof getLeadBoard>>) : null;
+  const listData = board ? null : (data as Awaited<ReturnType<typeof getLeads>>);
+  const total = boardData ? boardData.total : listData!.total;
+  const filterOptions = boardData ? boardData.filterOptions : listData!.filterOptions;
+  const pipeline: StageBucket[] = listData?.pipeline ?? [];
 
   const stageHref = (key: string | null) => {
     const params = new URLSearchParams();
@@ -99,6 +116,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     dateTo,
     sort,
     dir,
+    view: sp.view,
   });
 
   return (
@@ -125,7 +143,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               {/* Ranges lead-date (when the enquiry arrived) — the date this list
                   is ordered by, so it's the one a range is about. */}
               <DateRangeButton />
-              <ColumnsButton />
+              <ViewToggle />
+              {/* A board has no columns to configure. */}
+              {!board && <ColumnsButton />}
               <FiltersButton filterOptions={filterOptions} />
               <Link href="/leads/new" className={cn(TOOLBAR_H, btnPrimary)}>
                 <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
@@ -147,6 +167,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               long name WRAPS (never truncates — a stage the tenant renamed must
               stay readable), which grows that tile; `items-stretch` keeps the row
               level so one tall tile doesn't leave the others short. */}
+          {/* List only: on the board the columns ARE this strip, with the same
+              rule colour, count and value in each header. */}
+          {!board && (
           <div className="flex flex-wrap items-stretch gap-2.5">
             {pipelineSummary(pipeline).map((b) => {
               const stage = leadStage(b.key);
@@ -188,17 +211,21 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               );
             })}
           </div>
-
+          )}
         </div>
 
-        <LeadTable
-          key={viewKey}
-          initialViews={rows}
-          total={total}
-          filters={filters}
-          sort={sort}
-          dir={dir}
-        />
+        {boardData ? (
+          <LeadBoard key={viewKey} columns={boardData.columns} filters={filters} />
+        ) : (
+          <LeadTable
+            key={viewKey}
+            initialViews={listData!.rows}
+            total={total}
+            filters={filters}
+            sort={sort}
+            dir={dir}
+          />
+        )}
       </div>
     </LeadColumnsProvider>
   );

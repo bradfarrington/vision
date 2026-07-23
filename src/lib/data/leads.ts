@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { isLiveLead, leadRef } from "@/lib/leads";
+import { LEAD_STAGES, isLiveLead, leadRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
 import {
   DOCUMENT_SELECT,
@@ -122,6 +122,14 @@ export type LeadFilters = {
   /** Column to order by (allowlisted; ignored otherwise) and direction. */
   sort?: string;
   dir?: "asc" | "desc";
+  /** Rows per page. Defaults to the list's chunk; the board uses its own. */
+  pageSize?: number;
+  /**
+   * Skip the header aggregates (sources / pipeline / filter options). The board
+   * runs one query PER COLUMN and needs none of them — without this it would
+   * refetch all three six times over.
+   */
+  skipAggregates?: boolean;
 };
 
 export type StageBucket = { key: string; count: number; value: number };
@@ -226,43 +234,51 @@ function toLeadRow(l: RawLead): LeadRow {
  * scopes every read to the caller's tenant. Selects `*` so the configurable
  * columns can render any lead field without a per-column query change.
  */
-export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResult> {
-  const supabase = await createClient();
-  const page = Math.max(1, filters.page ?? 1);
-  const from = (page - 1) * LEADS_PAGE_SIZE;
-  const to = from + LEADS_PAGE_SIZE - 1;
+/**
+ * Resolve the free-text term into the pieces a query needs. The customer id
+ * lookup is async, so it happens ONCE here rather than inside the filter
+ * application — which both getLeads and getLeadPipeline call.
+ */
+async function resolveSearch(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  term: string | undefined,
+): Promise<{ term: string; customerIds: string[] } | null> {
+  const q = term?.trim();
+  if (!q) return null;
+  return { term: q, customerIds: await searchCustomerIds(supabase, q) };
+}
 
-  let query = supabase
-    .from("leads")
-    .select(`*, ${CUSTOMER_EMBED}`, { count: "exact" });
-
-  // Sort: an allowlisted column asc/desc, else newest lead first. A stable
-  // secondary key (id) keeps paging deterministic when the sort column ties.
-  if (filters.sort && SORTABLE_COLUMNS.has(filters.sort)) {
-    query = query
-      .order(filters.sort, { ascending: filters.dir !== "desc", nullsFirst: false })
-      .order("id", { ascending: true });
-  } else {
-    query = query.order("lead_date", { ascending: false, nullsFirst: false });
-  }
-  query = query.range(from, to);
+/**
+ * Apply every filter to a leads query. THE one place this happens — the list,
+ * the board's columns and the pipeline aggregates all go through here, so a
+ * stage tile can never count a different set than the rows beneath it.
+ *
+ * Every column name is allowlisted and never interpolated; every value is
+ * PostgREST-bound.
+ */
+function applyLeadFilters<Q>(
+  query: Q,
+  filters: LeadFilters,
+  search: { term: string; customerIds: string[] } | null,
+): Q {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = query as any;
 
   // The pipeline strip's stage selection, kept as its own param so the strip
   // stays a one-click filter independent of the Filters popover.
-  if (filters.stage) query = query.eq("status", filters.stage);
-  if (filters.source) query = query.eq("source", filters.source);
+  if (filters.stage) q = q.eq("status", filters.stage);
+  if (filters.source) q = q.eq("source", filters.source);
 
   // Date range on lead_date. Applied at the DB so paging and the exact count
   // stay correct. `lt` (not `lte`) on the upper bound: it is the first instant
   // AFTER the last day, so the whole final day is included.
-  if (filters.dateFrom) query = query.gte("lead_date", filters.dateFrom);
-  if (filters.dateTo) query = query.lt("lead_date", filters.dateTo);
+  if (filters.dateFrom) q = q.gte("lead_date", filters.dateFrom);
+  if (filters.dateTo) q = q.lt("lead_date", filters.dateTo);
 
-  const q = filters.search?.trim();
-  if (q) {
-    const like = orValue(`%${q}%`);
+  if (search) {
+    const like = orValue(`%${search.term}%`);
     // Numeric lead ref search when the query is a number ("L-2431" or "2431").
-    const asNumber = Number(q.replace(/^l-?/i, ""));
+    const asNumber = Number(search.term.replace(/^l-?/i, ""));
     const parts = [
       `product_type.ilike.${like}`,
       `product_interest_1.ilike.${like}`,
@@ -278,28 +294,22 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
       `office_reference_2.ilike.${like}`,
     ];
     if (Number.isFinite(asNumber)) parts.push(`lead_number.eq.${asNumber}`);
-
     // The customer's NAME and ADDRESS live on the embedded `customers` row, and
-    // PostgREST can't OR an embedded column against the parent's in one query.
-    // So resolve the matching customers first and fold their ids into the same
-    // or() — one extra cheap read, and the whole thing stays a single filtered
-    // query, so paging and the exact count remain correct.
-    const customerIds = await searchCustomerIds(supabase, q);
-    if (customerIds.length) parts.push(`customer_id.in.(${customerIds.join(",")})`);
-
-    query = query.or(parts.join(","));
+    // PostgREST can't OR an embedded column against the parent's in one query,
+    // so their ids were resolved up front (see resolveSearch).
+    if (search.customerIds.length) parts.push(`customer_id.in.(${search.customerIds.join(",")})`);
+    q = q.or(parts.join(","));
   }
 
-  // Allowlisted lead-column filters — applied at the DB so paging/counts stay
-  // correct at any number of rows.
+  // Allowlisted lead-column filters.
   const cf = filters.columnFilters ?? {};
   for (const col of SELECT_FILTER_COLUMNS) {
     const v = cf[col];
-    if (v) query = query.eq(col, v);
+    if (v) q = q.eq(col, v);
   }
   for (const col of BOOL_FILTER_COLUMNS) {
     const v = cf[col];
-    if (v === "1" || v === "0") query = query.eq(col, v === "1");
+    if (v === "1" || v === "0") q = q.eq(col, v === "1");
   }
 
   // Advanced field/operator/value conditions — each ANDs onto the query.
@@ -307,34 +317,153 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
     if (!VALUE_FILTER_COLUMNS.has(c.f)) continue;
     const v = (c.v ?? "").trim();
     switch (c.op) {
-      case "contains": if (v) query = query.ilike(c.f, `%${escapeLike(v)}%`); break;
-      case "equals": if (v) query = query.ilike(c.f, escapeLike(v)); break;
-      case "begins": if (v) query = query.ilike(c.f, `${escapeLike(v)}%`); break;
-      case "ends": if (v) query = query.ilike(c.f, `%${escapeLike(v)}`); break;
-      case "empty": query = query.is(c.f, null); break;
-      case "notempty": query = query.not(c.f, "is", null); break;
+      case "contains": if (v) q = q.ilike(c.f, `%${escapeLike(v)}%`); break;
+      case "equals": if (v) q = q.ilike(c.f, escapeLike(v)); break;
+      case "begins": if (v) q = q.ilike(c.f, `${escapeLike(v)}%`); break;
+      case "ends": if (v) q = q.ilike(c.f, `%${escapeLike(v)}`); break;
+      case "empty": q = q.is(c.f, null); break;
+      case "notempty": q = q.not(c.f, "is", null); break;
     }
   }
+
+  return q as Q;
+}
+
+export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResult> {
+  const supabase = await createClient();
+  const size = filters.pageSize ?? LEADS_PAGE_SIZE;
+  const page = Math.max(1, filters.page ?? 1);
+  const from = (page - 1) * size;
+  const to = from + size - 1;
+
+  const search = await resolveSearch(supabase, filters.search);
+
+  let query = supabase.from("leads").select(`*, ${CUSTOMER_EMBED}`, { count: "exact" });
+
+  // Sort: an allowlisted column asc/desc, else newest lead first. A stable
+  // secondary key (id) keeps paging deterministic when the sort column ties.
+  if (filters.sort && SORTABLE_COLUMNS.has(filters.sort)) {
+    query = query
+      .order(filters.sort, { ascending: filters.dir !== "desc", nullsFirst: false })
+      .order("id", { ascending: true });
+  } else {
+    query = query.order("lead_date", { ascending: false, nullsFirst: false });
+  }
+  query = query.range(from, to);
+  query = applyLeadFilters(query, filters, search);
 
   const { data, count, error } = await query;
   if (error) throw new Error(`getLeads: ${error.message}`);
 
   const rows = ((data ?? []) as unknown as RawLead[]).map(toLeadRow);
+  const total = count ?? rows.length;
+
+  // The board asks for one column at a time and needs none of these; fetching
+  // them per column would run all three six times for one screen.
+  if (filters.skipAggregates) {
+    return {
+      rows,
+      total,
+      page,
+      pageCount: Math.max(1, Math.ceil(total / size)),
+      sources: [],
+      pipeline: [],
+      filterOptions: {},
+    };
+  }
+
   const [sources, pipeline, filterOptions] = await Promise.all([
     getLeadSources(supabase),
-    getLeadPipeline(supabase, { dateFrom: filters.dateFrom, dateTo: filters.dateTo }),
+    getLeadPipeline(supabase, filters, search),
     getFilterOptions(supabase),
   ]);
 
-  const total = count ?? rows.length;
   return {
     rows,
     total,
     page,
-    pageCount: Math.max(1, Math.ceil(total / LEADS_PAGE_SIZE)),
+    pageCount: Math.max(1, Math.ceil(total / size)),
     sources,
     pipeline,
     filterOptions,
+  };
+}
+
+
+// ---------------------------------------------------------------------------
+// Kanban board
+//
+// The board is the same query as the list, run once PER STAGE. Grouping one
+// flat page client-side was the alternative and it's wrong: a first page
+// dominated by "New" would leave "Quoted" looking empty when it isn't. Per
+// stage, each column gets its own top-N and its own true total.
+
+/** Cards loaded per column at a time. A column scrolls for the rest. */
+export const BOARD_COLUMN_SIZE = 25;
+
+export type BoardColumn = {
+  key: string;
+  label: string;
+  /** Every lead in this stage matching the filters, not just the loaded ones. */
+  total: number;
+  /** Summed value of ALL of them, from the pipeline aggregate. */
+  value: number;
+  cards: LeadRow[];
+  hasMore: boolean;
+};
+
+/**
+ * One page of one stage's cards. Reuses `getLeads` wholesale — same allowlisted
+ * filter/sort/search path — with the stage pinned, so a board column can never
+ * drift from what the list would show for that stage.
+ */
+export async function getBoardColumn(
+  filters: LeadFilters,
+  stage: string,
+  page = 1,
+): Promise<{ cards: LeadRow[]; total: number; hasMore: boolean }> {
+  const { rows, total } = await getLeads({
+    ...filters,
+    stage,
+    page,
+    pageSize: BOARD_COLUMN_SIZE,
+    skipAggregates: true,
+  });
+  return { cards: rows, total, hasMore: page * BOARD_COLUMN_SIZE < total };
+}
+
+/** Every column's first page, in pipeline order, plus the filter options. */
+export async function getLeadBoard(
+  filters: LeadFilters,
+): Promise<{ columns: BoardColumn[]; filterOptions: Record<string, string[]>; total: number }> {
+  const supabase = await createClient();
+  const search = await resolveSearch(supabase, filters.search);
+
+  const [pipeline, filterOptions, ...pages] = await Promise.all([
+    // Values per stage come from the aggregate, so a column header states the
+    // whole stage's worth — not just the 25 cards that happen to be loaded.
+    getLeadPipeline(supabase, filters, search),
+    getFilterOptions(supabase),
+    ...LEAD_STAGES.map((s) => getBoardColumn(filters, s.key)),
+  ]);
+
+  const valueOf = new Map(pipeline.map((b) => [b.key, b.value]));
+  const columns = LEAD_STAGES.map((s, i) => {
+    const page = pages[i] as { cards: LeadRow[]; total: number; hasMore: boolean };
+    return {
+      key: s.key,
+      label: s.label,
+      total: page.total,
+      value: valueOf.get(s.key) ?? 0,
+      cards: page.cards,
+      hasMore: page.hasMore,
+    };
+  });
+
+  return {
+    columns,
+    filterOptions,
+    total: columns.reduce((n, c) => n + c.total, 0),
   };
 }
 
@@ -403,6 +532,7 @@ async function getFilterOptions(
     SELECT_FILTER_COLUMNS.map((c) => [c, [...sets[c]].sort((a, b) => a.localeCompare(b))]),
   );
 }
+
 
 export type LeadNote = {
   id: string;
@@ -669,16 +799,24 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
 /** Per-stage lead counts + summed value, across the whole tenant. */
 export async function getLeadPipeline(
   supabase?: Awaited<ReturnType<typeof createClient>>,
-  range?: { dateFrom?: string; dateTo?: string },
+  filters: LeadFilters = {},
+  search?: { term: string; customerIds: string[] } | null,
 ): Promise<StageBucket[]> {
   const client = supabase ?? (await createClient());
-  let q = client.from("leads").select("status, gross_value, estimated_value");
-  // The strip must agree with the table beneath it — a "Last 90 days" range that
-  // filtered the rows but left the tiles counting all time would read as a bug.
-  // Stage filters deliberately DON'T apply: the strip is how you switch stage,
-  // so narrowing it to the selected one would leave no way back.
-  if (range?.dateFrom) q = q.gte("lead_date", range.dateFrom);
-  if (range?.dateTo) q = q.lt("lead_date", range.dateTo);
+  // The strip must agree with the rows beneath it — tiles counting a different
+  // set than the table shows reads as a bug. So it runs through the SAME
+  // applyLeadFilters as the rows, with ONE exception: the stage selection is
+  // dropped, because the strip is how you switch stage and narrowing it to the
+  // selected one would leave no way back.
+  const { stage: _stage, ...rest } = filters;
+  void _stage;
+  const resolved =
+    search !== undefined ? search : await resolveSearch(client, filters.search);
+  const q = applyLeadFilters(
+    client.from("leads").select("status, gross_value, estimated_value"),
+    rest,
+    resolved,
+  );
   const { data, error } = await q;
   if (error) throw new Error(`getLeadPipeline: ${error.message}`);
 
