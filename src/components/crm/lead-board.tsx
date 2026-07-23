@@ -212,30 +212,22 @@ function Column({
     // tall. Square at the bottom with no bottom border, like the list table:
     // that edge is the panel's.
     <div className="flex h-full w-[288px] shrink-0 flex-col rounded-t-xl border-x border-t border-[#e7e7ea] bg-[#fafafa]">
-      {/* A STAT TILE, exactly like the summary tiles above the board and the
-          customer overview's strip: 3px stage rule on the leading edge, the
-          label on its own line, then the count hard left and the value hard
-          right. Cramming all three onto one line made the label fight the
-          figures for the same 288px. */}
-      <div className="relative overflow-hidden rounded-t-xl border-b border-[#e7e7ea] bg-white px-3.5 py-2.5">
+      {/* ONE compact line — a column header is a label, not a stat tile; the
+          figures that deserve that treatment are in the summary row above the
+          board. The count sits in a chip so it reads as a count rather than
+          running into the value beside it, and the 3px rule carries the stage
+          colour so the chip doesn't have to. */}
+      <div className="relative flex items-center gap-2 overflow-hidden rounded-t-xl border-b border-[#e7e7ea] bg-white px-3 py-2">
         <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
-        {/* Wraps rather than truncates — a stage a tenant renamed has to stay
-            readable, and the column is fixed height so a second line costs
-            nothing but the header's own height. */}
-        <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+        <span className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
           {col.label}
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <span
-            className={cn(
-              "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
-              tone.value,
-            )}
-          >
-            {col.total.toLocaleString("en-GB")}
-          </span>
-          <span className="shrink-0 text-[11.5px] text-[#71717a]">{gbpCompact(col.value)}</span>
-        </div>
+        </span>
+        <span className="shrink-0 rounded-full bg-[#f4f4f5] px-[7px] py-[2px] text-[11px] font-bold text-[#3f3f46]">
+          {col.total.toLocaleString("en-GB")}
+        </span>
+        <span className="shrink-0 text-[11.5px] font-medium text-[#71717a]">
+          {gbpCompact(col.value)}
+        </span>
       </div>
 
       <div
