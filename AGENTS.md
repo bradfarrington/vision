@@ -375,9 +375,9 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   Anyone who wants the full picture with dates, sources and salespeople goes to `/leads`. Keep this
   tab at a glance; push depth to the list screens.
 - **Customisable columns belong to the LIST SCREENS ONLY** (`/leads`, `/customers`) — do NOT bring a
-  column picker into the customer record. **Built for `/customers` on 2026-07-22**
-  (`src/components/crm/customers-list.tsx`); `/leads` still hardcodes its `GRID` and is the next to
-  get the same treatment.
+  column picker into the customer record. Built for `/customers` on 2026-07-22 and for `/leads` on
+  2026-07-23; the machinery is now shared (see § One list machinery, many lists) and each list file
+  is just its spec.
   - **A `COLUMNS` registry per entity is the source of truth** — `{ key, label, group, width (grid
     track), kind|cell }`. It spans the WHOLE customer field set (~55 fields, grouped Identity ·
     Contact · Address · Marketing · Flags · Account · Activity); generic fields render from
@@ -480,8 +480,76 @@ missing.
   fresh first chunk instead of appending onto stale rows. Filters/sort stay URL-driven and server-applied.
 - **No `page`/`pageCount`/`from`/`to` and no `Pagination` control** on this list any more. The footer
   reads `Showing N of TOTAL` while more remain, then `TOTAL customers`. **Don't reintroduce paging here;**
-  when `/leads` gets its table, give it the same infinite scroll.
+  `/leads` got the same infinite scroll on 2026-07-23. `FilterDropdown`, `TogglePill` and `Pagination`
+  were deleted from `list-controls.tsx` once both lists scrolled — that file is now just the URL
+  plumbing (`useSetParams`) and the shared `SearchBox`.
 - **There is no Export button** on the list header (removed 2026-07-22 — it was a non-wired placeholder).
+
+## One list machinery, many lists — `data-list.tsx` — decided 2026-07-23
+
+**The column/filter/table machinery is SHARED and lives in `src/components/crm/data-list.tsx`.
+A list screen is a `ListSpec`, not a copy of the machinery.** `/customers` and `/leads` both run on
+it; contracts will be the third. Extracted on 2026-07-23, when `customers-list.tsx` was 1326 lines of
+which ~80% knew nothing about customers.
+
+- **What the module owns (generic):** the `DataListProvider` column state + per-user persistence, the
+  Columns popover with dnd-kit drag-reorder, header resize (`commitWidth`), server-side sort via
+  `sort`/`dir`, the Filters popover, the advanced value-filter builder, and the infinite-scroll
+  `DataTable`. **Fix bugs here, never in a per-entity copy** — forking this file is exactly how the
+  hard-won behaviour below drifts apart between screens.
+- **What a spec owns (entity-specific):** `columns` (the registry), `groupOrder`, `defaultVisible`,
+  `noSort`, `filters`, `filterGroups`, `valueFieldKeys`, `noun`, `rowId`, `rowHref`, `record`, and
+  `loadRows`. Plus `name` and `layoutKey` — `name` is the **stable DndContext id** (`cols-${name}`),
+  which must not change or dnd-kit's SSR and hydration ids diverge.
+- **`extraBoolFilter` is the escape hatch for a filter that isn't a column predicate** — currently
+  only the customers list's lead-derived "Has live lead", which stays a post-filter with the known
+  caveat that the total reflects the pre-filter set. Don't add more without the same caveat.
+- **The spec is held internally as `ListSpec<never, never>`.** Every `cell`/`rowHref`/`record`
+  callback is authored in the spec where the row type IS known, so the looseness stops at that
+  boundary and never reaches a call site.
+- Each list still owns its own **server allowlists** (`SORTABLE_COLUMNS`, `SELECT_/BOOL_FILTER_COLUMNS`,
+  `VALUE_FILTER_COLUMNS`) in its data module — a column name is never interpolated, values are
+  PostgREST-bound, and LIKE metacharacters are escaped. The client's `valueFieldKeys` must mirror the
+  server's `VALUE_FILTER_COLUMNS`, or a condition silently does nothing.
+
+## The leads list — built 2026-07-23
+
+`/leads` runs on the shared machinery above, with `layout_key='leads_columns'`. It is the customers
+list's twin, plus one thing of its own.
+
+- **~45 columns** grouped **Lead · Customer · Source · Quote · Dates**, defaulting to
+  ref · product · customer · stage · value · source · dates. New columns default hidden.
+- **The pipeline strip stays** — the fixed `PIPELINE_STAGES` tiles above the table, each a one-click
+  stage filter that also states the money in it. It's the one thing leads has that customers doesn't,
+  and it earns its height. It rides in its own `stage` param (not `f_status`) so it stays independent
+  of the Filters popover, and it **preserves the other query params** rather than dropping them.
+- **Customer name / town / postcode come from the embed**, so they're folded into `record` under their
+  own keys by `toLeadRow` and are **not sortable** (there's no `leads` column to ORDER BY).
+- Default order is `lead_date` descending (newest enquiry first) when no `sort` param is present.
+
+## The lead record — tabs, notes, documents — built 2026-07-23
+
+The lead detail is a **tabbed record** like the customer's: Overview · Activity · Notes · Documents ·
+Checklist, drag-reorderable and saved per user under `lead_tabs`. Its old tab bar was six inert
+`<span>`s over one fixed grid.
+
+- **Overview is a bento** (Lead · Addresses · Location + Checklist), not a row grid — same rule as
+  everywhere else.
+- **Notes and Documents are the SHARED panels, not lead-specific forks.** `DocumentsPanel` dropped in
+  unchanged on `ownerType="lead"` (it was built owner-agnostic for exactly this). `NotesPanel` gained
+  **`fixedLeadId`**: on a lead the note is about that lead by definition, so the link picker is hidden
+  and every new note is filed against the lead **while keeping `customer_id` set** — which closes the
+  old caveat that lead-screen notes stayed lead-only. **An edit with the picker hidden keeps the
+  note's existing link** rather than silently unlinking it.
+- **Both file-backed tabs need the owning customer** — a lead's documents nest under it
+  (`{company_id}/{customer_id}/leads/{lead_id}/…`) and its notes read from it. A lead without a
+  customer says so instead of half-working.
+- **`getLead` loads the owning customer's documents alongside the lead's**, so an existing file can be
+  attached instead of uploaded twice; `DocumentItem` gained `leadId` so the tab still counts its own.
+- **Quotes is deliberately NOT a tab yet** — it arrives with Phase 5. A dead tab is worse than a
+  missing one.
+- `LeadDetail.noteThread` is the shared `NoteItem[]`; `LeadDetail.notes` is still the lead row's own
+  free-text column. Different things, hence the name.
 
 ## New Customer wizard — built 2026-07-22
 
@@ -508,6 +576,53 @@ old single flat form. It captures the full customer field set the record holds, 
   tenant-editable values, not free text. **Town and County are tenant-editable lookups too now**
   (`list_key` `town` / `county`), same as Locality — pages that render them fetch those lists
   (`getTenantOptionLists`). Consent/flags use a blank / Yes / No tristate (blank = not asked).
+
+### The wizard shell is shared — `wizard.tsx` — decided 2026-07-23
+
+**The wizard chrome and field primitives live in `src/components/crm/wizard.tsx`** and are shared by
+New Customer and New Lead. Extracted when the lead wizard was built, for the same reason as
+`data-list.tsx`: the two rules worth keeping are behavioural, and a fork lets one form regress them.
+
+- **The module owns:** `WizardFrame` (sticky header with Cancel/Back/Continue + the step tracker +
+  the error banner + the body), `StepShell`, `Field`, `Txt`, `Area`, `Lookup`, `DateField`,
+  `Tristate`, `TriRow`, `CopyButton`, `ReviewGroup`, `SumRow`, `tri`, `COLS`, `inputClass`, and
+  `swallowEnter`.
+- **A form owns its steps, its state and its validation.** `onNext`/`onStep` are the form's, so it
+  can refuse to leave a step whose required fields are empty — the customer wizard gates on
+  first/last name, the lead wizard on the customer.
+- **The two rules `WizardFrame` exists to hold:** the final Create button is rendered by the form
+  inside its **Review card** and `WizardFrame` renders **no submit at all**; and `swallowEnter`
+  blocks Enter outside textareas. Both were bugs once; neither should be re-litigated per form.
+- Entity-specific controls stay in their own file (the customer's Residential/Commercial `SegType`,
+  the lead's stage and priority segmented pickers).
+
+## New Lead wizard — built 2026-07-23
+
+`/leads/new` is a **staged wizard** on the shell above: **Customer → Enquiry → Value → Quote
+(optional) → Notes (optional) → Review**. It replaced a flat form of plain inputs whose Source list
+was a hardcoded seven-item array in the component — the last place in the CRM minting free text.
+
+- **Every pick-list is a real tenant-editable lookup** (`lead_source`, `lead_sub_source`,
+  `product_type`, `quote_type`, `payment_method`, `salesperson_type`), seeded for all tenants by
+  `20260723090000_lead_lookup_defaults.sql`. **Salesperson comes from `staff_members`** via
+  `getSalesStaff`/`addSalesStaff`/`deleteSalesStaff`, like the customer's Sales manager.
+- **The customer picker is a searchable `Combo`, not a `<select>`** (a book runs to thousands of
+  names) and is **`clearable={false}`** — it's required, one of the two cases that justifies it.
+  There is **no "add new"** on it: a customer is created on its own screen, never as a side effect of
+  logging a lead.
+- `createLead` accepts `quote_type`, `quote_date`, `payment_method`, `estimated_value` and
+  `window_count`, and **`lead_date` can be backdated** for a lead entered after the fact.
+
+## Lead lookups — decided 2026-07-23
+
+The lead record's Source · Sub-Source · Product type · Quote type · Payment method · Result reason ·
+Salesperson type are **tenant-editable lookups**, not free text (they were free text until
+2026-07-23, which is exactly the mixed-data problem the pattern exists to prevent).
+
+- **`lead_source` is its OWN list, separate from the customer's `marketing_source`.** They share a
+  vocabulary today but answer different questions — "how did we get this customer" vs "how did this
+  enquiry arrive" — and a tenant must be able to curate them apart. Don't merge them.
+- `product_type` backs Main Interest AND Second Interest — one vocabulary, two fields.
 
 ## UI label casing — Title Case — decided 2026-07-22
 
@@ -680,8 +795,8 @@ the customer record; reuse it for leads/contracts rather than forking.
 One component draws every map in the CRM: **`AddressMap`** (`src/components/crm/address-map.tsx`).
 It takes the address as loose fields (`houseNumber`/`street`/`town`/`postcode`…), geocodes them and
 renders the result. First use is the customer **Address** tab; leads, contracts and fitting diary
-reuse it unchanged. `IllustrativeMap` is the old decorative placeholder — **it is dead weight now,
-delete it as each screen moves over** (the lead detail is the last holdout).
+reuse it unchanged. `IllustrativeMap`, the old decorative placeholder, was deleted on 2026-07-23 when
+the lead detail — its last holdout — moved over. **Don't reintroduce a fake map.**
 
 - **The pin goes on the BUILDING, not the postcode.** A UK postcode covers ~15 houses, so a centroid
   puts a fitter on the wrong side of the street — and worse, the ONS ward attached to it is often a
@@ -931,9 +1046,17 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   and embeds resolve; (4) **regenerate + commit the generated types** (see the types bullet above) —
   skipping this is what let them drift. **Every migration through `20260722096000` was applied to the
   remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
+  **`20260723090000_lead_lookup_defaults.sql` is NOT yet applied** — it is data-only (inserts into
+  `tenant_options`), so it needs no schema-cache reload and no types regen, but until it is run the
+  lead record's Source / Product type / Quote type / Payment method / Result reason dropdowns open
+  empty and every value has to be added by hand. Like `097000`, it is safe to re-run
+  (`on conflict do nothing`) as tenants are added.
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.
-- **The New Lead form still uses plain inputs** — not yet brought in line with the inline
-  lookups/date-picker. Lead detail fields (source, product type, salesperson) not yet lookup-ified.
-  (The **New Customer** form was rebuilt as a staged wizard on 2026-07-22 — see § New Customer wizard.)
+- **Phase 4 closed on 2026-07-23.** The lead side caught up with the customer side: `/leads` runs on
+  the shared list machinery, the lead record has real tabs with the shared notes/documents panels,
+  New Lead is a staged wizard, and every lead pick-list is a tenant-editable lookup. What is
+  deliberately still open: the lead record's **Quotes** tab (Phase 5 builds it), the "Book survey" and
+  "Convert to Contract" buttons in the lead header (both still visual placeholders, Phases 6 and 5),
+  and the dashboard's richer analytics widgets (still representative figures — see § Phase 4).
