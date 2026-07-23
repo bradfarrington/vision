@@ -1299,13 +1299,13 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   and embeds resolve; (4) **regenerate + commit the generated types** (see the types bullet above) —
   skipping this is what let them drift. **Every migration through `20260722096000` was applied to the
   remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
-  **`20260723091000_saved_views.sql` WAS applied on 2026-07-23** (schema cache reloaded, types
-  regenerated and committed, loose casts tightened). **`20260723090000_lead_lookup_defaults.sql` is
-  still NOT applied.** It is data-only (inserts into
-  `tenant_options`), so it needs no schema-cache reload and no types regen, but until it is run the
-  lead record's Source / Product type / Quote type / Payment method / Result reason dropdowns open
-  empty and every value has to be added by hand. Like `097000`, it is safe to re-run
-  (`on conflict do nothing`) as tenants are added.
+  **EVERY migration through `20260723091000_saved_views` was applied to the remote on 2026-07-23**,
+  with the schema cache reloaded and the types regenerated, committed and their loose casts
+  tightened. Nothing is outstanding.
+  Two of this session's are safe to RE-RUN as tenants are added, and should be:
+  `20260723090000_lead_lookup_defaults` and the earlier `20260721097000_lookup_defaults` are both
+  `insert … on conflict do nothing`, so a new tenant gets its pick-lists by re-running them (until
+  onboarding seeds them itself — see § Lookup dropdowns).
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.
