@@ -136,9 +136,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
               Leads
             </h1>
-            <span className="rounded-full bg-[#f4f4f5] px-[10px] py-[3px] text-xs font-semibold text-[#52525b]">
-              {total.toLocaleString("en-GB")}
-            </span>
             <div className="ml-auto flex items-center gap-2.5">
               <SearchButton placeholder="Lead no., customer, address, product…" />
               {/* Ranges lead-date (when the enquiry arrived) — the date this list
@@ -247,51 +244,68 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 }
 
 /**
- * The board's headline figures. Deliberately NOT a repeat of the column
- * headers: those give each stage, this gives the whole board — the open
- * pipeline (everything not yet won or lost) and what has been won in the
- * period. Derived from the columns already loaded, so it costs no query.
+ * The board's headline figures, as STAT TILES matching the list view's stage
+ * strip — same geometry, same 3px leading rule, so the row reads the same
+ * whichever view you're in.
+ *
+ * Deliberately NOT a repeat of the stage strip: the column headers already give
+ * each stage, so this gives what they can't — the open pipeline (everything not
+ * yet won or lost) and what has been won. Derived from the columns already
+ * loaded, so it costs no query.
  */
 function BoardTotals({ columns }: { columns: BoardColumn[] }) {
   const open = columns.filter((c) => leadStage(c.key).live);
   const won = columns.find((c) => c.key === "won");
-  const openCount = open.reduce((n, c) => n + c.total, 0);
   const openValue = open.reduce((n, c) => n + c.value, 0);
 
   return (
-    <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
-      <Stat label="Open pipeline" value={gbpCompact(openValue)} sub={`${openCount} live`} />
-      {won && <Stat label="Won" value={gbpCompact(won.value)} sub={`${won.total}`} tone="text-[#1a7f3e]" />}
+    <div className="flex min-w-0 flex-wrap items-stretch gap-2.5">
+      {/* Open is the tenant accent — it's the live figure, same as the customer
+          overview's live-leads tile. Won is platform green. */}
+      <StatTile
+        label="Open pipeline"
+        value={gbpCompact(openValue)}
+        rule="bg-[var(--accent-blue)]"
+        tone="text-[var(--accent-blue)]"
+      />
+      {won && (
+        <StatTile
+          label="Won"
+          value={gbpCompact(won.value)}
+          rule="bg-[#1a7f3e]"
+          tone="text-[#1a7f3e]"
+        />
+      )}
     </div>
   );
 }
 
-function Stat({
+function StatTile({
   label,
   value,
-  sub,
-  tone = "text-[#0a0a0a]",
+  rule,
+  tone,
 }: {
   label: string;
   value: string;
-  sub: string;
-  tone?: string;
+  rule: string;
+  tone: string;
 }) {
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+    <div className="relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border border-[#e7e7ea] bg-white px-3.5 py-2.5">
+      <span className={cn("absolute inset-y-0 left-0 w-[3px]", rule)} />
+      <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
         {label}
-      </span>
-      <span
+      </div>
+      <div
         className={cn(
-          "font-[family-name:var(--font-inter-tight)] text-[17px] font-extrabold tracking-[-0.01em]",
+          "font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
           tone,
         )}
       >
         {value}
-      </span>
-      <span className="text-[11.5px] text-[#71717a]">{sub}</span>
-    </span>
+      </div>
+    </div>
   );
 }
 

@@ -602,8 +602,13 @@ per lead, drag a card between columns to move it. `LeadBoard`
   content.
 - **The toggle's row carries BOARD TOTALS in board view**, not a repeat of the strip: the columns
   already give each stage, so this gives what they can't — open pipeline (everything not yet won or
-  lost) and won. Derived from the already-loaded columns, so it costs no query. Without it that row
-  was a blank band holding one small control.
+  lost) and won. They are **stat tiles with the same geometry and leading rule as the list's stage
+  strip**, so the row reads the same in either view. Derived from the already-loaded columns, so it
+  costs no query. Without it that row was a blank band holding one small control.
+- **Neither the heading nor the tiles carry a count** (2026-07-23) — the heading's count pill was
+  removed from `/leads` and the tiles show value only. Note this reverses the "the header pill is the
+  ONE place a list states its total" line under § continuous scroll for this screen; `/customers`
+  still has its pill.
 - **Lost gets a column.** The strip uses `PIPELINE_STAGES` (which excludes it), but a board must have
   somewhere to drop every state, so the board iterates `LEAD_STAGES`.
 - **The toggle sits on the STAGE-TILE row, bottom-aligned far right** — directly above the container
