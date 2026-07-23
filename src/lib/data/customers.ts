@@ -49,6 +49,15 @@ function escapeLike(v: string): string {
   return v.replace(/[\\%_]/g, "\\$&");
 }
 
+/**
+ * Quote a value for a PostgREST `or()` term. The filter string is comma- and
+ * paren-delimited, so an unquoted value containing either breaks it. Inside
+ * double quotes, `\` escapes `"` and `\`.
+ */
+function orValue(v: string): string {
+  return `"${v.replace(/[\\"]/g, "\\$&")}"`;
+}
+
 // Real customer columns the list may be ORDERED by (allowlisted — never an
 // interpolated name). Computed columns (lead/contract counts, last activity) and
 // the composite address aren't here; the client's Name column maps to last_name.
@@ -173,17 +182,28 @@ export async function getCustomers(
 
   const q = filters.search?.trim();
   if (q) {
-    const like = `%${q}%`;
+    // Quoted: the or() filter string is comma- and paren-delimited, so a search
+    // for "Smith, J" or "Unit 4 (rear)" would otherwise be malformed.
+    const like = orValue(`%${q}%`);
     query = query.or(
       [
         `first_name.ilike.${like}`,
         `last_name.ilike.${like}`,
+        `first_name_2.ilike.${like}`,
+        `last_name_2.ilike.${like}`,
         `company_name.ilike.${like}`,
         `email.ilike.${like}`,
         `phone.ilike.${like}`,
         `mobile.ilike.${like}`,
+        `home_telephone.ilike.${like}`,
+        // Address, so a search can be "where" as well as "who".
+        `house_name.ilike.${like}`,
+        `house_number.ilike.${like}`,
+        `street.ilike.${like}`,
+        `locality.ilike.${like}`,
         `postcode.ilike.${like}`,
         `town.ilike.${like}`,
+        `county.ilike.${like}`,
       ].join(","),
     );
   }

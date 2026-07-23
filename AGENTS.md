@@ -416,6 +416,23 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   - **The "Columns" popover is toggle + drag-reorder** (dnd-kit, "Shown" sortable list + "Hidden"
     section, Airtable-style), persisting on every change with a "Reset". The `DndContext` carries a
     stable `id` (`cols-customers`) for the SSR/hydration reason in § Rearrangeable cards.
+- **Search is a TOOLBAR BUTTON that expands into a field** (`SearchButton`, 2026-07-23), sitting on the
+  header row with Date Range / Columns / Filters rather than costing the table a row of its own. It
+  **stays open whenever there's a term** (applied or mid-typing) — a collapsed magnifier over a filtered
+  list hides WHY the list is short. Escape clears and closes; blurring an empty field closes it.
+  The always-visible `SearchBox` was deleted once both lists moved over.
+- **Every toolbar control shares `TOOLBAR_H`** (`primitives.tsx`) — `btnSecondary`'s natural box pinned
+  explicitly, because an **icon-only** control has no text line box and comes out ~7px shorter than its
+  labelled neighbours otherwise. Put it on any new toolbar control.
+- **A search term must be QUOTED into a PostgREST `or()`** (`orValue()`, in both list data modules).
+  The filter string is comma- and paren-delimited, so an unquoted "Smith, J" or "Unit 4 (rear)" builds
+  a malformed filter. This was live on both lists until 2026-07-23.
+- **Lead search covers the CUSTOMER's name and address**, which live on the embedded `customers` row —
+  and PostgREST can't OR an embedded column against the parent's in one query. `getLeads` therefore
+  resolves matching customer ids first (`searchCustomerIds`, capped at 2000) and folds them into the
+  same `or()` as `customer_id.in.(…)`. One extra cheap read, and the list stays ONE filtered query, so
+  paging and the exact count stay correct. That helper **fails soft** — if it errors, the lead-column
+  half of the search still works rather than the whole list going down.
 - **Filters live in a "Filters" POPOVER, not inline pills.** The Town + Has-Live-Lead pills next to
   the search were removed on 2026-07-22 and folded into the `FiltersButton` popover; the button shows
   an active-filter count badge (pills gone means the applied state needs to read from somewhere) and a

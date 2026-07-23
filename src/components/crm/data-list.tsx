@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Icon } from "@/components/crm/primitives";
+import { Icon, TOOLBAR_H } from "@/components/crm/primitives";
 import type { IconName } from "@/components/crm/icon";
 import { useSetParams } from "@/components/crm/list-controls";
 import { useFloatingMenu } from "@/components/crm/floating-menu";
@@ -308,7 +308,8 @@ export function Popover({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex items-center gap-[7px] rounded-lg border bg-white px-3 py-2 text-[13px] font-semibold transition-colors",
+          TOOLBAR_H,
+          "inline-flex items-center gap-[7px] rounded-lg border bg-white px-3 text-[13px] font-semibold transition-colors",
           open || badge || active
             ? "border-[var(--accent-blue)] text-[var(--accent-blue)]"
             : "border-[#e7e7ea] text-[#3f3f46] hover:bg-[#fafafa]",

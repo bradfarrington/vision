@@ -199,6 +199,15 @@ export function CardTitle({
 export const btnSecondary =
   "inline-flex items-center gap-[7px] rounded-lg border border-[#e7e7ea] bg-white px-3 py-2 text-[13px] font-semibold text-[#3f3f46] transition-colors hover:bg-[#fafafa] disabled:opacity-60";
 
+/**
+ * The height every control on a list toolbar shares (Search · Date Range ·
+ * Columns · Filters · the New button). It is btnSecondary's natural box —
+ * `py-2` + a 13px text line + 1px borders — pinned explicitly, because an
+ * ICON-ONLY control has no text line box and would otherwise come out ~7px
+ * shorter than its labelled neighbours. Put this on any new toolbar control.
+ */
+export const TOOLBAR_H = "h-[38px]";
+
 export const btnPrimary =
   "inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-blue)] px-[14px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-60";
 

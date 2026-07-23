@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 //   `range=custom` + `from`/`to` — fixed endpoints
 // Absent = all time.
 
-export function DateRangeButton({ label = "Date" }: { label?: string }) {
+export function DateRangeButton({ label = "Date Range" }: { label?: string }) {
   const { setParams, searchParams } = useSetParams();
   const range = searchParams.get("range");
   const from = searchParams.get("from");

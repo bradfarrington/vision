@@ -7,8 +7,9 @@ import {
   type ValueCondition,
 } from "@/lib/data/customers";
 import { getUserPref } from "@/lib/data/user-layouts";
-import { Icon, btnPrimary } from "@/components/crm/primitives";
-import { SearchBox } from "@/components/crm/list-controls";
+import { Icon, TOOLBAR_H, btnPrimary } from "@/components/crm/primitives";
+import { cn } from "@/lib/utils";
+import { SearchButton } from "@/components/crm/list-controls";
 import {
   ColumnsButton,
   CustomerColumnsProvider,
@@ -106,17 +107,13 @@ export default async function CustomersPage({
               {total.toLocaleString("en-GB")}
             </span>
             <div className="ml-auto flex items-center gap-2.5">
+              <SearchButton placeholder="Name, address, postcode, phone…" />
               <ColumnsButton />
               <FiltersButton filterOptions={filterOptions} />
-              <Link href="/customers/new" className={btnPrimary}>
+              <Link href="/customers/new" className={cn(TOOLBAR_H, btnPrimary)}>
                 <Icon name="plus" size={13} strokeWidth={2.2} /> New Customer
               </Link>
             </div>
-          </div>
-
-          {/* Search */}
-          <div className="flex items-center gap-2">
-            <SearchBox placeholder="Name, postcode, phone…" />
           </div>
         </div>
 

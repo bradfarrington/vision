@@ -260,19 +260,33 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
 
   const q = filters.search?.trim();
   if (q) {
-    const like = `%${q}%`;
+    const like = orValue(`%${q}%`);
     // Numeric lead ref search when the query is a number ("L-2431" or "2431").
     const asNumber = Number(q.replace(/^l-?/i, ""));
     const parts = [
       `product_type.ilike.${like}`,
       `product_interest_1.ilike.${like}`,
+      `product_interest_2.ilike.${like}`,
       `source.ilike.${like}`,
+      `sub_source.ilike.${like}`,
       `salesman.ilike.${like}`,
+      `installation_house_name.ilike.${like}`,
+      `installation_street.ilike.${like}`,
       `installation_town.ilike.${like}`,
       `installation_postcode.ilike.${like}`,
       `office_reference.ilike.${like}`,
+      `office_reference_2.ilike.${like}`,
     ];
     if (Number.isFinite(asNumber)) parts.push(`lead_number.eq.${asNumber}`);
+
+    // The customer's NAME and ADDRESS live on the embedded `customers` row, and
+    // PostgREST can't OR an embedded column against the parent's in one query.
+    // So resolve the matching customers first and fold their ids into the same
+    // or() — one extra cheap read, and the whole thing stays a single filtered
+    // query, so paging and the exact count remain correct.
+    const customerIds = await searchCustomerIds(supabase, q);
+    if (customerIds.length) parts.push(`customer_id.in.(${customerIds.join(",")})`);
+
     query = query.or(parts.join(","));
   }
 
@@ -322,6 +336,48 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
     pipeline,
     filterOptions,
   };
+}
+
+/**
+ * Quote a value for a PostgREST `or()` term. The filter string is comma- and
+ * paren-delimited, so an unquoted search for "Smith, J" or "Unit 4 (rear)"
+ * silently produces a malformed filter. Double quotes make it one literal;
+ * inside them `\` escapes `"` and `\`.
+ */
+function orValue(v: string): string {
+  return `"${v.replace(/[\\"]/g, "\\$&")}"`;
+}
+
+/** Customer columns a lead search matches on — the person and where they live. */
+const CUSTOMER_SEARCH_COLUMNS = [
+  "first_name", "last_name", "first_name_2", "last_name_2", "company_name",
+  "house_name", "house_number", "street", "locality", "town", "county", "postcode",
+  "email", "mobile", "home_telephone",
+];
+
+/**
+ * Ids of customers matching a free-text term, for folding into the lead search.
+ *
+ * CAPPED: a term matching more customers than this narrows further than the
+ * user asked. The cap is deliberately generous — a search specific enough to be
+ * useful matches far fewer — but it IS a cap, so don't quietly lower it.
+ */
+const CUSTOMER_SEARCH_CAP = 2000;
+
+async function searchCustomerIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  term: string,
+): Promise<string[]> {
+  const like = orValue(`%${term}%`);
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id")
+    .or(CUSTOMER_SEARCH_COLUMNS.map((c) => `${c}.ilike.${like}`).join(","))
+    .limit(CUSTOMER_SEARCH_CAP);
+  // A failure here must not take the whole list down — the lead-column half of
+  // the search still works, so degrade to that rather than throwing.
+  if (error) return [];
+  return (data ?? []).map((r) => r.id);
 }
 
 /**

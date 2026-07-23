@@ -5,8 +5,8 @@ import { getUserPref } from "@/lib/data/user-layouts";
 import { PIPELINE_STAGES, STAGE_STAT_TONE, leadStage } from "@/lib/leads";
 import { gbpCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Icon, btnPrimary } from "@/components/crm/primitives";
-import { SearchBox } from "@/components/crm/list-controls";
+import { Icon, TOOLBAR_H, btnPrimary } from "@/components/crm/primitives";
+import { SearchButton } from "@/components/crm/list-controls";
 import {
   ColumnsButton,
   FiltersButton,
@@ -121,12 +121,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               {total.toLocaleString("en-GB")}
             </span>
             <div className="ml-auto flex items-center gap-2.5">
+              <SearchButton placeholder="Lead no., customer, address, product…" />
               {/* Ranges lead-date (when the enquiry arrived) — the date this list
                   is ordered by, so it's the one a range is about. */}
               <DateRangeButton />
               <ColumnsButton />
               <FiltersButton filterOptions={filterOptions} />
-              <Link href="/leads/new" className={btnPrimary}>
+              <Link href="/leads/new" className={cn(TOOLBAR_H, btnPrimary)}>
                 <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
               </Link>
             </div>
@@ -188,10 +189,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             })}
           </div>
 
-          {/* Search */}
-          <div className="flex items-center gap-2">
-            <SearchBox placeholder="Lead no., product, source, town…" />
-          </div>
         </div>
 
         <LeadTable
