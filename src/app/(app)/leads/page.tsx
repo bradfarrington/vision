@@ -121,7 +121,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
             coloured rule down the leading edge, an uppercase label, and the
             count with its value inline. Two lines instead of three, so the
             strip costs the table far less height than the old stacked cards. */}
-        <div className="flex flex-wrap gap-2.5">
+        {/* Each tile is sized BY ITS OWN CONTENT, between a min and a max — not
+            an equal share of the row. Stage names vary in length, and stretching
+            them all to match left "Won" swimming in white space. Past the max a
+            long name WRAPS (never truncates — a stage the tenant renamed must
+            stay readable), which grows that tile; `items-stretch` keeps the row
+            level so one tall tile doesn't leave the others short. */}
+        <div className="flex flex-wrap items-stretch gap-2.5">
           {pipelineSummary(pipeline).map((b) => {
             const stage = leadStage(b.key);
             const tone = STAGE_STAT_TONE[stage.tone];
@@ -131,7 +137,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
                 key={b.key}
                 href={stageHref(active ? null : b.key)}
                 className={cn(
-                  "relative min-w-[164px] flex-1 overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
+                  "relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
                   active
                     ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
                     : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
@@ -144,7 +150,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
                 <div className="flex items-baseline gap-1.5">
                   <span
                     className={cn(
-                      "font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
+                      "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
                       tone.value,
                     )}
                   >
