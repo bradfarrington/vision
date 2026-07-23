@@ -538,6 +538,13 @@ have them; contracts gets them free.
   `DataListProvider` runs with **`persist={false}`**: column changes are held in state and mark the
   view dirty, instead of quietly rewriting your personal default. With no view loaded, columns
   persist to `user_ui_layouts` exactly as before.
+- **“Save as new” is in the menu ALWAYS, dirty or not** (2026-07-23). A built-in view pins no columns
+  (`columns: null`), so rearranging the columns on "All leads" leaves the screen CLEAN by the dirty
+  rule — nothing in the query changed — while there is plainly something worth keeping. Gating the
+  only way to capture a layout behind a filter change made it unreachable, which read as "custom
+  views don't remember columns" when in fact they always have. **Column changes still do NOT dirty a
+  built-in view**: it can't be saved over, so the dot would be permanent and clearable only by
+  putting the column back.
 - **`search` is deliberately NOT part of a view.** A search term is "find me this one thing", not a
   saved arrangement; baking one in would leave people staring at a filtered list with no idea why.
   Nor are `page` or `sv` — bookkeeping.

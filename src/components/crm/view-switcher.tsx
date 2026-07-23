@@ -195,8 +195,14 @@ export function ViewSwitcher({
           )}
 
           {/* The actions for a modified view sit at the TOP of its own menu —
-              the one place someone already goes to think about views. */}
-          {dirty && (
+              the one place someone already goes to think about views.
+
+              "Save as new" is here even when NOTHING is dirty, because the
+              built-in views don't pin columns: arrange the columns how you like
+              on "All leads" and the screen is clean by the dirty rule, yet
+              there is something worth keeping. Gating the only way to capture a
+              layout behind a filter change made it unreachable. */}
+          {dirty ? (
             <div className="border-b border-[#f4f4f5] px-3 py-2.5">
               <div className="mb-1.5 flex items-center gap-1.5">
                 <span className="size-[7px] rounded-full bg-[#b86e00]" />
@@ -213,6 +219,12 @@ export function ViewSwitcher({
                 </MenuAction>
                 <MenuAction onClick={() => select(active)}>Reset</MenuAction>
               </div>
+            </div>
+          ) : (
+            <div className="border-b border-[#f4f4f5] px-3 py-2.5">
+              <MenuAction onClick={() => setNaming({ mode: "new" })} disabled={saving}>
+                Save as new view
+              </MenuAction>
             </div>
           )}
 
