@@ -67,9 +67,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   // Only `range=custom` carries explicit from/to. See lib/date-range.
   const { from: dateFrom, to: dateTo } = resolveRange(sp.range, { from: sp.from, to: sp.to });
 
-  // Default arrangement is newest lead first — the sidebar link carries no
-  // query, so leaving and returning always lands here.
-  const sort = sp.sort ?? null;
+  // Default arrangement is LEAD NUMBER ASCENDING — oldest enquiry at the top,
+  // matching how /customers defaults to customer_number ascending. The sidebar
+  // link carries no query, so a fresh visit (or "Clear all") always lands here.
+  const sort = sp.sort ?? "lead_number";
   const dir = sp.dir === "desc" ? "desc" : "asc";
   // The list scrolls continuously — the first chunk renders server-side, and
   // LeadTable fetches further chunks (via loadLeadRows) as it scrolls.
@@ -80,7 +81,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
     valueFilters,
     dateFrom,
     dateTo,
-    ...(sort ? { sort, dir } : {}),
+    sort,
+    dir,
   };
   // Board or list — both run the SAME filters, so switching view never changes
   // which leads you are looking at, only how they are arranged.

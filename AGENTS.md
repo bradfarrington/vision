@@ -580,7 +580,9 @@ list's twin, plus one thing of its own.
   column, and an old link still works) but nothing in the list UI sets it.
 - **Customer name / town / postcode come from the embed**, so they're folded into `record` under their
   own keys by `toLeadRow` and are **not sortable** (there's no `leads` column to ORDER BY).
-- Default order is `lead_date` descending (newest enquiry first) when no `sort` param is present.
+- **Default order is `lead_number` ASCENDING** (oldest enquiry at the top), matching how
+  `/customers` defaults to `customer_number` ascending — a fresh visit or a "Clear all" lands
+  there. `getLeads`' own fallback is the same, so every caller agrees on what "unsorted" means.
 
 ### The leads board (kanban) — built 2026-07-23
 

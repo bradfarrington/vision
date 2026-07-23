@@ -340,14 +340,15 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadListResul
 
   let query = supabase.from("leads").select(`*, ${CUSTOMER_EMBED}`, { count: "exact" });
 
-  // Sort: an allowlisted column asc/desc, else newest lead first. A stable
-  // secondary key (id) keeps paging deterministic when the sort column ties.
+  // Sort: an allowlisted column asc/desc, else lead number ascending — the same
+  // default the list screen sends, so every caller agrees on "unsorted". A
+  // stable secondary key (id) keeps paging deterministic when the column ties.
   if (filters.sort && SORTABLE_COLUMNS.has(filters.sort)) {
     query = query
       .order(filters.sort, { ascending: filters.dir !== "desc", nullsFirst: false })
       .order("id", { ascending: true });
   } else {
-    query = query.order("lead_date", { ascending: false, nullsFirst: false });
+    query = query.order("lead_number", { ascending: true, nullsFirst: false }).order("id", { ascending: true });
   }
   query = query.range(from, to);
   query = applyLeadFilters(query, filters, search);
