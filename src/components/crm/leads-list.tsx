@@ -12,6 +12,7 @@ import {
   type ListSpec,
 } from "@/components/crm/data-list";
 import { gbp } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { LeadFilters, LeadRow } from "@/lib/data/leads";
 
 // The leads list = a ListSpec fed to the shared machinery in `data-list.tsx`
@@ -140,34 +141,32 @@ const COLUMNS: Column[] = [
   { key: "contract_cancelled", label: "Cancelled", group: "Quote", w: BOOL, kind: "bool" },
   { key: "cancel_reason", label: "Cancel reason", group: "Quote", w: WIDE },
 
-  // Dates
+  // Dates — Received and Follow-up are their OWN columns, not one composite.
+  // Discrete columns sort, filter and align; a mashed-together pair can't be
+  // sorted by either half. (Same rule as the customers list's address.)
+  { key: "lead_date", label: "Received", group: "Dates", w: DATE, kind: "date" },
   {
-    key: "dates",
-    label: "Received · follow-up",
+    key: "follow_up_date",
+    label: "Follow-up",
     group: "Dates",
-    w: WIDE,
-    sortField: "lead_date",
-    // One line: the date received, then the follow-up as an amber prompt when
-    // one is outstanding on a live lead.
-    cell: (l) => (
-      <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className="truncate text-[#3f3f46]">{shortDate(l.leadDate)}</span>
-        {l.followUpDate && l.live && (
-          <span className="shrink-0 text-[11.5px] font-semibold text-[#b86e00]">
-            follow-up {shortDate(l.followUpDate)}
-          </span>
-        )}
-      </span>
-    ),
+    w: DATE,
+    // Amber only while it's OUTSTANDING — a follow-up on a won or lost lead is
+    // history, not a prompt, so colouring it would cry wolf.
+    cell: (l) =>
+      l.followUpDate ? (
+        <span className={cn("truncate", l.live ? "font-semibold text-[#b86e00]" : "text-[#3f3f46]")}>
+          {shortDate(l.followUpDate)}
+        </span>
+      ) : (
+        <span className="text-[#a1a1aa]">—</span>
+      ),
   },
-  { key: "lead_date", label: "Date received", group: "Dates", w: DATE, kind: "date" },
-  { key: "follow_up_date", label: "Follow-up", group: "Dates", w: DATE, kind: "date" },
   { key: "created_at", label: "Added", group: "Dates", w: DATE, kind: "date" },
 ];
 
 const GROUP_ORDER = ["Lead", "Customer", "Source", "Quote", "Dates"];
 // New columns default HIDDEN — a release must not force a column into everyone's view.
-const DEFAULT_VISIBLE = ["ref", "title", "customer", "stage", "value", "source", "dates"];
+const DEFAULT_VISIBLE = ["ref", "title", "customer", "stage", "value", "source", "lead_date", "follow_up_date"];
 
 // ---------------------------------------------------------------------------
 const FILTERS: FilterDef[] = [
