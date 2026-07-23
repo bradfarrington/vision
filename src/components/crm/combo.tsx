@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { useDialogs } from "./dialogs";
-import { useFloatingMenu } from "./floating-menu";
+import { useDismissOnOutside, useFloatingMenu } from "./floating-menu";
 import { Icon } from "./icon";
 
 export type ComboOption = { id?: string; value: string; label: string };
@@ -67,14 +67,11 @@ export function Combo({
     align: align ?? (variant === "text" ? "end" : "start"),
   });
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  // Shared dismiss — attaches on the next macrotask (so the press that opened
+  // this menu can't close it) and matches on the event's composed path (so a row
+  // that re-renders on press is still "inside"). See floating-menu.
+  const dismiss = useCallback(() => setOpen(false), []);
+  useDismissOnOutside({ open, onDismiss: dismiss, refs: [ref, triggerRef] });
 
   const q = query.trim().toLowerCase();
   const filtered = options.filter((o) => o.label.toLowerCase().includes(q));

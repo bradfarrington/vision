@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 
 import { useSetParams } from "./list-controls";
 import { useListLayout } from "./data-list";
 import { useDialogs } from "./dialogs";
-import { useFloatingMenu } from "./floating-menu";
+import { useDismissOnOutside, useFloatingMenu } from "./floating-menu";
 import { Icon } from "./icon";
 import {
   createSavedView,
@@ -22,6 +22,7 @@ import {
   type SavedView,
   type ViewEntity,
 } from "@/lib/views/views";
+import { TOOLBAR_H } from "./primitives";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -68,19 +69,8 @@ export function ViewSwitcher({
     !sameQuery(current, active.query) ||
     (!!active.columns && !!layout && !sameColumns(active.columns, layout));
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const dismiss = useCallback(() => setOpen(false), []);
+  useDismissOnOutside({ open, onDismiss: dismiss, refs: [ref, triggerRef] });
 
   function select(view: SavedView) {
     setParams(paramsForView(view, searchParams));
@@ -154,57 +144,34 @@ export function ViewSwitcher({
 
   return (
     <div ref={ref} style={{ display: "contents" }}>
+      {/* One accent pill, not a title-plus-links. The dirty state lives ON it
+          (an amber dot) and its actions live INSIDE it, so an unsaved change
+          can't spray loose text links across the header. */}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[15px] font-semibold text-[#3f3f46] transition-colors hover:bg-[#f4f4f5]"
+        className={cn(
+          TOOLBAR_H,
+          "flex min-w-0 items-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition-colors",
+          "border-[var(--accent-blue)] bg-[var(--accent-tint)] text-[var(--accent-blue)]",
+          "hover:bg-[color-mix(in_srgb,var(--accent-blue)_16%,transparent)]",
+        )}
       >
         <span className="min-w-0 truncate">{active.name}</span>
+        {dirty && (
+          <span
+            title="Unsaved changes"
+            className="size-[7px] shrink-0 rounded-full bg-[#b86e00]"
+          />
+        )}
         <Icon
           name="chevron-down"
           size={13}
           strokeWidth={2.4}
-          className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")}
+          className={cn("shrink-0 transition-transform", open && "rotate-180")}
         />
       </button>
-
-      {/* Dirty state — the whole reason the switcher is worth having. Without
-          it you can't tell a saved view from one you've fiddled with. */}
-      {dirty && (
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="rounded-full bg-[#fdf2dc] px-2 py-[2px] text-[11px] font-semibold text-[#b86e00]">
-            Modified
-          </span>
-          {!active.system && (
-            <button
-              type="button"
-              onClick={saveOver}
-              disabled={saving}
-              className="text-[12px] font-semibold text-[var(--accent-blue)] hover:underline disabled:opacity-60"
-            >
-              Save
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setNaming({ mode: "new" })}
-            disabled={saving}
-            className="text-[12px] font-semibold text-[var(--accent-blue)] hover:underline disabled:opacity-60"
-          >
-            Save as new
-          </button>
-          <button
-            type="button"
-            onClick={() => select(active)}
-            className="text-[12px] font-medium text-[#71717a] hover:text-[#3f3f46]"
-          >
-            Reset
-          </button>
-        </div>
-      )}
-
-      {error && <span className="text-[12px] font-medium text-[#d64545]">{error}</span>}
 
       {naming && (
         <NameDialog
@@ -221,6 +188,34 @@ export function ViewSwitcher({
           style={menuStyle}
           className="z-50 flex flex-col overflow-hidden rounded-xl border border-[#e7e7ea] bg-white shadow-[0_8px_28px_rgba(10,10,10,0.14)]"
         >
+          {error && (
+            <p className="border-b border-[#f4f4f5] bg-[#fdecec] px-3 py-2 text-[12px] font-medium text-[#d64545]">
+              {error}
+            </p>
+          )}
+
+          {/* The actions for a modified view sit at the TOP of its own menu —
+              the one place someone already goes to think about views. */}
+          {dirty && (
+            <div className="border-b border-[#f4f4f5] px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <span className="size-[7px] rounded-full bg-[#b86e00]" />
+                <span className="text-[12px] font-semibold text-[#b86e00]">Unsaved changes</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {!active.system && (
+                  <MenuAction onClick={saveOver} disabled={saving} primary>
+                    Save to “{active.name}”
+                  </MenuAction>
+                )}
+                <MenuAction onClick={() => setNaming({ mode: "new" })} disabled={saving} primary={active.system}>
+                  Save as new
+                </MenuAction>
+                <MenuAction onClick={() => select(active)}>Reset</MenuAction>
+              </div>
+            </div>
+          )}
+
           <div className="min-h-0 overflow-y-auto py-1.5">
             <Section label="Built in" />
             {system.map((v) => (
@@ -250,6 +245,34 @@ export function ViewSwitcher({
         </div>
       )}
     </div>
+  );
+}
+
+function MenuAction({
+  onClick,
+  disabled,
+  primary,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "rounded-md border px-2.5 py-1 text-[12px] font-semibold transition-colors disabled:opacity-60",
+        primary
+          ? "border-[var(--accent-blue)] bg-[var(--accent-blue)] text-white hover:bg-[var(--accent-hover)]"
+          : "border-[#e7e7ea] bg-white text-[#3f3f46] hover:bg-[#fafafa]",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

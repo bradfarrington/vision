@@ -512,9 +512,14 @@ have them; contracts gets them free.
   knows nothing about views, so the URL stays shareable and the back button keeps working.
   `sv=<id>` rides alongside purely to record which view is loaded. **`view` was already taken** by
   the list/board switch — hence `sv`; don't rename `view` and break existing links.
-- **The DIRTY state is the point of the feature.** Once the URL's view-params differ from the saved
-  ones, the title grows `Modified · Save · Save as new · Reset`. Without it nobody can tell a saved
-  view from one they fiddled with two clicks ago — which is the failure mode a switcher alone has.
+- **The DIRTY state is the point of the feature** — without it nobody can tell a saved view from one
+  they fiddled with two clicks ago, which is the failure mode a switcher alone has. It shows as an
+  **amber dot on the view pill**, and its actions (`Save to “…”` · `Save as new` · `Reset`) live at
+  the **top of the pill's own menu**. They were briefly loose text links beside the title and that
+  was wrong: an unsaved change sprayed four controls across the header. One control, dirty state on
+  it, actions inside it.
+- **The switcher is a TENANT-ACCENT PILL** (`TOOLBAR_H`, accent border + tint), sitting straight
+  after the page title with no separator — it reads as a control, not as breadcrumb text.
 - **A view owns BOTH halves, query and columns.** "Live leads for Dave" showing whatever columns you
   last set globally would defeat the point. So while a view with pinned columns is loaded,
   `DataListProvider` runs with **`persist={false}`**: column changes are held in state and mark the

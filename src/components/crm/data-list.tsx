@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, useTransition } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -23,7 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Icon, TOOLBAR_H } from "@/components/crm/primitives";
 import type { IconName } from "@/components/crm/icon";
 import { useSetParams } from "@/components/crm/list-controls";
-import { useFloatingMenu } from "@/components/crm/floating-menu";
+import { useDismissOnOutside, useFloatingMenu } from "@/components/crm/floating-menu";
 import { resetUserLayout, saveUserPref } from "@/app/(app)/preferences/actions";
 import { cn } from "@/lib/utils";
 import { humanLabel } from "@/lib/format";
@@ -322,21 +322,8 @@ export function Popover({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuStyle = useFloatingMenu({ open, triggerRef, width, align: "end", maxHeight: 460 });
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const dismiss = useCallback(() => setOpen(false), []);
+  useDismissOnOutside({ open, onDismiss: dismiss, refs: [ref, triggerRef] });
 
   return (
     <div ref={ref} style={{ display: "contents" }}>

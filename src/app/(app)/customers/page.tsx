@@ -113,7 +113,6 @@ export default async function CustomersPage({
             <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
               Customers
             </h1>
-            <span className="text-[#d4d4d8]">/</span>
             {/* The view is the SUBJECT of the screen, so it sits on the title —
                 not as another button among the controls that modify it. */}
             <ViewSwitcher entity="customers" views={savedViews} activeId={sp.sv} />

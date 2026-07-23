@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 
 const MENU_GAP = 4; // breathing room between trigger and menu
 const VIEWPORT_MARGIN = 8; // never let the menu touch the window edge
@@ -42,6 +42,68 @@ function containingBlock(el: HTMLElement): DOMRect | null {
   }
   return null;
 }
+/**
+ * Close a menu on an outside press or Escape.
+ *
+ * Every popover had its own copy of this and they were subtly fragile:
+ *
+ *  - The listener was attached in the same turn as the press that OPENED the
+ *    menu, so a trigger that opens on `pointerdown`/`mousedown` could have that
+ *    very event counted as "outside" and shut instantly. Attaching on the next
+ *    macrotask makes the opening press impossible to see.
+ *  - `contains(e.target)` fails whenever the press lands on something that has
+ *    already been removed from the DOM by the time the handler runs (a menu row
+ *    that re-renders on press, which is most of them). `composedPath()` is the
+ *    path the event actually travelled, so it stays correct.
+ *
+ * Pass the trigger too, so the trigger's own toggle is never double-handled.
+ */
+export function useDismissOnOutside({
+  open,
+  onDismiss,
+  refs,
+}: {
+  open: boolean;
+  onDismiss: () => void;
+  /** The menu wrapper and the trigger — a press inside either is "inside". */
+  refs: RefObject<HTMLElement | null>[];
+}) {
+  useEffect(() => {
+    if (!open) return;
+    let attached = false;
+
+    const inside = (e: Event) => {
+      const path = e.composedPath?.() ?? [];
+      return refs.some((r) => {
+        const el = r.current;
+        if (!el) return false;
+        return path.includes(el) || (e.target instanceof Node && el.contains(e.target));
+      });
+    };
+    const onPress = (e: PointerEvent) => {
+      if (!inside(e)) onDismiss();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDismiss();
+    };
+
+    // Next macrotask: the press that opened this menu can't be seen by it.
+    const t = setTimeout(() => {
+      attached = true;
+      document.addEventListener("pointerdown", onPress, true);
+    }, 0);
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      clearTimeout(t);
+      if (attached) document.removeEventListener("pointerdown", onPress, true);
+      document.removeEventListener("keydown", onKey);
+    };
+    // `refs` is a fresh array each render; the elements inside it are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, onDismiss]);
+}
+
 export function useFloatingMenu({
   open,
   triggerRef,
