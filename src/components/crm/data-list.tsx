@@ -307,13 +307,22 @@ export function Popover({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        // THREE distinct states, because "this popover is open" and "this
+        // control is narrowing your data" are different facts and used to look
+        // identical — so a filter left on read as nothing once the popover
+        // closed. APPLIED is filled with the accent tint and keeps its count
+        // badge, so it stays obvious from across the screen; OPEN is only
+        // outlined; idle is neutral.
         className={cn(
           TOOLBAR_H,
-          "inline-flex items-center gap-[7px] rounded-lg border bg-white px-3 text-[13px] font-semibold transition-colors",
-          open || badge || active
-            ? "border-[var(--accent-blue)] text-[var(--accent-blue)]"
-            : "border-[#e7e7ea] text-[#3f3f46] hover:bg-[#fafafa]",
+          "inline-flex items-center gap-[7px] rounded-lg border px-3 text-[13px] font-semibold transition-colors",
+          badge || active
+            ? "border-[var(--accent-blue)] bg-[var(--accent-tint)] text-[var(--accent-blue)]"
+            : open
+              ? "border-[var(--accent-blue)] bg-white text-[var(--accent-blue)]"
+              : "border-[#e7e7ea] bg-white text-[#3f3f46] hover:bg-[#fafafa]",
         )}
+        aria-label={badge ? `${label} — ${badge} applied` : label}
       >
         <Icon name={icon} size={13} /> {label}
         {badge ? (

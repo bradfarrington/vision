@@ -649,6 +649,12 @@ A third toolbar button beside Columns and Filters (`DateRangeButton`,
 - **The shared toolbar `Popover` is exported from `data-list.tsx`** and takes an `IconName` plus an
   `active` flag (light the trigger without a numeric badge) and a `close` callback passed to its
   children. All three toolbar buttons use it — **don't hand-roll a fourth.**
+- **A toolbar trigger has THREE distinct states, and APPLIED must not look like OPEN** (2026-07-23).
+  "This popover is open" and "this control is narrowing your data" are different facts; they used to
+  render identically, so a filter left on read as nothing the moment the popover closed. Applied is
+  **filled with the accent tint** and keeps its count badge (and says so in its `aria-label`); open is
+  only outlined; idle is neutral. Keep applied louder than open — the whole point is that it survives
+  being looked away from.
 
 ## The lead record — tabs, notes, documents — built 2026-07-23
 
