@@ -214,18 +214,21 @@ function Column({
     <div className="flex h-full w-[288px] shrink-0 flex-col rounded-t-xl border-x border-t border-[#e7e7ea] bg-[#fafafa]">
       {/* ONE compact line — a column header is a label, not a stat tile; the
           figures that deserve that treatment are in the summary row above the
-          board. The count sits in a chip so it reads as a count rather than
-          running into the value beside it, and the 3px rule carries the stage
-          colour so the chip doesn't have to. */}
+          board. Stage name then its count badge on the LEFT (they're one
+          thought: "New, two of them"), the value badge pushed hard RIGHT. Both
+          badges stay neutral — the 3px rule already carries the stage colour. */}
       <div className="relative flex items-center gap-2 overflow-hidden rounded-t-xl border-b border-[#e7e7ea] bg-white px-3 py-2">
         <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
-        <span className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+        <span className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
           {col.label}
         </span>
-        <span className="shrink-0 rounded-full bg-[#f4f4f5] px-[7px] py-[2px] text-[11px] font-bold text-[#3f3f46]">
+        {/* Circular, but `min-w` + `px` rather than a fixed square: a stage with
+            a three-figure count would otherwise clip inside the circle. One and
+            two digits read as a circle, more grow into a pill. */}
+        <span className="inline-flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full bg-[#f4f4f5] px-1.5 text-[10.5px] font-bold text-[#3f3f46]">
           {col.total.toLocaleString("en-GB")}
         </span>
-        <span className="shrink-0 text-[11.5px] font-medium text-[#71717a]">
+        <span className="ml-auto inline-flex h-[20px] shrink-0 items-center rounded-full bg-[#f4f4f5] px-2 text-[10.5px] font-semibold text-[#71717a]">
           {gbpCompact(col.value)}
         </span>
       </div>
