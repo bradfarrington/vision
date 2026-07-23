@@ -151,25 +151,25 @@ export function ViewSwitcher({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        // Quiet by default. It sits beside the title rather than among the
+        // toolbar's verbs, so POSITION already says what it is — it doesn't need
+        // the accent to shout as well. Toning the pill down also makes the one
+        // thing that must be noticed, the unsaved-changes dot, easier to see.
         className={cn(
           TOOLBAR_H,
-          "flex min-w-0 items-center gap-2 rounded-lg border px-3 text-[13px] font-semibold transition-colors",
-          "border-[var(--accent-blue)] bg-[var(--accent-tint)] text-[var(--accent-blue)]",
-          "hover:bg-[color-mix(in_srgb,var(--accent-blue)_16%,transparent)]",
+          "flex min-w-0 items-center gap-2 rounded-lg border border-[#e7e7ea] bg-white px-3 text-[13px] font-semibold text-[#3f3f46] transition-colors",
+          open ? "border-[#d4d4d8] bg-[#fafafa]" : "hover:bg-[#fafafa]",
         )}
       >
         <span className="min-w-0 truncate">{active.name}</span>
         {dirty && (
-          <span
-            title="Unsaved changes"
-            className="size-[7px] shrink-0 rounded-full bg-[#b86e00]"
-          />
+          <span title="Unsaved changes" className="size-[6px] shrink-0 rounded-full bg-[#b86e00]" />
         )}
         <Icon
           name="chevron-down"
-          size={13}
-          strokeWidth={2.4}
-          className={cn("shrink-0 transition-transform", open && "rotate-180")}
+          size={12}
+          strokeWidth={2.2}
+          className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")}
         />
       </button>
 

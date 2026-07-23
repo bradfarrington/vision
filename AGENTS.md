@@ -518,8 +518,10 @@ have them; contracts gets them free.
   the **top of the pill's own menu**. They were briefly loose text links beside the title and that
   was wrong: an unsaved change sprayed four controls across the header. One control, dirty state on
   it, actions inside it.
-- **The switcher is a TENANT-ACCENT PILL** (`TOOLBAR_H`, accent border + tint), sitting straight
-  after the page title with no separator — it reads as a control, not as breadcrumb text.
+- **The switcher is a QUIET pill** (`TOOLBAR_H`, neutral border, white fill), sitting straight after
+  the page title with no separator. It was briefly tenant-accent and that was too loud: it sits apart
+  from the toolbar's verbs, so POSITION already says what it is. Keeping it quiet also makes the one
+  thing that MUST be noticed — the amber unsaved-changes dot — the loudest thing on it.
 - **A view owns BOTH halves, query and columns.** "Live leads for Dave" showing whatever columns you
   last set globally would defeat the point. So while a view with pinned columns is loaded,
   `DataListProvider` runs with **`persist={false}`**: column changes are held in state and mark the
