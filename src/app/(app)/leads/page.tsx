@@ -223,18 +223,21 @@ function LeadSummary({ total, pipeline }: { total: number; pipeline: StageBucket
     <div className="flex min-w-0 flex-wrap items-stretch gap-2.5">
       <StatTile label="Total Leads" value={n(total)} rule="bg-[#a1a1aa]" tone="text-[#0a0a0a]" />
       {/* Live and Open pipeline are the SAME population counted two ways — how
-          many, and how much — so they share the accent. */}
+          many, and how much — so they share one colour. That colour is the
+          PLATFORM info blue, not the tenant accent: these figures sit beside
+          Won-green and Lost-red and are read the same way, so a tenant whose
+          brand is red would otherwise show "Live Leads" in the loss colour. */}
       <StatTile
         label="Live Leads"
         value={n(liveCount)}
-        rule="bg-[var(--accent-blue)]"
-        tone="text-[var(--accent-blue)]"
+        rule="bg-[var(--info)]"
+        tone="text-[var(--info)]"
       />
       <StatTile
         label="Open Pipeline"
         value={gbpCompact(openValue)}
-        rule="bg-[var(--accent-blue)]"
-        tone="text-[var(--accent-blue)]"
+        rule="bg-[var(--info)]"
+        tone="text-[var(--info)]"
       />
       <StatTile label="Won" value={gbpCompact(wonValue)} rule="bg-[#1a7f3e]" tone="text-[#1a7f3e]" />
       <StatTile label="Lost" value={gbpCompact(lostValue)} rule="bg-[#d64545]" tone="text-[#d64545]" />

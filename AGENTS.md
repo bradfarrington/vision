@@ -18,6 +18,7 @@ See `design_handoff_vision_crm/README.md` (architecture, theming, design system)
 - **Do NOT run the `.dc.html` runtime in production.** Those files render via a design-tool preview engine (`x-dc` / `DCLogic` / `_ds_bundle.js`); we port the HTML/CSS/SVG into JSX, not the engine.
 - **Neutral palette = the screens' zinc ramp** (`#e7e7ea` hairline, `#a1a1aa` placeholder, `#f4f4f5` canvas, `#18181b` dark, `#71717a`/`#3f3f46` text, `#1a7f3e` success). The `_ds` token files ship a cooler graphite ramp that visibly diverges — **we follow the screens, not `_ds`.** Global tokens live in `src/app/globals.css`.
 - **Vision blue `#2f7de1` is the accent slot only** and is tenant-themed: `--accent-blue`/`--primary`/`--ring` come from `companies.brand_color_1` via `src/lib/theme.ts` (`tenantThemeVars`), applied on the shell root. Semantic colours (success/warning/danger) are platform-fixed and never themed.
+- **A STAT FIGURE is semantic, not brand — use `--info`, never `--accent-blue`** (decided 2026-07-23). `--info`/`--info-tint` are the same hue as the default accent but **platform-fixed**, and they exist because a tenant branded red rendered "Live Leads" and "Open Pipeline" in the *same red* as "Outstanding" and "Lost" sitting beside them. A number on a tile is read like the green and red around it, so it can't rebrand. Applies to the leads summary tiles and the customer record's `STAT_TONE` (`tone="info"`). The tenant accent keeps everything **interactive or chrome** — buttons, links, focus rings, row hover, the map pin, avatars, the company chip.
 - **Topbar logo** defaults to `/vision-mark.png`; a tenant's own `company.logo_url` overrides it once upload lands.
 
 ## Backend & multi-tenant security — decided 2026-07-21
@@ -382,7 +383,8 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   never false** — "nobody has assessed this" is a real state and must stay distinguishable.
 - **Colour carries meaning, and it lives in the figures and chips — never in card headers.** Stat
   tiles get a 3px coloured rule down the leading edge plus a coloured figure (**lifetime value green
-  `#1a7f3e`, outstanding red `#d64545`**, live leads = tenant accent, contracts neutral) from the
+  `#1a7f3e`, outstanding red `#d64545`**, live leads `--info` blue (platform-fixed, NOT the tenant
+  accent — see § UI build method), contracts neutral) from the
   `STAT_TONE` map, and are `min-w-[164px]` in a `flex-wrap` row so they size to the figure rather
   than stretching. **No icons on any card header** — every card is a plain title plus its jump link;
   icon chips were tried there and rejected.

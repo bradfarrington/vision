@@ -312,7 +312,7 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
         label="Live Leads"
         value={String(liveLeads)}
         sub={c.leadCount > 0 ? `of ${c.leadCount}` : undefined}
-        tone="accent"
+        tone="info"
       />
       <Stat label="Contracts" value={String(c.contractCount)} tone="neutral" />
       {c.flash_note && (
@@ -328,16 +328,18 @@ function SnapshotStrip({ c, liveLeads }: { c: CustomerRecord; liveLeads: number 
 }
 
 // Tinted chip + value colour per tone, shared by the stat tiles and the summary
-// cards. Money reads at a glance: earned = green, owed = red. Semantic colours
-// are platform-fixed; only `accent` rebrands with the tenant.
+// cards. Money reads at a glance: earned = green, owed = red. EVERY tone here is
+// platform-fixed, the blue one included: a figure is a reading of the data, and
+// a tenant branded red would otherwise print "Live Leads" in the same red as
+// "Outstanding". The tenant accent stays on interactive chrome.
 const STAT_TONE = {
   success: { chip: "bg-[#e7f4ec] text-[#1a7f3e]", value: "text-[#1a7f3e]", rule: "bg-[#1a7f3e]" },
   danger: { chip: "bg-[#fdecec] text-[#d64545]", value: "text-[#d64545]", rule: "bg-[#d64545]" },
   amber: { chip: "bg-[#fdf2dc] text-[#b86e00]", value: "text-[#b86e00]", rule: "bg-[#b86e00]" },
-  accent: {
-    chip: "bg-[var(--accent-tint)] text-[var(--accent-blue)]",
-    value: "text-[var(--accent-blue)]",
-    rule: "bg-[var(--accent-blue)]",
+  info: {
+    chip: "bg-[var(--info-tint)] text-[var(--info)]",
+    value: "text-[var(--info)]",
+    rule: "bg-[var(--info)]",
   },
   neutral: { chip: "bg-[#f4f4f5] text-[#52525b]", value: "text-[#0a0a0a]", rule: "bg-[#d4d4d8]" },
 } satisfies Record<string, { chip: string; value: string; rule: string }>;

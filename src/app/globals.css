@@ -175,6 +175,14 @@
   --text-body: #3f3f46;     /* zinc-700 — body copy */
   --text-muted: #71717a;    /* zinc-500 */
   --text-subtle: #a1a1aa;   /* zinc-400 — placeholders / de-emphasised */
+  /* Info blue — the SAME hue as the default accent but PLATFORM-FIXED, never
+     tenant-themed. A stat figure is a reading of the data (like success green
+     and danger red beside it), not brand chrome, so a tenant whose colour is
+     red must not have "Live Leads" render in the same red as "Outstanding".
+     Use --info for figures and their rules; --accent-blue stays for anything
+     interactive that should carry the tenant's brand. */
+  --info: #2f7de1;
+  --info-tint: #eaf2fd;
   --success: #1a7f3e;
   --success-tint: #e7f4ec;
   --warning: #c77d1a;
