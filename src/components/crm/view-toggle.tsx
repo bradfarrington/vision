@@ -52,15 +52,20 @@ export function ViewToggle({
               // date range carry across, so you see the SAME set both ways.
               setParams({ [param]: v.value === views[0].value ? null : v.value })
             }
+            // Icon only — the two glyphs (rows vs columns) say what the views
+            // are more directly than the words do, and the pair reads as one
+            // compact control rather than a second set of buttons. The label
+            // stays as the accessible name and the tooltip.
+            title={v.label}
+            aria-label={v.label}
             className={cn(
-              "inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-semibold transition-colors",
+              "inline-flex h-full items-center justify-center rounded-md px-2.5 transition-colors",
               active
                 ? "bg-white text-[var(--accent-blue)] shadow-[0_1px_2px_rgba(10,10,10,0.08)]"
-                : "text-[#71717a] hover:text-[#3f3f46]",
+                : "text-[#a1a1aa] hover:text-[#3f3f46]",
             )}
           >
-            <Icon name={v.icon} size={13} strokeWidth={2.2} />
-            {v.label}
+            <Icon name={v.icon} size={16} strokeWidth={2.2} />
           </button>
         );
       })}

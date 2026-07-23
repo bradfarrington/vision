@@ -143,7 +143,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               {/* Ranges lead-date (when the enquiry arrived) — the date this list
                   is ordered by, so it's the one a range is about. */}
               <DateRangeButton />
-              <ViewToggle />
               {/* A board has no columns to configure. */}
               {!board && <ColumnsButton />}
               <FiltersButton filterOptions={filterOptions} />
@@ -167,51 +166,63 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               long name WRAPS (never truncates — a stage the tenant renamed must
               stay readable), which grows that tile; `items-stretch` keeps the row
               level so one tall tile doesn't leave the others short. */}
-          {/* List only: on the board the columns ARE this strip, with the same
-              rule colour, count and value in each header. */}
-          {!board && (
-          <div className="flex flex-wrap items-stretch gap-2.5">
-            {pipelineSummary(pipeline).map((b) => {
-              const stage = leadStage(b.key);
-              const tone = STAGE_STAT_TONE[stage.tone];
-              const active = sp.stage === b.key;
-              return (
-                <Link
-                  key={b.key}
-                  href={stageHref(active ? null : b.key)}
-                  className={cn(
-                    "relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
-                    active
-                      ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
-                      : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
-                  )}
-                >
-                  <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
-                  <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
-                    {stage.label}
-                  </div>
-                  {/* Count left, value hard RIGHT — the two answer different
-                      questions ("how many" vs "how much"), and sitting them side
-                      by side read as one run-on figure. `justify-between` needs
-                      the tile's min-width to exceed this row, which it does. */}
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span
-                      className={cn(
-                        "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
-                        tone.value,
-                      )}
-                    >
-                      {b.count}
-                    </span>
-                    <span className="shrink-0 text-[11.5px] text-[#71717a]">
-                      {gbpCompact(b.value)}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
+          {/* The stage strip and the view toggle share a row. The toggle is
+              bottom-aligned on the far right, so it sits directly above the
+              container it switches. The row renders in BOTH views — in board
+              view the tiles are gone, but the toggle still lives here rather
+              than jumping back up to the toolbar. */}
+          <div className="flex items-end justify-between gap-3">
+            {/* List only: on the board the columns ARE this strip, with the same
+                rule colour, count and value in each header. */}
+            {!board ? (
+            <div className="flex min-w-0 flex-wrap items-stretch gap-2.5">
+              {pipelineSummary(pipeline).map((b) => {
+                const stage = leadStage(b.key);
+                const tone = STAGE_STAT_TONE[stage.tone];
+                const active = sp.stage === b.key;
+                return (
+                  <Link
+                    key={b.key}
+                    href={stageHref(active ? null : b.key)}
+                    className={cn(
+                      "relative min-w-[148px] max-w-[240px] overflow-hidden rounded-xl border px-3.5 py-2.5 transition-colors",
+                      active
+                        ? "border-[var(--accent-blue)] bg-[var(--accent-tint)]"
+                        : "border-[#e7e7ea] bg-white hover:bg-[#fafafa]",
+                    )}
+                  >
+                    <span className={cn("absolute inset-y-0 left-0 w-[3px]", tone.rule)} />
+                    <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+                      {stage.label}
+                    </div>
+                    {/* Count left, value hard RIGHT — the two answer different
+                        questions ("how many" vs "how much"), and sitting them side
+                        by side read as one run-on figure. `justify-between` needs
+                        the tile's min-width to exceed this row, which it does. */}
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span
+                        className={cn(
+                          "shrink-0 font-[family-name:var(--font-inter-tight)] text-[18px] font-extrabold tracking-[-0.01em]",
+                          tone.value,
+                        )}
+                      >
+                        {b.count}
+                      </span>
+                      <span className="shrink-0 text-[11.5px] text-[#71717a]">
+                        {gbpCompact(b.value)}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+            ) : (
+              <span />
+            )}
+            <div className="shrink-0">
+              <ViewToggle />
+            </div>
           </div>
-          )}
         </div>
 
         {boardData ? (

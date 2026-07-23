@@ -596,6 +596,11 @@ per lead, drag a card between columns to move it. `LeadBoard`
   laptop would give each ~190px, narrower than the card content needs.
 - **Lost gets a column.** The strip uses `PIPELINE_STAGES` (which excludes it), but a board must have
   somewhere to drop every state, so the board iterates `LEAD_STAGES`.
+- **The toggle sits on the STAGE-TILE row, bottom-aligned far right** — directly above the container
+  it switches, not up in the toolbar with the buttons that filter it. That row therefore renders in
+  BOTH views; in board view the tiles are gone but the toggle stays put rather than jumping back to
+  the toolbar. It is **icon-only** (rows vs columns), which says what the two views are more directly
+  than the words; the labels remain as `title` + `aria-label`.
 
 ### Date-range picker — decided 2026-07-23
 
