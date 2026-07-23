@@ -478,8 +478,11 @@ missing.
 - **A changed query re-mounts the table.** The page passes `key={viewKey}` (a JSON signature of
   search/filters/sort/dir) to `CustomerTable`, so a new sort/filter/search resets the scroll list to a
   fresh first chunk instead of appending onto stale rows. Filters/sort stay URL-driven and server-applied.
-- **No `page`/`pageCount`/`from`/`to` and no `Pagination` control** on this list any more. The footer
-  reads `Showing N of TOTAL` while more remain, then `TOTAL customers`. **Don't reintroduce paging here;**
+- **No `page`/`pageCount`/`from`/`to` and no `Pagination` control** on this list any more.
+  **There is no footer bar either** (removed 2026-07-23): it only restated the count already shown in
+  the page header's pill, and cost ~45px of every screen to do it. The scroll list is the whole card,
+  and "Loading more…" inside the scroller is the only progress signal continuous scroll needs. The
+  header pill is now the ONE place a list states its total — keep it there. **Don't reintroduce paging here;**
   `/leads` got the same infinite scroll on 2026-07-23. `FilterDropdown`, `TogglePill` and `Pagination`
   were deleted from `list-controls.tsx` once both lists scrolled — that file is now just the URL
   plumbing (`useSetParams`) and the shared `SearchBox`.

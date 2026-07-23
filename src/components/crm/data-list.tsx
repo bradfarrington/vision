@@ -80,8 +80,8 @@ export type ListSpec<V, F> = {
    * customers list's lead-derived "Has live lead". Rendered under `Activity`.
    */
   extraBoolFilter?: { param: string; label: string };
-  /** Noun for the footer count and empty state. */
-  noun: { one: string; many: string };
+  /** Plural noun for the empty state ("No leads found"). */
+  noun: string;
   rowId: (v: V) => string;
   rowHref: (v: V) => string;
   /** The raw record behind a row, for columns rendered generically by `kind`. */
@@ -1058,7 +1058,7 @@ export function DataTable<V, F>({
           </div>
 
           {rows.length === 0 ? (
-            <EmptyState noun={spec.noun.many} />
+            <EmptyState noun={spec.noun} />
           ) : (
             rows.map((v) => (
               <Row key={idOf(v)} v={v} href={hrefOf(v)} cols={cols} grid={grid} />
@@ -1073,15 +1073,10 @@ export function DataTable<V, F>({
         </div>
       </div>
 
-      <div className="flex items-center border-t border-[#e7e7ea] bg-[#fafafa] px-4 py-3 text-[12.5px] text-[#71717a]">
-        <span>
-          {total === 0
-            ? `No ${spec.noun.many}`
-            : hasMore
-              ? `Showing ${rows.length.toLocaleString("en-GB")} of ${total.toLocaleString("en-GB")}`
-              : `${total.toLocaleString("en-GB")} ${total === 1 ? spec.noun.one : spec.noun.many}`}
-        </span>
-      </div>
+      {/* NO footer bar. It only restated the count already in the page header's
+          pill, and cost ~45px of every screen to do it. The scroll list is the
+          whole card now. "Loading more…" above is the only progress signal the
+          continuous scroll needs. */}
     </div>
   );
 }

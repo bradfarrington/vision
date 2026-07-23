@@ -242,7 +242,7 @@ const CUSTOMERS_SPEC: ListSpec<CustomerRowView, CustomerFilters> = {
   // — it stays a post-filter, with the known caveat that the total reflects the
   // pre-filter set.
   extraBoolFilter: { param: "live", label: "Has live lead" },
-  noun: { one: "customer", many: "customers" },
+  noun: "customers",
   rowId: (v) => v.c.id,
   rowHref: (v) => `/customers/${v.c.id}`,
   record: (v) => v.c.record,

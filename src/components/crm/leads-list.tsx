@@ -213,7 +213,7 @@ const LEADS_SPEC: ListSpec<LeadRow, LeadFilters> = {
   filters: FILTERS,
   filterGroups: FILTER_GROUPS,
   valueFieldKeys: VALUE_FIELD_KEYS,
-  noun: { one: "lead", many: "leads" },
+  noun: "leads",
   rowId: (l) => l.id,
   rowHref: (l) => `/leads/${l.id}`,
   record: (l) => l.record,
