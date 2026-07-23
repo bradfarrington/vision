@@ -231,6 +231,17 @@ inherited the same bug.
   and the menu opens upward when there isn't ~200px below and there's more room above. `maxHeight`
   comes from the space actually available, with the option list as the flex scroller — the old
   fixed `max-h-56` didn't know how close to the bottom of the window it was.
+- **Dismiss is SHARED too — `useDismissOnOutside`** (same module). Every popover used to hand-roll its
+  own click-outside and the copies were subtly fragile in two ways, both of which read to a user as
+  "the menu shuts the moment I touch it":
+  1. The listener attached in the SAME turn as the press that opened the menu, so that press could be
+     counted as outside and close it instantly. The hook attaches on the next macrotask.
+  2. `contains(e.target)` fails when the press lands on an element already removed from the DOM by the
+     time the handler runs — which is most menu rows, since they re-render on press. The hook matches
+     on the event's **`composedPath()`**, which stays correct.
+  It also takes the trigger as an "inside" ref, so the trigger's own toggle is never double-handled.
+  `Popover`, `ViewSwitcher`, `Combo` and `DatePicker` all use it. **Don't write another one** —
+  and note `relationship-controls.tsx` still has two hand-rolled copies that should move over.
 - **`align` picks the trigger edge to line up with**: `end` (right) is the default for
   `variant="text"`, because field rows justify `label … value` and the value sits on the right.
   **Left-aligned triggers must pass `align="start"`** or the menu opens leftwards across the
@@ -629,6 +640,11 @@ list's twin, plus one thing of its own.
   column, and an old link still works) but nothing in the list UI sets it.
 - **Customer name / town / postcode come from the embed**, so they're folded into `record` under their
   own keys by `toLeadRow` and are **not sortable** (there's no `leads` column to ORDER BY).
+- **Received and Follow-up are SEPARATE columns**, not one "Received · follow-up" cell (split
+  2026-07-23). As a composite it could only sort by `lead_date`, so the follow-up date was along for
+  the ride with no way to sort by it — the same reason the customers list keeps Town and Postcode out
+  of its Address column. Follow-up keeps its amber treatment but **only while the lead is live**: on a
+  won or lost lead the date is history rather than a prompt, and colouring it there cries wolf.
 - **Default order is `lead_number` ASCENDING** (oldest enquiry at the top), matching how
   `/customers` defaults to `customer_number` ascending — a fresh visit or a "Clear all" lands
   there. `getLeads`' own fallback is the same, so every caller agrees on what "unsorted" means.
@@ -703,11 +719,18 @@ per lead, drag a card between columns to move it. `LeadBoard`
 - **The toggle lives in the TOOLBAR, between Filters and the New button** (moved there 2026-07-23
   after a spell on the summary row). It is **icon-only** (rows vs columns), which says what the two
   views are more directly than the words; the labels remain as `title` + `aria-label`.
-- **The summary tiles can be HIDDEN, per user** (`CollapsibleSummary`, `layout_key='leads_summary'`).
-  The chevron on the right of that row collapses them and the choice persists in `user_ui_layouts`,
-  like the column layout — someone who works the list all day shouldn't have to re-hide them every
-  visit, and one person's choice must not become everyone's. The tiles stay SERVER-rendered and are
-  passed in as a prop, so hiding costs no round trip and showing needs no refetch.
+- **The summary tiles can be HIDDEN, per user** (`collapsible-summary.tsx`,
+  `layout_key='leads_summary'`), and the choice persists in `user_ui_layouts` like the column layout —
+  someone who works the list all day shouldn't re-hide them every visit, and one person's choice must
+  not become everyone's.
+  - **The control is a TOOLBAR button and the tiles are a PANEL that renders nothing when hidden**,
+    deliberately split rather than one component owning a row. The first cut kept the chevron on its
+    own row, so hiding the tiles just swapped them for an empty band holding one chevron — the exact
+    waste the hiding was meant to reclaim. They share state through a `SummaryProvider` spanning the
+    header block.
+  - The tiles stay SERVER-rendered and are passed as children, so hiding costs no round trip and
+    showing needs no refetch. `SummaryPanel` renders them bare — the summary owns its own flex row,
+    and wrapping again would nest two identical ones.
 
 ### Date-range picker — decided 2026-07-23
 
