@@ -594,6 +594,16 @@ per lead, drag a card between columns to move it. `LeadBoard`
   card-sized target. `DndContext` carries the stable id `board-leads` (see § Rearrangeable cards).
 - **Columns are fixed-width (288px) in a horizontal scroller**, not equal shares: six stages on a
   laptop would give each ~190px, narrower than the card content needs.
+- **A column is FIXED HEIGHT and scrolls its own cards.** It runs to the bottom of the panel (no
+  bottom padding, square bottom, no bottom border — that edge is the panel's, same rule as the list
+  table) and the cards scroll inside it. The alternative — columns growing with their cards and the
+  board scrolling as a whole — means a stage with 300 leads makes its neighbours 300 cards tall.
+  No visible scrollbar; that's app-wide (§ App frame), so a column has to look scrollable from its
+  content.
+- **The toggle's row carries BOARD TOTALS in board view**, not a repeat of the strip: the columns
+  already give each stage, so this gives what they can't — open pipeline (everything not yet won or
+  lost) and won. Derived from the already-loaded columns, so it costs no query. Without it that row
+  was a blank band holding one small control.
 - **Lost gets a column.** The strip uses `PIPELINE_STAGES` (which excludes it), but a board must have
   somewhere to drop every state, so the board iterates `LEAD_STAGES`.
 - **The toggle sits on the STAGE-TILE row, bottom-aligned far right** — directly above the container

@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   getLeadBoard,
   getLeads,
+  type BoardColumn,
   type LeadFilters,
   type StageBucket,
   type ValueCondition,
@@ -217,7 +218,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               })}
             </div>
             ) : (
-              <span />
+              /* Board view: the per-stage numbers are in the column headers, so
+                 this states what they can't — the board's TOTALS. Open excludes
+                 won and lost, which is the figure a pipeline is actually about. */
+              <BoardTotals columns={boardData!.columns} />
             )}
             <div className="shrink-0">
               <ViewToggle />
@@ -239,6 +243,55 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
         )}
       </div>
     </LeadColumnsProvider>
+  );
+}
+
+/**
+ * The board's headline figures. Deliberately NOT a repeat of the column
+ * headers: those give each stage, this gives the whole board — the open
+ * pipeline (everything not yet won or lost) and what has been won in the
+ * period. Derived from the columns already loaded, so it costs no query.
+ */
+function BoardTotals({ columns }: { columns: BoardColumn[] }) {
+  const open = columns.filter((c) => leadStage(c.key).live);
+  const won = columns.find((c) => c.key === "won");
+  const openCount = open.reduce((n, c) => n + c.total, 0);
+  const openValue = open.reduce((n, c) => n + c.value, 0);
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
+      <Stat label="Open pipeline" value={gbpCompact(openValue)} sub={`${openCount} live`} />
+      {won && <Stat label="Won" value={gbpCompact(won.value)} sub={`${won.total}`} tone="text-[#1a7f3e]" />}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  tone = "text-[#0a0a0a]",
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone?: string;
+}) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "font-[family-name:var(--font-inter-tight)] text-[17px] font-extrabold tracking-[-0.01em]",
+          tone,
+        )}
+      >
+        {value}
+      </span>
+      <span className="text-[11.5px] text-[#71717a]">{sub}</span>
+    </span>
   );
 }
 

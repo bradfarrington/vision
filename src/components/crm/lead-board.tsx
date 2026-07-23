@@ -125,8 +125,10 @@ export function LeadBoard({
 
         {/* One horizontal scroller holding fixed-width columns. Columns don't
             share the width: a board with six stages on a laptop would give each
-            about 190px, which is narrower than the card content needs. */}
-        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[26px] pb-[22px]">
+            about 190px, which is narrower than the card content needs.
+            No bottom padding — the columns run to the panel's edge and scroll
+            their own contents, so the board's height is all cards. */}
+        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[26px]">
           {columns.map((col) => (
             <Column key={col.key} col={col} filters={filters} setColumns={setColumns} />
           ))}
@@ -204,7 +206,12 @@ function Column({
   }, [col.key]);
 
   return (
-    <div className="flex w-[288px] shrink-0 flex-col rounded-xl border border-[#e7e7ea] bg-[#fafafa]">
+    // FIXED height — the column fills the board and its cards scroll inside it,
+    // rather than the column growing with its cards and the whole board
+    // scrolling. A stage with 300 leads must not make its neighbours 300 cards
+    // tall. Square at the bottom with no bottom border, like the list table:
+    // that edge is the panel's.
+    <div className="flex h-full w-[288px] shrink-0 flex-col rounded-t-xl border-x border-t border-[#e7e7ea] bg-[#fafafa]">
       {/* Header carries the stage's colour rule, its true total and its value —
           the same three things the list's pipeline strip showed. */}
       <div className="relative flex items-center gap-2 overflow-hidden rounded-t-xl border-b border-[#e7e7ea] bg-white px-3 py-2.5">
@@ -221,13 +228,15 @@ function Column({
       <div
         ref={setNodeRef}
         className={cn(
-          "min-h-0 flex-1 rounded-b-xl transition-colors",
+          "min-h-0 flex-1 transition-colors",
           // The whole column lights up as a drop target — a thin insertion line
           // is too small a target for a card-sized thing.
           isOver && "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]",
         )}
       >
-        <div ref={scrollRef} className="flex h-full flex-col gap-2 overflow-y-auto p-2">
+        {/* The cards scroll here. No visible scrollbar — that's the app-wide
+            rule (globals.css); the column looks scrollable from its content. */}
+        <div ref={scrollRef} className="flex h-full flex-col gap-2 overflow-y-auto p-2 pb-4">
           {col.cards.length === 0 && !loading && (
             <p className="px-1 py-6 text-center text-[12px] text-[#a1a1aa]">
               {isOver ? "Drop to move here" : "Nothing at this stage"}
