@@ -22,7 +22,11 @@ import {
 import { DateRangeButton } from "@/components/crm/date-range-button";
 import { LeadBoard } from "@/components/crm/lead-board";
 import { ViewToggle } from "@/components/crm/view-toggle";
-import { CollapsibleSummary } from "@/components/crm/collapsible-summary";
+import {
+  SummaryPanel,
+  SummaryProvider,
+  SummaryToggle,
+} from "@/components/crm/collapsible-summary";
 import { ViewStateSaver } from "@/components/crm/view-state";
 import { resolveRange } from "@/lib/date-range";
 import { getSavedViews, getSavedView } from "@/lib/data/saved-views";
@@ -140,7 +144,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
           flush to the bottom, so every pixel goes to rows. The padding lives on
           the toolbar block below instead, which keeps its 26px gutter. */}
       <div className="flex flex-1 flex-col gap-[14px] overflow-hidden pt-[22px]">
-        {/* Everything above the table keeps the page gutter. */}
+        {/* Everything above the table keeps the page gutter. The summary
+            provider spans both the toolbar's show/hide button and the tiles. */}
+        <SummaryProvider layoutKey="leads_summary" initialHidden={summaryPref?.hidden === true}>
         <div className="flex flex-col gap-[14px] px-[26px]">
           {/* Header */}
           <div className="flex items-center gap-3">
@@ -158,6 +164,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               {/* A board has no columns to configure. */}
               {!board && <ColumnsButton />}
               <FiltersButton filterOptions={filterOptions} />
+              <SummaryToggle />
               <ViewToggle />
               <Link href="/leads/new" className={cn(TOOLBAR_H, btnPrimary)}>
                 <Icon name="plus" size={13} strokeWidth={2.2} /> New Lead
@@ -170,12 +177,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               where each column header carries its own count and value and you
               can act on it — repeating it here as a strip of tiles said the
               same thing twice and cost the list a band of height. */}
-          <CollapsibleSummary
-            layoutKey="leads_summary"
-            initialHidden={summaryPref?.hidden === true}
-            summary={<LeadSummary total={total} pipeline={pipeline} />}
-          />
+          {/* Renders NOTHING when hidden, so the row collapses entirely rather
+              than leaving an empty band behind. */}
+          <SummaryPanel>
+            <LeadSummary total={total} pipeline={pipeline} />
+          </SummaryPanel>
         </div>
+        </SummaryProvider>
 
         {boardData ? (
           <LeadBoard key={viewKey} columns={boardData.columns} filters={filters} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 import { saveUserPref } from "@/app/(app)/preferences/actions";
 import { Icon } from "./icon";
@@ -8,64 +8,81 @@ import { TOOLBAR_H } from "./primitives";
 import { cn } from "@/lib/utils";
 
 /**
- * The summary row above a list: stat tiles on the left, the view toggle (and
- * anything else passed as children) on the right, with a control to HIDE the
- * tiles.
+ * Show/hide for a list's summary tiles.
+ *
+ * Split into a TOOLBAR button and a PANEL rather than one component that owns a
+ * whole row: when the tiles are hidden the panel renders nothing at all, so the
+ * row collapses completely. The first cut kept the control on its own row, which
+ * meant hiding the tiles just swapped them for an empty band holding one
+ * chevron — the exact waste the hiding was meant to reclaim.
  *
  * Hidden state is a per-user preference in `user_ui_layouts`, like the column
- * layout — someone who works the list all day and doesn't want the tiles
- * shouldn't have to re-hide them every visit, and one person's choice must not
- * become everyone's (see AGENTS.md § Rearrangeable cards).
+ * layout: someone who works the list all day shouldn't re-hide them every visit,
+ * and one person's choice must not become everyone's.
  *
- * The tiles stay SERVER-rendered and are handed in as a prop; this component
- * only decides whether to show them, so hiding costs no round trip and showing
- * needs no refetch.
+ * The tiles stay SERVER-rendered and are passed as children, so hiding costs no
+ * round trip and showing needs no refetch.
  */
-export function CollapsibleSummary({
+
+type Ctx = { hidden: boolean; toggle: () => void };
+const SummaryContext = createContext<Ctx | null>(null);
+
+export function SummaryProvider({
   layoutKey,
   initialHidden,
-  summary,
   children,
 }: {
   layoutKey: string;
   initialHidden: boolean;
-  summary: React.ReactNode;
-  children?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   const [hidden, setHidden] = useState(initialHidden);
-
-  function toggle() {
+  const toggle = () => {
     const next = !hidden;
     setHidden(next);
     void saveUserPref(layoutKey, { hidden: next });
-  }
+  };
+  return <SummaryContext.Provider value={{ hidden, toggle }}>{children}</SummaryContext.Provider>;
+}
 
+function useSummary(): Ctx {
+  const ctx = useContext(SummaryContext);
+  if (!ctx) throw new Error("useSummary must be used inside a SummaryProvider");
+  return ctx;
+}
+
+/** The toolbar control. Chevron up = collapse these, down = bring them back. */
+export function SummaryToggle() {
+  const { hidden, toggle } = useSummary();
   return (
-    <div className="flex items-end justify-between gap-3">
-      {hidden ? <span /> : summary}
-      <div className="flex shrink-0 items-center gap-2.5">
-        <button
-          type="button"
-          onClick={toggle}
-          title={hidden ? "Show summary" : "Hide summary"}
-          aria-label={hidden ? "Show summary" : "Hide summary"}
-          aria-expanded={!hidden}
-          className={cn(
-            TOOLBAR_H,
-            "inline-flex w-[38px] items-center justify-center rounded-lg border border-[#e7e7ea] bg-white text-[#a1a1aa] transition-colors hover:bg-[#fafafa] hover:text-[#3f3f46]",
-          )}
-        >
-          {/* One chevron, rotated — pointing up means "collapse these away",
-              down means "bring them back". */}
-          <Icon
-            name="chevron-down"
-            size={15}
-            strokeWidth={2.4}
-            className={cn("transition-transform", !hidden && "rotate-180")}
-          />
-        </button>
-        {children}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={toggle}
+      title={hidden ? "Show summary" : "Hide summary"}
+      aria-label={hidden ? "Show summary" : "Hide summary"}
+      aria-expanded={!hidden}
+      className={cn(
+        TOOLBAR_H,
+        "inline-flex w-[38px] items-center justify-center rounded-lg border border-[#e7e7ea] bg-white text-[#a1a1aa] transition-colors hover:bg-[#fafafa] hover:text-[#3f3f46]",
+      )}
+    >
+      <Icon
+        name="chevron-down"
+        size={15}
+        strokeWidth={2.4}
+        className={cn("transition-transform", !hidden && "rotate-180")}
+      />
+    </button>
   );
+}
+
+/**
+ * The tiles themselves — nothing at all when hidden, so no row is left behind.
+ * Renders its children bare: the summary owns its own layout, and wrapping it
+ * again here would just nest two identical flex rows.
+ */
+export function SummaryPanel({ children }: { children: React.ReactNode }) {
+  const { hidden } = useSummary();
+  if (hidden) return null;
+  return <>{children}</>;
 }
