@@ -3616,6 +3616,56 @@ export type Database = {
           },
         ]
       }
+      saved_views: {
+        Row: {
+          columns: Json | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          entity: string
+          id: string
+          name: string
+          owner_user_id: string | null
+          query: Json
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          entity: string
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          query?: Json
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          entity?: string
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          query?: Json
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_members: {
         Row: {
           active: boolean | null

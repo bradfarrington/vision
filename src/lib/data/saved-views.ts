@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
@@ -37,8 +36,7 @@ function toView(r: Row): SavedView {
  */
 export async function getSavedViews(entity: ViewEntity): Promise<SavedView[]> {
   const supabase = await createClient();
-  const db = supabase as unknown as { from(t: string): any };
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from("saved_views")
     .select("id, name, query, columns, owner_user_id")
     .eq("entity", entity)

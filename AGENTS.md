@@ -1288,7 +1288,7 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`, then `npx tsc --noEmit`,
   then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
   doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
-  2026-07-22** (through migration `20260722096000`).
+  2026-07-23**, through `20260723091000_saved_views`.
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
@@ -1299,10 +1299,9 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   and embeds resolve; (4) **regenerate + commit the generated types** (see the types bullet above) —
   skipping this is what let them drift. **Every migration through `20260722096000` was applied to the
   remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
-  **`20260723090000_lead_lookup_defaults.sql` and `20260723091000_saved_views.sql` are NOT yet
-  applied.** The saved-views one DOES need the schema-cache reload and a types regen (it creates a
-  table); `getSavedViews` fails soft until it runs, so the list screens show only their built-in
-  views in the meantime. The lookup one is data-only (inserts into
+  **`20260723091000_saved_views.sql` WAS applied on 2026-07-23** (schema cache reloaded, types
+  regenerated and committed, loose casts tightened). **`20260723090000_lead_lookup_defaults.sql` is
+  still NOT applied.** It is data-only (inserts into
   `tenant_options`), so it needs no schema-cache reload and no types regen, but until it is run the
   lead record's Source / Product type / Quote type / Payment method / Result reason dropdowns open
   empty and every value has to be added by hand. Like `097000`, it is safe to re-run

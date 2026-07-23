@@ -1,6 +1,5 @@
 "use server";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
@@ -45,8 +44,7 @@ export async function createSavedView(input: {
   if (!user) return { error: "Not signed in." };
   if (!companyId) return { error: "No tenant in session." };
 
-  const db = supabase as unknown as { from(t: string): any };
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from("saved_views")
     .insert({
       company_id: companyId,
@@ -78,8 +76,7 @@ export async function updateSavedView(input: {
     return { error: "Built-in views can't be changed — use “Save as new”." };
   }
   const { supabase } = await session();
-  const db = supabase as unknown as { from(t: string): any };
-  const { error } = await db
+  const { error } = await supabase
     .from("saved_views")
     .update({ query: input.query, columns: input.columns, updated_at: new Date().toISOString() })
     .eq("id", input.id);
@@ -99,8 +96,7 @@ export async function renameSavedView(
   if (id.startsWith("sys:")) return { error: "Built-in views can't be renamed." };
 
   const { supabase } = await session();
-  const db = supabase as unknown as { from(t: string): any };
-  const { error } = await db
+  const { error } = await supabase
     .from("saved_views")
     .update({ name: clean, updated_at: new Date().toISOString() })
     .eq("id", id);
@@ -114,8 +110,7 @@ export async function deleteSavedView(entity: ViewEntity, id: string): Promise<R
   if (id.startsWith("sys:")) return { error: "Built-in views can't be deleted." };
 
   const { supabase } = await session();
-  const db = supabase as unknown as { from(t: string): any };
-  const { error } = await db.from("saved_views").delete().eq("id", id);
+  const { error } = await supabase.from("saved_views").delete().eq("id", id);
   if (error) return { error: error.message };
 
   revalidatePath(PATHS[entity]);
