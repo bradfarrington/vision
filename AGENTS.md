@@ -505,12 +505,40 @@ owe, what's the latest"**. It pulls digests from the other tabs rather than maki
   list.
 - **View state is remembered PER SESSION, per list.** A list's URL state (sort · filters · search ·
   page) is saved to `sessionStorage` keyed by route (`ViewStateSaver` mounted on the page), and the
-  sidebar item + the record breadcrumb restore it via `RememberedLink` — so leaving and returning
+  sidebar item + the record's `← <List>` back link restore it via `RememberedLink` — so leaving and returning
   lands exactly where you left off instead of resetting. `RememberedLink` keeps the bare href for SSR
   (no hydration mismatch, middle-click still works) and only restores on a plain click. "Clear all"
   removes the saved entry, so it falls back to the default (customer_number asc). This is
   session/tab-scoped by design; a DB-backed per-user default would be the cross-device upgrade. Reuse
   `ViewStateSaver`/`RememberedLink` for `/leads` when its grid lands.
+
+## The sidebar RESUMES a section, and breadcrumbs are gone — decided 2026-07-23
+
+A sidebar item no longer always reopens its LIST — it **resumes the last page you had open in that
+section**, an open record included. Open a lead, jump to the dashboard, click Leads → you land back
+on that lead, not the list. Per section and independent (`/leads` and `/customers` remember their own
+last page). All in `src/components/crm/view-state.tsx`, layered on top of the per-list view state above.
+
+- **Two memories, both `sessionStorage`, both tab-scoped.** `viewstate:<path>` (above) holds a LIST's
+  filters/sort. The new `section:<base>` holds the last PATHNAME you had open in a section (a record,
+  or the bare list) — pathname only, so it stays off `useSearchParams` and out of dynamic-rendering
+  territory; a record needs no query and a list's filters already live in `viewstate:`.
+- **`SectionMemorySaver` is mounted ONCE in `(app)/layout.tsx`**, given the sidebar hrefs as its
+  section list. On every navigation it records the current pathname under its longest-matching section
+  (`sectionForPath`). **Create wizards (`…/new`) are skipped** — resuming an emptied form is jarring,
+  not "where I was".
+- **The rail reads section memory FIRST** (`loadSectionPath`), then falls back to `loadViewState` for
+  the list's filters. If the remembered page is a record it pushes it directly; if it's the bare list
+  (or nothing is saved) it restores the filters — so the pre-existing behaviour is intact for anyone
+  who never opened a record.
+- **Breadcrumbs were REMOVED from the record pages** (customer + lead detail) — Brad didn't like them,
+  and once the sidebar resumes the record they were the last multi-part crumb. Replaced with a single
+  **`← <List>` back link** (still a `RememberedLink`, so it restores the list's filters — this is the
+  ONE remaining in-app path from a record UP to its list, now that the sidebar resumes the record
+  rather than going to the list). The record's identity moved fully into the identity row below: the
+  lead detail gained an `L-…` `RefChip` beside its title (it only ever showed in the crumb before),
+  matching the customer detail's `CUST-…` chip. The lead→customer link the crumb used to carry is now
+  a **"View customer" secondary button** in the lead header's action cluster (next to Book survey).
 
 ## Saved views — built 2026-07-23
 
@@ -683,7 +711,8 @@ per lead, drag a card between columns to move it. `LeadBoard`
   the board. **Both badges stay neutral**: the rule carries the stage colour, so a tinted badge would
   add a second colour to the same 288px for no meaning. The count badge uses `min-w` + padding, not a
   fixed square, so a three-figure stage grows into a pill instead of clipping.
-- **The Columns button is hidden in board view** — a board has no columns to configure.
+- **In board view the "Columns" button is replaced by "Cards"** — a board has no columns to
+  configure, so it picks CARD FIELDS instead (see § Card fields below).
 - **Values come from the pipeline aggregate, not the loaded cards.** Summing the 25 cards on screen
   and labelling it the column's worth would be a lie that changes as you scroll.
 - **`applyLeadFilters` is THE one place a lead query is filtered** — list rows, board columns and the
@@ -775,14 +804,96 @@ A third toolbar button beside Columns and Filters (`DateRangeButton`,
   only outlined; idle is neutral. Keep applied louder than open — the whole point is that it survives
   being looked away from.
 
+## Card fields — which data shows on a Kanban card — built 2026-07-23
+
+The board's answer to the list's column picker: a **"Cards" toolbar button** (board view only, where
+"Columns" would be) that toggles + drag-reorders **which fields show on each lead card**, saved PER
+USER. Shared machinery in `src/components/crm/card-fields.tsx`, built generic so **contracts gets a
+card picker for free** — it supplies a `CardFieldsSpec` and nothing in the module changes.
+
+- **ONE registry drives the table AND the card.** The card picker reuses the list's `ListColumn[]`
+  (the same COLUMNS registry the table uses) as its field catalogue — no parallel list of fields to
+  keep in sync. The card-specific hints live on those columns: `cardCell` (a card-tuned renderer,
+  because the table `cell` is styled for the row grid), `cardHeader` (pin to the card's top row —
+  ref left · value right, no label), `cardBare` (a headline/badge line with no field label).
+  Everything else renders as a **labelled `Label · value` row**, formatted from `record[field]` by
+  `kind` exactly like the table's generic path.
+- **Empty fields are DROPPED from the card** (a labelled row with no value is noise), so a card only
+  ever shows what a lead actually has — except `cardHeader` fields (ref/value), which always anchor
+  the card. This is why follow-up's `cardCell` returns `null` when there's no date rather than "—".
+- **It is a SEPARATE, lighter machine from the columns** (`DataListProvider`): a card has no widths
+  and no sort, just order + visibility. `CardFieldsProvider`/`useCardFields`/`CardFieldsBody`/
+  `CardFieldsButton` mirror the column equivalents and reuse the shared `Popover`/`Check`/`Grip`/
+  `SectionLabel` (now exported from `data-list.tsx` — **don't hand-roll another popover**). The board
+  `Card` in `lead-board.tsx` now owns only the frame; `CardFieldsBody row={card}` renders the fields.
+- **Per user, always persisted** — `saveUserPref`/`resetUserLayout` under `layout_key`
+  `leads_card_fields`, shape `{ order: string[] }` (no widths). Read in `leads/page.tsx` via
+  `getUserPref("leads_card_fields")`. Deliberately NOT part of saved views (like the summary-collapse
+  pref, and unlike columns) — a card layout is a personal way of reading the board, not part of a
+  view's query; revisit if a tenant wants views to pin card fields.
+- **Defaults reproduce the old fixed card** (`DEFAULT_CARD_FIELDS`): ref + value on the header line,
+  product, customer, town, and any outstanding follow-up. **Stage is available but off by default** —
+  a card's COLUMN already states its stage. New registry fields default hidden, same rule as columns.
+- **The DndContext id is `cards-${spec.name}`** (stable, SSR/hydration ids must not diverge — same
+  reason as everywhere else dnd-kit is used).
+- **GOTCHA — a computed column needs its OWN `cardCell`.** The card renderer uses `cardCell` if
+  present, else reads `record[field ?? key]`; it does NOT fall back to the table `cell`. So a column
+  whose value is a computed ROW prop rather than a raw record key (the address lines read
+  `l.addressLine`/`l.customerAddressLine`, not `record.address`) renders as BLANK on a card until it
+  gets a `cardCell`. This bit the Address field the moment it was toggled on. If you add a computed
+  column and want it on cards, give it a `cardCell` (returning `null` for empty so the row is dropped).
+- **Two address fields, not one:** **Address** (`customer_address`) is the customer's own MAIN
+  address; **Site address** (`address`) is the site/installation address (equal to the customer's when
+  the lead is "same as customer"). Both are street-line only (Town/Postcode are their own fields),
+  both computed from the embed so both are in `noSort`. The underlying columns are now the merged
+  `site_*` set — see § Site address.
+
+## Site address — installation + fitting merged — decided 2026-07-23
+
+A lead has ONE **site address** (where the work happens). In this business installation == fitting
+(fitting the windows is the installation), so the old separate `installation_*` and `fitting_*`
+address column sets were always the same place and only risked drifting apart. `20260723092000_site_address_merge`
+merges them:
+
+- **RENAME `installation_*` address → `site_*`** (`site_house_name`/`_house_number`/`_street`/
+  `_locality`/`_town`/`_county`/`_postcode`/`_what_3_words`), **`same_as_customer_address` →
+  `site_same_as_customer`**, fold any `fitting_*`-only values in as a fallback, then **DROP the
+  `fitting_*` address columns + `fitting_same_as_customer`**.
+- **ONLY the ADDRESS columns merged.** These operational columns are KEPT and untouched (note they
+  keep their old `installation_`/`fitting_` names on purpose — they're not addresses):
+  `installation_completed`, `installation_manager`, `fitting_directions`, `estimated_fitting_days`,
+  `send_letters_to_fitting`, `invoice_same_as_customer`. `fitting_directions` now rides on the site
+  address as its note (`LeadDetail.siteDirections`).
+- **The lead record's Addresses card is now ONE "Site address" row** (+ Invoice), not
+  Installation / Invoice / Fitting. The map is on the site address. `LeadDetail` carries `site`,
+  `siteSameAsCustomer`, `siteDirections` (was `install`/`sameAsCustomer`/`fitting`/…).
+- **The wizard already spoke `site_*`** (its form keys were always `site_*`); `createLead` now writes
+  them straight through to the `site_*` columns instead of remapping to `installation_*`.
+- **Allowlists updated in lockstep** — `leads.ts` `SORTABLE_COLUMNS`/`VALUE_FILTER_COLUMNS`/
+  `BOOL_FILTER_COLUMNS`/the search `ilike` list, and `leads-list.tsx`'s columns + `VALUE_FIELD_KEYS`
+  (server allowlist and client `valueFieldKeys` must stay mirrored or a condition silently no-ops).
+- **`contracts` has its OWN parallel `fitting_*` block — deliberately NOT touched** (contracts is a
+  future phase and no `src/` code reads it yet). If contracts should share the site-address concept,
+  merge it when that phase lands.
+- **⚠️ NOT YET APPLIED.** The migration is by-hand (see the migration checklist): apply the SQL,
+  reload PostgREST, regenerate + commit `types.ts` (still stale — a hand-edit was avoided because the
+  contracts `fitting_*` block is byte-identical and a bulk edit would corrupt it). Until then the
+  leads screens error against the remote.
+
 ## The lead record — tabs, notes, documents — built 2026-07-23
 
 The lead detail is a **tabbed record** like the customer's: Overview · Activity · Notes · Documents ·
 Checklist, drag-reorderable and saved per user under `lead_tabs`. Its old tab bar was six inert
 `<span>`s over one fixed grid.
 
-- **Overview is a bento** (Lead · Addresses · Location + Checklist), not a row grid — same rule as
-  everywhere else.
+- **Overview is a bento** (Lead · Customer + Addresses · Location + Checklist), not a row grid — same
+  rule as everywhere else.
+- **The Customer card sits directly above the Site address** (`CustomerPanel`, middle column) — the
+  customer's name, own address and phone/email, so their address reads straight against the site
+  address below it. `getLead` loads `email`/`mobile`/`home_telephone` on the customer embed for it.
+- **No green "same as customer" pill.** With the Customer card beside it you compare the two
+  addresses directly, so `SameLine` shows only quiet muted text when the site matches; the DIFFERENT
+  case still flags itself amber, because that's the exception worth seeing.
 - **Notes and Documents are the SHARED panels, not lead-specific forks.** `DocumentsPanel` dropped in
   unchanged on `ownerType="lead"` (it was built owner-agnostic for exactly this). `NotesPanel` gained
   **`fixedLeadId`**: on a lead the note is about that lead by definition, so the link picker is hidden
@@ -1382,7 +1493,12 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`, then `npx tsc --noEmit`,
   then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
   doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
-  2026-07-23**, through `20260723091000_saved_views`.
+  2026-07-23**, through `20260723091000_saved_views`. **⚠️ STALE for the leads table:
+  `20260723092000_site_address_merge` renamed/merged the lead address columns but is NOT yet applied
+  or regenerated — `types.ts` still shows the old `installation_*`/`fitting_*`/`same_as_customer_address`
+  columns. The code compiles only because the leads layer uses hand-written `RawLead` + `as any`; regen
+  is required after the migration is applied (a hand-edit was avoided because the `contracts` `fitting_*`
+  block is byte-identical to leads' and a bulk edit would corrupt it).**
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
@@ -1395,7 +1511,11 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   remote as of 2026-07-22.** Some (`097000`) were re-run as they gained rows.
   **EVERY migration through `20260723091000_saved_views` was applied to the remote on 2026-07-23**,
   with the schema cache reloaded and the types regenerated, committed and their loose casts
-  tightened. Nothing is outstanding.
+  tightened. **OUTSTANDING: `20260723092000_site_address_merge` is NOT yet applied** — apply it by
+  hand, reload PostgREST, then regenerate + commit `types.ts`. It RENAMEs `installation_*` address
+  columns → `site_*`, folds `fitting_*` in as a fallback, and DROPs the `fitting_*` address columns +
+  `fitting_same_as_customer`; the code already speaks `site_*`, so until it is applied the leads
+  screens will error against the remote. See § Site address below.
   Two of this session's are safe to RE-RUN as tenants are added, and should be:
   `20260723090000_lead_lookup_defaults` and the earlier `20260721097000_lookup_defaults` are both
   `insert … on conflict do nothing`, so a new tenant gets its pick-lists by re-running them (until

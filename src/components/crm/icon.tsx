@@ -8,6 +8,7 @@ export type IconName =
   | "search"
   | "chevron-down"
   | "chevron-right"
+  | "chevron-left"
   | "plus"
   | "columns"
   | "filters"
@@ -36,7 +37,8 @@ export type IconName =
   | "paperclip"
   | "clock"
   | "list"
-  | "board";
+  | "board"
+  | "card";
 
 // Each entry: array of <path d> strings (default), or a render fn for icons
 // that need circles/rects.
@@ -44,6 +46,7 @@ const PATHS: Record<IconName, string[]> = {
   search: ["M21 21l-4.3-4.3"], // paired with a circle, see render
   "chevron-down": ["M6 9l6 6 6-6"],
   "chevron-right": ["M9 18l6-6-6-6"],
+  "chevron-left": ["M15 18l-6-6 6-6"],
   plus: ["M12 5v14M5 12h14"],
   columns: [], // rect + lines, custom below
   // Rows of content: a bullet plus its line, three times over.
@@ -81,6 +84,8 @@ const PATHS: Record<IconName, string[]> = {
     "M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48",
   ],
   clock: ["M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18z", "M12 7v5l3 2"],
+  // A card with two lines of content — the fields shown on a board card.
+  card: ["M4 5h16v14H4z", "M7 9.5h10", "M7 14h6"],
 };
 
 type IconProps = {

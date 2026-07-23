@@ -187,7 +187,7 @@ export async function createLead(
 
   // --- Where the work is ----------------------------------------------------
   // A site address that is blank, or identical to the customer's, IS the
-  // customer's — recorded as same_as_customer_address so the lead record keeps
+  // customer's — recorded as site_same_as_customer so the lead record keeps
   // rendering the live customer address rather than a frozen copy of it.
   const site: Record<string, string | null> = {};
   for (const f of SITE_FIELDS) site[f] = get(`site_${f}`);
@@ -195,10 +195,10 @@ export async function createLead(
     SITE_FIELDS.some((f) => site[f]) &&
     SITE_FIELDS.some((f) => norm(site[f]) !== norm(capture[f]));
   if (siteDiffers) {
-    data.same_as_customer_address = false;
-    for (const f of SITE_FIELDS) data[`installation_${f}`] = site[f];
+    data.site_same_as_customer = false;
+    for (const f of SITE_FIELDS) data[`site_${f}`] = site[f];
   } else {
-    data.same_as_customer_address = true;
+    data.site_same_as_customer = true;
   }
 
   // Per-tenant human reference (atomic, derives tenant from the JWT).

@@ -56,6 +56,17 @@ export type ListColumn<V> = {
   cellClassName?: string;
   /** DB column to ORDER BY; undefined = not sortable (computed/composite). */
   sortField?: string;
+
+  // --- Board card presentation (see components/crm/card-fields.tsx) ---------
+  // The same registry drives which fields show on a Kanban card. A card lays
+  // out very differently from a table row, so these hints are separate from the
+  // table `cell` above and only the board reads them.
+  /** Render this field on a CARD (table `cell` is tuned for the row grid, not the card). */
+  cardCell?: (v: V) => React.ReactNode;
+  /** Pin to the card's top row (ref left · value right), no label. */
+  cardHeader?: boolean;
+  /** Render the value with no field label (a headline/badge, not a labelled row). */
+  cardBare?: boolean;
 };
 
 export type FilterDef = {
@@ -461,7 +472,7 @@ export function ColumnsButton() {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-2 pt-2 pb-1 text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
       {children}
@@ -1242,7 +1253,7 @@ function EmptyState({ noun }: { noun: string }) {
 }
 
 // ---------------------------------------------------------------------------
-function Check({
+export function Check({
   checked,
   onClick,
   label,
@@ -1273,7 +1284,7 @@ function Check({
   );
 }
 
-function Grip() {
+export function Grip() {
   return (
     <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden>
       <circle cx="3" cy="3" r="1" />

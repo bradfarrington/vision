@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { Sidebar } from "@/components/app-shell/sidebar";
+import { BOTTOM_NAV, MAIN_NAV } from "@/components/app-shell/nav";
 import { Topbar } from "@/components/app-shell/topbar";
+import { SectionMemorySaver } from "@/components/crm/view-state";
 import {
   getSession,
   userDisplayName,
@@ -46,6 +48,12 @@ export default async function AppLayout({
             userEmail={user.email}
             userRole={user.role}
             userInitials={userInitials(user)}
+          />
+          {/* Remembers the last page you had open in each sidebar section, so
+              the rail resumes an open record instead of always reopening the
+              list. */}
+          <SectionMemorySaver
+            sections={[...MAIN_NAV, ...BOTTOM_NAV].map((n) => n.href)}
           />
           <div className="flex min-h-0 min-w-0 flex-1 items-stretch overflow-hidden">
             <Sidebar />

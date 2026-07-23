@@ -2913,16 +2913,7 @@ export type Database = {
           delivery_method: string | null
           estimated_fitting_days: number | null
           estimated_value: number | null
-          fitting_county: string | null
           fitting_directions: string | null
-          fitting_house_name: string | null
-          fitting_house_number: string | null
-          fitting_locality: string | null
-          fitting_postcode: string | null
-          fitting_same_as_customer: boolean | null
-          fitting_street: string | null
-          fitting_town: string | null
-          fitting_what_3_words: string | null
           follow_up_date: string | null
           gross_value: number | null
           guarantee_date: string | null
@@ -2932,15 +2923,7 @@ export type Database = {
           hold_reason: string | null
           id: string
           installation_completed: string | null
-          installation_county: string | null
-          installation_house_name: string | null
-          installation_house_number: string | null
-          installation_locality: string | null
           installation_manager: string | null
-          installation_postcode: string | null
-          installation_street: string | null
-          installation_town: string | null
-          installation_what_3_words: string | null
           insurance_backed_guarantee_ref: string | null
           invoice_county: string | null
           invoice_house_name: string | null
@@ -2972,10 +2955,18 @@ export type Database = {
           sales_director: string | null
           salesman: string | null
           salesperson_type: string | null
-          same_as_customer_address: boolean | null
           send_letters_to_fitting: boolean | null
           signboard_date: string | null
           signboard_left: boolean | null
+          site_county: string | null
+          site_house_name: string | null
+          site_house_number: string | null
+          site_locality: string | null
+          site_postcode: string | null
+          site_same_as_customer: boolean | null
+          site_street: string | null
+          site_town: string | null
+          site_what_3_words: string | null
           source: string | null
           status: string | null
           sub_source: string | null
@@ -3007,16 +2998,7 @@ export type Database = {
           delivery_method?: string | null
           estimated_fitting_days?: number | null
           estimated_value?: number | null
-          fitting_county?: string | null
           fitting_directions?: string | null
-          fitting_house_name?: string | null
-          fitting_house_number?: string | null
-          fitting_locality?: string | null
-          fitting_postcode?: string | null
-          fitting_same_as_customer?: boolean | null
-          fitting_street?: string | null
-          fitting_town?: string | null
-          fitting_what_3_words?: string | null
           follow_up_date?: string | null
           gross_value?: number | null
           guarantee_date?: string | null
@@ -3026,15 +3008,7 @@ export type Database = {
           hold_reason?: string | null
           id?: string
           installation_completed?: string | null
-          installation_county?: string | null
-          installation_house_name?: string | null
-          installation_house_number?: string | null
-          installation_locality?: string | null
           installation_manager?: string | null
-          installation_postcode?: string | null
-          installation_street?: string | null
-          installation_town?: string | null
-          installation_what_3_words?: string | null
           insurance_backed_guarantee_ref?: string | null
           invoice_county?: string | null
           invoice_house_name?: string | null
@@ -3066,10 +3040,18 @@ export type Database = {
           sales_director?: string | null
           salesman?: string | null
           salesperson_type?: string | null
-          same_as_customer_address?: boolean | null
           send_letters_to_fitting?: boolean | null
           signboard_date?: string | null
           signboard_left?: boolean | null
+          site_county?: string | null
+          site_house_name?: string | null
+          site_house_number?: string | null
+          site_locality?: string | null
+          site_postcode?: string | null
+          site_same_as_customer?: boolean | null
+          site_street?: string | null
+          site_town?: string | null
+          site_what_3_words?: string | null
           source?: string | null
           status?: string | null
           sub_source?: string | null
@@ -3101,16 +3083,7 @@ export type Database = {
           delivery_method?: string | null
           estimated_fitting_days?: number | null
           estimated_value?: number | null
-          fitting_county?: string | null
           fitting_directions?: string | null
-          fitting_house_name?: string | null
-          fitting_house_number?: string | null
-          fitting_locality?: string | null
-          fitting_postcode?: string | null
-          fitting_same_as_customer?: boolean | null
-          fitting_street?: string | null
-          fitting_town?: string | null
-          fitting_what_3_words?: string | null
           follow_up_date?: string | null
           gross_value?: number | null
           guarantee_date?: string | null
@@ -3120,15 +3093,7 @@ export type Database = {
           hold_reason?: string | null
           id?: string
           installation_completed?: string | null
-          installation_county?: string | null
-          installation_house_name?: string | null
-          installation_house_number?: string | null
-          installation_locality?: string | null
           installation_manager?: string | null
-          installation_postcode?: string | null
-          installation_street?: string | null
-          installation_town?: string | null
-          installation_what_3_words?: string | null
           insurance_backed_guarantee_ref?: string | null
           invoice_county?: string | null
           invoice_house_name?: string | null
@@ -3160,10 +3125,18 @@ export type Database = {
           sales_director?: string | null
           salesman?: string | null
           salesperson_type?: string | null
-          same_as_customer_address?: boolean | null
           send_letters_to_fitting?: boolean | null
           signboard_date?: string | null
           signboard_left?: boolean | null
+          site_county?: string | null
+          site_house_name?: string | null
+          site_house_number?: string | null
+          site_locality?: string | null
+          site_postcode?: string | null
+          site_same_as_customer?: boolean | null
+          site_street?: string | null
+          site_town?: string | null
+          site_what_3_words?: string | null
           source?: string | null
           status?: string | null
           sub_source?: string | null

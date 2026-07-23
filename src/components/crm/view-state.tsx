@@ -39,6 +39,61 @@ export function ViewStateSaver() {
   return null;
 }
 
+// Section memory — remembers the LAST location within a top-level section (a
+// sidebar destination like /leads or /customers), so clicking that sidebar item
+// resumes exactly where you were, an open record included, rather than always
+// dumping you back on the list. This is a level up from viewstate above:
+// viewstate remembers a LIST's filters; section memory remembers WHICH page in
+// the section you had open (a record, or the list). The sidebar reads section
+// memory first, then falls back to viewstate for the list's filters.
+
+const sectionKey = (base: string) => `section:${base}`;
+
+/** Longest sidebar base that prefixes `pathname` (its section), or null. */
+function sectionForPath(pathname: string, sections: string[]): string | null {
+  let match: string | null = null;
+  for (const base of sections) {
+    if (pathname === base || pathname.startsWith(`${base}/`)) {
+      if (!match || base.length > match.length) match = base;
+    }
+  }
+  return match;
+}
+
+function saveSectionPath(base: string, pathname: string) {
+  try {
+    sessionStorage.setItem(sectionKey(base), pathname);
+  } catch {
+    /* storage unavailable — degrade to no memory */
+  }
+}
+
+export function loadSectionPath(base: string): string {
+  try {
+    return sessionStorage.getItem(sectionKey(base)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Mount once in the app shell: records the current pathname under its section
+ * whenever you navigate, so the sidebar can resume it. Only the pathname is
+ * stored (a record needs no query; a list's filters already live in viewstate),
+ * which keeps this off useSearchParams and out of dynamic-rendering territory.
+ * Create wizards (`…/new`) are skipped — resuming an emptied form is jarring,
+ * not "where I was".
+ */
+export function SectionMemorySaver({ sections }: { sections: string[] }) {
+  const pathname = usePathname();
+  useEffect(() => {
+    if (pathname.endsWith("/new")) return;
+    const base = sectionForPath(pathname, sections);
+    if (base) saveSectionPath(base, pathname);
+  }, [pathname, sections]);
+  return null;
+}
+
 /**
  * A Link that, on click, restores the saved view for its href — so a nav item or
  * breadcrumb returns to the remembered filters/sort instead of the bare route.

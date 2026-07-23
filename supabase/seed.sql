@@ -41,7 +41,7 @@ insert into public.leads
   (id, company_id, lead_number, customer_id, lead_date, quote_date, follow_up_date, result_date,
    source, sub_source, product_type, product_interest_1, product_interest_2, window_count,
    salesman, salesperson_type, status, result, priority, gross_value, estimated_value, notes,
-   same_as_customer_address) values
+   site_same_as_customer) values
   ('30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 2417, '10000000-0000-0000-0000-000000000001',
    now() - interval '14 days', now() - interval '8 days', now() + interval '2 days', null,
    'Referral', 'Neighbour', 'uPVC Casement Windows', 'uPVC Casement', 'Composite Door', 8,

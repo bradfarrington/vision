@@ -14,8 +14,10 @@ import { cn } from "@/lib/utils";
 import { Icon, TOOLBAR_H, btnPrimary } from "@/components/crm/primitives";
 import { SearchButton } from "@/components/crm/list-controls";
 import {
+  CardFieldsButton,
   ColumnsButton,
   FiltersButton,
+  LeadCardFieldsProvider,
   LeadColumnsProvider,
   LeadTable,
 } from "@/components/crm/leads-list";
@@ -93,9 +95,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
   // Board or list — both run the SAME filters, so switching view never changes
   // which leads you are looking at, only how they are arranged.
   const board = sp.view === "board";
-  const [data, columnPref, summaryPref, views, activeView] = await Promise.all([
+  const [data, columnPref, cardPref, summaryPref, views, activeView] = await Promise.all([
     board ? getLeadBoard(filters) : getLeads({ ...filters, page: 1 }),
     getUserPref("leads_columns"),
+    getUserPref("leads_card_fields"),
     getUserPref("leads_summary"),
     getSavedViews("leads"),
     getSavedView("leads", sp.sv),
@@ -137,6 +140,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
 
   return (
     <LeadColumnsProvider saved={columnLayout} persist={!viewColumns}>
+      {/* Which fields show on a board card — per user, like the columns. Wraps
+          both the "Cards" toolbar button and the board so they share state. */}
+      <LeadCardFieldsProvider saved={cardPref}>
       {/* Remembers this list's filters/sort for the session so returning here
           restores them instead of resetting to the default. */}
       <ViewStateSaver />
@@ -161,8 +167,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
               {/* Ranges lead-date (when the enquiry arrived) — the date this list
                   is ordered by, so it's the one a range is about. */}
               <DateRangeButton />
-              {/* A board has no columns to configure. */}
-              {!board && <ColumnsButton />}
+              {/* A board has no columns to configure — it picks card fields
+                  instead. */}
+              {board ? <CardFieldsButton /> : <ColumnsButton />}
               <FiltersButton filterOptions={filterOptions} />
               <SummaryToggle />
               <ViewToggle />
@@ -198,6 +205,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Search
           />
         )}
       </div>
+      </LeadCardFieldsProvider>
     </LeadColumnsProvider>
   );
 }

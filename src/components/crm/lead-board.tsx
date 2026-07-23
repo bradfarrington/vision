@@ -18,8 +18,8 @@ import {
 
 import { loadBoardColumn, moveLeadToStage } from "@/app/(app)/leads/actions";
 import { STAGE_STAT_TONE, leadStage } from "@/lib/leads";
-import { gbp, gbpCompact } from "@/lib/format";
-import { RefChip } from "@/components/crm/primitives";
+import { gbpCompact } from "@/lib/format";
+import { CardFieldsBody } from "@/components/crm/card-fields";
 import { cn } from "@/lib/utils";
 import type { BoardColumn, LeadFilters, LeadRow } from "@/lib/data/leads";
 
@@ -303,7 +303,9 @@ function DraggableCard({ card }: { card: LeadRow }) {
 }
 
 function Card({ card, overlay = false }: { card: LeadRow; overlay?: boolean }) {
-  const followUpDue = !!card.followUpDate && card.live;
+  // Which fields show is the user's choice — see components/crm/card-fields.tsx
+  // (the "Cards" toolbar button). This wrapper only owns the card's frame; the
+  // fields inside are rendered from the per-user card layout.
   const body = (
     <div
       className={cn(
@@ -313,26 +315,7 @@ function Card({ card, overlay = false }: { card: LeadRow; overlay?: boolean }) {
           : "cursor-grab shadow-[0_1px_2px_rgba(10,10,10,0.05)] hover:border-[#d4d4d8]",
       )}
     >
-      <div className="flex items-center gap-2">
-        <RefChip className="!px-1.5 !py-0.5 !text-[10.5px]">{card.ref}</RefChip>
-        <span className="ml-auto shrink-0 text-[12.5px] font-bold text-[#0a0a0a]">
-          {gbp(card.value)}
-        </span>
-      </div>
-      <div className="truncate text-[12.5px] font-semibold text-[#0a0a0a]">{card.title}</div>
-      <div className="truncate text-[12px] text-[#3f3f46]">{card.customerName}</div>
-      {(card.customerTown || followUpDue) && (
-        <div className="flex items-baseline gap-2 text-[11px]">
-          {card.customerTown && (
-            <span className="min-w-0 truncate text-[#a1a1aa]">{card.customerTown}</span>
-          )}
-          {followUpDue && (
-            <span className="ml-auto shrink-0 font-semibold text-[#b86e00]">
-              {shortDate(card.followUpDate)}
-            </span>
-          )}
-        </div>
-      )}
+      <CardFieldsBody row={card} />
     </div>
   );
 
@@ -345,11 +328,4 @@ function Card({ card, overlay = false }: { card: LeadRow; overlay?: boolean }) {
       {body}
     </Link>
   );
-}
-
-function shortDate(value: string | null): string {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }

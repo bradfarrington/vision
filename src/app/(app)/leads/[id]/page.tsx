@@ -5,7 +5,7 @@ import { getLead, type AddressParts, type LeadDetail } from "@/lib/data/leads";
 import { getTenantOptionLists, type TenantOption } from "@/lib/data/customer-record";
 import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
 import { gbp, humanLabel } from "@/lib/format";
-import { Card, CardTitle, Icon, Pill, btnPrimary, btnSecondary } from "@/components/crm/primitives";
+import { Card, CardTitle, Icon, Pill, RefChip, btnPrimary, btnSecondary } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { updateLeadField } from "@/app/(app)/leads/actions";
 import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
@@ -16,6 +16,7 @@ import { NotesPanel } from "@/components/crm/notes-panel";
 import { DocumentsPanel } from "@/components/crm/documents-panel";
 import { getUserOrder } from "@/lib/data/user-layouts";
 import { ChecklistToggle, StageChanger } from "@/components/crm/lead-interactions";
+import { cn } from "@/lib/utils";
 
 // Lead detail — transcribed from `Vision CRM Screens.dc.html` screen 04.
 export default async function LeadDetailPage({
@@ -44,29 +45,22 @@ export default async function LeadDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-[14px] overflow-y-auto px-[26px] py-[22px]">
-      {/* Breadcrumb */}
-      <div className="text-[12.5px] text-[#71717a]">
-        {/* Restores the list's remembered filters/sort rather than the bare route. */}
-        <RememberedLink href="/leads" className="hover:text-[#3f3f46]">
-          Leads
-        </RememberedLink>
-        <span className="mx-1 text-[#d4d4d8]">/</span>
-        {lead.customer ? (
-          <Link href={`/customers/${lead.customer.id}`} className="hover:text-[#3f3f46]">
-            {lead.customer.name}
-          </Link>
-        ) : (
-          <span>Unknown</span>
-        )}
-        <span className="mx-1 text-[#d4d4d8]">/</span>
-        <span className="font-semibold text-[#0a0a0a]">Lead {lead.ref}</span>
-      </div>
+      {/* Back to the leads list, restoring its remembered filters/sort. The
+          lead's name/ref lives in the identity row below — no breadcrumb. */}
+      <RememberedLink
+        href="/leads"
+        className="inline-flex w-fit items-center gap-1 text-[12.5px] text-[#71717a] hover:text-[#3f3f46]"
+      >
+        <Icon name="chevron-left" size={14} strokeWidth={1.75} />
+        Leads
+      </RememberedLink>
 
       {/* Identity row */}
       <div className="flex items-center gap-3">
         <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
           {lead.title}
         </h1>
+        <RefChip>{lead.ref}</RefChip>
         <StageChanger leadId={lead.id} status={lead.status} />
         {lead.priority && (
           <Pill tone="amber" className="bg-[var(--accent-tint)] text-[var(--accent-blue)]">
@@ -75,6 +69,11 @@ export default async function LeadDetailPage({
         )}
         <span className="ml-1 text-[14px] font-bold text-[#0a0a0a]">{gbp(lead.value)}</span>
         <div className="ml-auto flex items-center gap-2.5">
+          {lead.customer && (
+            <Link className={btnSecondary} href={`/customers/${lead.customer.id}`}>
+              <Icon name="user" size={13} strokeWidth={1.75} /> View customer
+            </Link>
+          )}
           <button className={btnSecondary} type="button">
             <Icon name="calendar" size={13} strokeWidth={1.75} /> Book survey
           </button>
@@ -160,18 +159,21 @@ function OverviewTab({
         <LeadPanel lead={lead} opts={opts} salesStaff={salesStaff} />
       </div>
       <div className="flex flex-col gap-4">
+        {/* The customer themselves — name, home address, phone — so their
+            address can be read against the site address just below it. */}
+        <CustomerPanel lead={lead} />
         <AddressesPanel lead={lead} />
       </div>
       <div className="flex flex-col gap-4">
         {/* "Where is this?" is its own question — the map is its own card rather
             than decoration wedged under the address rows. */}
-        {lead.install.postcode && (
+        {lead.site.postcode && (
           <Card>
             <CardTitle className="mb-2 text-[14px]">Location</CardTitle>
             <AddressMap
               height={220}
-              {...lead.install.fields}
-              what3words={lead.install.whatThreeWords}
+              {...lead.site.fields}
+              what3words={lead.site.whatThreeWords}
             />
           </Card>
         )}
@@ -282,6 +284,71 @@ function EL({
   );
 }
 
+function CustomerPanel({ lead }: { lead: LeadDetail }) {
+  const c = lead.customer;
+  if (!c) return null;
+  const a = c.address;
+  const hasAddress = a.line1 || a.line2 || a.postcode;
+  const hasContact = c.mobile || c.home || c.email;
+  return (
+    <Card>
+      <div className="mb-1.5 flex items-center justify-between">
+        <CardTitle className="text-[14px]">Customer</CardTitle>
+        <Link
+          href={`/customers/${c.id}`}
+          className="text-[12px] font-medium text-[var(--accent-blue)] hover:underline"
+        >
+          View →
+        </Link>
+      </div>
+
+      <div className="text-[13px] font-semibold text-[#0a0a0a]">{c.name}</div>
+
+      {hasAddress ? (
+        <div className="mt-1 text-[12.5px] leading-[1.5] text-[#3f3f46]">
+          {[a.line1, a.line2].filter(Boolean).join(", ")}
+          {a.postcode && (
+            <>
+              {" · "}
+              <span className="font-mono font-semibold text-[#0a0a0a]">{a.postcode}</span>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="mt-1 text-[12.5px] text-[#a1a1aa]">No address on file</div>
+      )}
+
+      {hasContact && (
+        <div className="mt-2 flex flex-col gap-1 border-t border-[#f4f4f5] pt-2">
+          <ContactRow icon="phone" label="Mobile" value={c.mobile} />
+          <ContactRow icon="phone" label="Home" value={c.home} />
+          <ContactRow icon="envelope" label="Email" value={c.email} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ContactRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: "phone" | "envelope";
+  label: string;
+  value: string | null;
+}) {
+  if (!value) return null;
+  return (
+    <div className="flex items-center justify-between gap-2 text-[12px]">
+      <span className="flex items-center gap-1.5 text-[#71717a]">
+        <Icon name={icon} size={12} strokeWidth={1.75} /> {label}
+      </span>
+      <span className="text-right font-medium text-[#3f3f46]">{value}</span>
+    </div>
+  );
+}
+
 function AddressesPanel({ lead }: { lead: LeadDetail }) {
   return (
     <Card className="min-h-0 flex-1 overflow-y-auto">
@@ -290,26 +357,25 @@ function AddressesPanel({ lead }: { lead: LeadDetail }) {
         <span className="text-[11px] text-[#a1a1aa]">held on this lead</span>
       </div>
 
-      <AddressRow label="Installation" same={lead.sameAsCustomer} address={lead.install} />
+      {/* ONE site address — installation and fitting are the same place, so
+          they're no longer two rows. Directions (fitting_directions) ride on it. */}
+      <AddressRow
+        label="Site address"
+        same={lead.siteSameAsCustomer}
+        address={lead.site}
+        note={lead.siteDirections}
+      />
       <div className="mt-2 border-t border-[#f4f4f5] pt-2">
         <SameLine label="Invoice" same={lead.invoiceSameAsCustomer} />
       </div>
-      <div className="mt-2 border-t border-[#f4f4f5] pt-2">
-        <AddressRow
-          label="Fitting"
-          same={lead.fittingSameAsCustomer}
-          address={lead.fitting}
-          note={lead.fittingDirections}
-        />
-      </div>
-      {/* The real map, on the INSTALLATION address — that's the address a
-          surveyor or fitter is actually travelling to. */}
-      {lead.install.postcode && (
+      {/* The real map, on the SITE address — that's the address a surveyor or
+          fitter is actually travelling to. */}
+      {lead.site.postcode && (
         <AddressMap
           className="mt-3"
           height={190}
-          {...lead.install.fields}
-          what3words={lead.install.whatThreeWords}
+          {...lead.site.fields}
+          what3words={lead.site.whatThreeWords}
         />
       )}
     </Card>
@@ -415,14 +481,20 @@ function FieldRow({
 }
 
 function SameLine({ label, same }: { label: string; same: boolean }) {
+  // No green "same as customer" pill — the Customer card sits right beside this,
+  // so you compare the two addresses directly. Only the DIFFERENT case still
+  // flags itself (amber), because that's the exception worth noticing.
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-[12px] font-semibold text-[#0a0a0a]">{label}</span>
-      {same ? (
-        <Pill tone="success">same as customer ✓</Pill>
-      ) : (
-        <Pill tone="amber">different · this lead</Pill>
-      )}
+      <span
+        className={cn(
+          "text-[11.5px]",
+          same ? "text-[#a1a1aa]" : "font-semibold text-[#b86e00]",
+        )}
+      >
+        {same ? "Same as customer" : "Different · this lead"}
+      </span>
     </div>
   );
 }

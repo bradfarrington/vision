@@ -11,6 +11,7 @@ import {
   type ListColumn,
   type ListSpec,
 } from "@/components/crm/data-list";
+import { CardFieldsProvider, type CardFieldsSpec } from "@/components/crm/card-fields";
 import { gbp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { LeadFilters, LeadRow } from "@/lib/data/leads";
@@ -54,6 +55,9 @@ const COLUMNS: Column[] = [
     w: REF,
     sortField: "lead_number",
     cell: (l) => <RefChip>{l.ref}</RefChip>,
+    // On a card: top-left chip.
+    cardHeader: true,
+    cardCell: (l) => <RefChip className="!px-1.5 !py-0.5 !text-[10.5px]">{l.ref}</RefChip>,
   },
   {
     key: "title",
@@ -62,6 +66,11 @@ const COLUMNS: Column[] = [
     w: TITLE,
     sortField: "product_type",
     cell: (l) => <span className="block min-w-0 truncate font-semibold text-[#0a0a0a]">{l.title}</span>,
+    // On a card: the headline line, no label.
+    cardBare: true,
+    cardCell: (l) => (
+      <span className="block truncate text-[12.5px] font-semibold text-[#0a0a0a]">{l.title}</span>
+    ),
   },
   {
     key: "customer",
@@ -71,6 +80,9 @@ const COLUMNS: Column[] = [
     // The customer's name lives on the embed, not on `leads` — so there is no
     // single lead column to ORDER BY. Sort by the lead's own fields instead.
     cell: (l) => <span className="block min-w-0 truncate font-semibold text-[#0a0a0a]">{l.customerName}</span>,
+    // On a card: lighter secondary line under the product, no label.
+    cardBare: true,
+    cardCell: (l) => <span className="block truncate text-[12px] text-[#3f3f46]">{l.customerName}</span>,
   },
   {
     key: "stage",
@@ -79,6 +91,10 @@ const COLUMNS: Column[] = [
     w: STAGE,
     sortField: "status",
     cell: (l) => <StageBadge status={l.status} />,
+    // Off cards by default — a card's COLUMN already says its stage — but
+    // available for anyone who wants the badge on the card too.
+    cardBare: true,
+    cardCell: (l) => <StageBadge status={l.status} />,
   },
   {
     key: "value",
@@ -87,6 +103,11 @@ const COLUMNS: Column[] = [
     w: MONEY,
     sortField: "gross_value",
     cell: (l) => <span className="font-semibold text-[#0a0a0a]">{gbp(l.value)}</span>,
+    // On a card: top-right of the header row.
+    cardHeader: true,
+    cardCell: (l) => (
+      <span className="text-[12.5px] font-bold text-[#0a0a0a]">{gbp(l.value)}</span>
+    ),
   },
 
   // Lead
@@ -114,17 +135,28 @@ const COLUMNS: Column[] = [
   { key: "customer_town", label: "Town", group: "Customer", w: TEXT },
   { key: "customer_postcode", label: "Postcode", group: "Customer", w: SHORT, cellClassName: "font-mono" },
   {
-    // Street line only — Town and Postcode are their own columns, so a second
-    // address line would just duplicate them and double the row height.
-    key: "address",
+    // The CUSTOMER's own (main) address — street line only, since Town and
+    // Postcode are their own columns.
+    key: "customer_address",
     label: "Address",
     group: "Customer",
     w: ADDR,
-    cell: (l) => <span className="block truncate text-[#3f3f46]">{l.addressLine ?? "—"}</span>,
+    cell: (l) => <span className="block truncate text-[#3f3f46]">{l.customerAddressLine ?? "—"}</span>,
+    cardCell: (l) => l.customerAddressLine ?? null,
   },
-  { key: "installation_town", label: "Install town", group: "Customer", w: TEXT },
-  { key: "installation_postcode", label: "Install postcode", group: "Customer", w: SHORT, cellClassName: "font-mono" },
-  { key: "same_as_customer_address", label: "Same as customer", group: "Customer", w: BOOL, kind: "bool" },
+  {
+    // The SITE address (installation/fitting) — the same as the customer's when
+    // the lead mirrors it. Street line only, like the customer address.
+    key: "address",
+    label: "Site address",
+    group: "Customer",
+    w: ADDR,
+    cell: (l) => <span className="block truncate text-[#3f3f46]">{l.addressLine ?? "—"}</span>,
+    cardCell: (l) => l.addressLine ?? null,
+  },
+  { key: "site_town", label: "Site town", group: "Customer", w: TEXT },
+  { key: "site_postcode", label: "Site postcode", group: "Customer", w: SHORT, cellClassName: "font-mono" },
+  { key: "site_same_as_customer", label: "Same as customer", group: "Customer", w: BOOL, kind: "bool" },
 
   // Quote
   { key: "quote_type", label: "Quote type", group: "Quote", w: TEXT },
@@ -160,6 +192,14 @@ const COLUMNS: Column[] = [
       ) : (
         <span className="text-[#a1a1aa]">—</span>
       ),
+    // On a card: a labelled row, amber while live, and dropped entirely when
+    // there's no follow-up date (returning null → the card omits the row).
+    cardCell: (l) =>
+      l.followUpDate ? (
+        <span className={cn(l.live && "font-semibold text-[#b86e00]")}>
+          {shortDate(l.followUpDate)}
+        </span>
+      ) : null,
   },
   { key: "created_at", label: "Added", group: "Dates", w: DATE, kind: "date" },
 ];
@@ -167,6 +207,13 @@ const COLUMNS: Column[] = [
 const GROUP_ORDER = ["Lead", "Customer", "Source", "Quote", "Dates"];
 // New columns default HIDDEN — a release must not force a column into everyone's view.
 const DEFAULT_VISIBLE = ["ref", "title", "customer", "stage", "value", "source", "lead_date", "follow_up_date"];
+
+// The fields a BOARD CARD shows by default — the same information the card
+// carried before it was customisable: reference + value on the header line, the
+// product, the customer, then town and any outstanding follow-up. Stage is off
+// by default (the card's column already says its stage). Everything else in the
+// registry is available from the "Cards" picker.
+const DEFAULT_CARD_FIELDS = ["ref", "value", "title", "customer", "customer_town", "follow_up_date"];
 
 // ---------------------------------------------------------------------------
 const FILTERS: FilterDef[] = [
@@ -187,7 +234,7 @@ const FILTERS: FilterDef[] = [
   { key: "supply_only", label: "Supply only", group: "Quote", kind: "bool" },
   { key: "on_hold", label: "On hold", group: "Quote", kind: "bool" },
   { key: "contract_cancelled", label: "Cancelled", group: "Quote", kind: "bool" },
-  { key: "same_as_customer_address", label: "Same as customer", group: "Customer", kind: "bool" },
+  { key: "site_same_as_customer", label: "Same as customer", group: "Customer", kind: "bool" },
 ];
 const FILTER_GROUPS = ["Lead", "Customer", "Source", "Quote"];
 
@@ -198,7 +245,7 @@ const VALUE_FIELD_KEYS = [
   "source", "sub_source", "product_type", "product_interest_1", "product_interest_2",
   "salesman", "salesperson_type", "quote_type", "payment_method",
   "office_reference", "office_reference_2", "notes",
-  "installation_town", "installation_postcode", "installation_street",
+  "site_town", "site_postcode", "site_street",
   "sales_area", "sales_director", "contract_type", "delivery_method",
   "installation_manager", "hold_reason", "cancel_reason",
 ];
@@ -211,7 +258,7 @@ const LEADS_SPEC: ListSpec<LeadRow, LeadFilters> = {
   defaultVisible: DEFAULT_VISIBLE,
   // Customer name lives on the embed and the composite cells span several
   // fields — no single lead column to ORDER BY.
-  noSort: ["customer", "address", "customer_town", "customer_postcode"],
+  noSort: ["customer", "address", "customer_address", "customer_town", "customer_postcode"],
   filters: FILTERS,
   filterGroups: FILTER_GROUPS,
   valueFieldKeys: VALUE_FIELD_KEYS,
@@ -239,6 +286,31 @@ export function LeadColumnsProvider({
   );
 }
 
+// The board reuses the same column registry as the field catalogue — the card
+// hints (cardCell/cardHeader/cardBare) already live on those columns.
+const LEADS_CARD_SPEC: CardFieldsSpec<LeadRow> = {
+  name: "leads",
+  layoutKey: "leads_card_fields",
+  fields: COLUMNS,
+  groupOrder: GROUP_ORDER,
+  defaultVisible: DEFAULT_CARD_FIELDS,
+  record: (l) => l.record,
+};
+
+export function LeadCardFieldsProvider({
+  saved,
+  children,
+}: {
+  saved: Record<string, unknown> | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <CardFieldsProvider spec={LEADS_CARD_SPEC} saved={saved}>
+      {children}
+    </CardFieldsProvider>
+  );
+}
+
 export function LeadTable(props: {
   initialViews: LeadRow[];
   total: number;
@@ -250,3 +322,4 @@ export function LeadTable(props: {
 }
 
 export { ColumnsButton, FiltersButton } from "@/components/crm/data-list";
+export { CardFieldsButton } from "@/components/crm/card-fields";

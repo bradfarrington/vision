@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
-import { loadViewState } from "@/components/crm/view-state";
+import { loadSectionPath, loadViewState } from "@/components/crm/view-state";
 import { BOTTOM_NAV, MAIN_NAV, type NavItem } from "./nav";
 
 // 76px icon rail transcribed from VisionSidebar.dc.html: 44px circular items,
@@ -34,11 +34,19 @@ export function Sidebar() {
 
 function RailLink({ item, active }: { item: NavItem; active: boolean }) {
   const router = useRouter();
-  // Restore a list screen's remembered view (filters/sort) instead of the bare
-  // route. Only fires when there is saved state for this destination; a plain
-  // click on any other nav item behaves normally.
+  // Resume where you last were in this section — an open record included —
+  // instead of always reopening the list. Section memory holds the last page
+  // you had open; if that's a record we go straight there, otherwise we fall
+  // back to the list with its remembered filters/sort. Only fires when there's
+  // something saved; a plain click on an unvisited section behaves normally.
   const onClick = (e: React.MouseEvent) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    const savedPath = loadSectionPath(item.href);
+    if (savedPath && savedPath !== item.href) {
+      e.preventDefault();
+      router.push(savedPath);
       return;
     }
     const saved = loadViewState(item.href);

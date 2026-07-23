@@ -32,7 +32,7 @@ export const BOOL_FILTER_COLUMNS = [
   "supply_only",
   "on_hold",
   "contract_cancelled",
-  "same_as_customer_address",
+  "site_same_as_customer",
 ] as const;
 
 // Text lead columns the advanced value-filter builder may query. Allowlisted —
@@ -43,9 +43,9 @@ export const VALUE_FILTER_COLUMNS = new Set<string>([
   "source", "sub_source", "product_type", "product_interest_1", "product_interest_2",
   "salesman", "salesperson_type", "quote_type", "payment_method",
   "office_reference", "office_reference_2", "notes",
-  "installation_house_name", "installation_house_number", "installation_street",
-  "installation_locality", "installation_town", "installation_county",
-  "installation_postcode", "installation_what_3_words",
+  "site_house_name", "site_house_number", "site_street",
+  "site_locality", "site_town", "site_county",
+  "site_postcode", "site_what_3_words",
   "sales_area", "sales_director", "contract_type", "delivery_method",
   "installation_manager", "hold_reason", "cancel_reason",
 ]);
@@ -67,9 +67,9 @@ const SORTABLE_COLUMNS = new Set<string>([
   "salesman", "salesperson_type", "quote_type", "quote_date", "payment_method",
   "lead_date", "follow_up_date", "created_at",
   "office_reference", "office_reference_2",
-  "installation_house_name", "installation_house_number", "installation_street",
-  "installation_locality", "installation_town", "installation_county",
-  "installation_postcode",
+  "site_house_name", "site_house_number", "site_street",
+  "site_locality", "site_town", "site_county",
+  "site_postcode",
   "sales_area", "sales_director", "contract_type", "delivery_method",
   "installation_manager", "supply_only", "on_hold", "contract_cancelled",
   "contract_number", "contract_date",
@@ -95,8 +95,11 @@ export type LeadRow = {
   customerId: string | null;
   customerName: string;
   customerTown: string | null;
-  /** Installation address street line (falls back to the customer's). */
+  /** SITE address street line — the installation/fitting address (falls back to
+   *  the customer's when the lead is marked "same as customer"). */
   addressLine: string | null;
+  /** The CUSTOMER's own (main) address street line, regardless of the site. */
+  customerAddressLine: string | null;
   live: boolean;
   // Every raw lead column, so the list's configurable columns can render any
   // field without threading each one through a typed property.
@@ -163,10 +166,10 @@ type RawLead = Record<string, unknown> & {
   quote_date: string | null;
   follow_up_date: string | null;
   customer_id: string | null;
-  same_as_customer_address: boolean | null;
-  installation_house_name: string | null;
-  installation_house_number: string | null;
-  installation_street: string | null;
+  site_same_as_customer: boolean | null;
+  site_house_name: string | null;
+  site_house_number: string | null;
+  site_street: string | null;
   customers: {
     id: string;
     first_name: string | null;
@@ -192,19 +195,24 @@ function toLeadRow(l: RawLead): LeadRow {
         "Unknown"
     : "Unknown customer";
 
-  // The installation address is the lead's own unless it mirrors the customer's.
-  const useCustomerAddr = l.same_as_customer_address !== false;
+  // The SITE address (where the work happens) is the lead's own unless it
+  // mirrors the customer's. The customer (main) address is always the
+  // customer's own.
+  const useCustomerAddr = l.site_same_as_customer !== false;
   const street = useCustomerAddr && c
     ? [c.house_name, c.house_number, c.street]
-    : [l.installation_house_name, l.installation_house_number, l.installation_street];
+    : [l.site_house_name, l.site_house_number, l.site_street];
+  const customerStreet = c
+    ? [c.house_name, c.house_number, c.street].filter(Boolean).join(" ").trim() || null
+    : null;
 
   // The list's generic columns read from `record`, so the customer-derived
   // values are folded in under their own keys rather than left on the embed.
   const record: Record<string, unknown> = {
     ...rest,
     customer_name: customerName,
-    customer_town: useCustomerAddr ? (c?.town ?? null) : (rest.installation_town ?? null),
-    customer_postcode: useCustomerAddr ? (c?.postcode ?? null) : (rest.installation_postcode ?? null),
+    customer_town: useCustomerAddr ? (c?.town ?? null) : (rest.site_town ?? null),
+    customer_postcode: useCustomerAddr ? (c?.postcode ?? null) : (rest.site_postcode ?? null),
   };
 
   return {
@@ -224,6 +232,7 @@ function toLeadRow(l: RawLead): LeadRow {
     customerName,
     customerTown: (record.customer_town as string | null) ?? null,
     addressLine: street.filter(Boolean).join(" ").trim() || null,
+    customerAddressLine: customerStreet,
     live: isLiveLead(l.status),
     record,
   };
@@ -286,10 +295,10 @@ function applyLeadFilters<Q>(
       `source.ilike.${like}`,
       `sub_source.ilike.${like}`,
       `salesman.ilike.${like}`,
-      `installation_house_name.ilike.${like}`,
-      `installation_street.ilike.${like}`,
-      `installation_town.ilike.${like}`,
-      `installation_postcode.ilike.${like}`,
+      `site_house_name.ilike.${like}`,
+      `site_street.ilike.${like}`,
+      `site_town.ilike.${like}`,
+      `site_postcode.ilike.${like}`,
       `office_reference.ilike.${like}`,
       `office_reference_2.ilike.${like}`,
     ];
@@ -590,18 +599,20 @@ export type LeadDetail = {
   resultReason: string | null;
   followUpDate: string | null;
   notes: string | null;
-  // Installation address (falls back to customer address).
-  install: AddressParts;
-  sameAsCustomer: boolean;
-  fittingSameAsCustomer: boolean;
+  // Site address — where the work happens (falls back to customer address).
+  // Installation and fitting are the same place, so there is ONE site address.
+  site: AddressParts;
+  siteSameAsCustomer: boolean;
   invoiceSameAsCustomer: boolean;
-  fitting: AddressParts;
-  fittingDirections: string | null;
+  siteDirections: string | null;
   customer: {
     id: string;
     name: string;
     address: AddressParts;
     whatThreeWords: string | null;
+    email: string | null;
+    mobile: string | null;
+    home: string | null;
   } | null;
   leadNotes: LeadNote[];
   checklist: LeadChecklistItem[];
@@ -683,15 +694,14 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
        product_type, product_interest_1, product_interest_2, window_count,
        source, sub_source, salesman, salesperson_type, lead_date, quote_date, quote_type,
        payment_method, result_reason, follow_up_date, notes,
-       same_as_customer_address, invoice_same_as_customer, fitting_same_as_customer,
-       installation_house_name, installation_house_number, installation_street,
-       installation_locality, installation_town, installation_county, installation_postcode,
-       installation_what_3_words,
-       fitting_house_name, fitting_house_number, fitting_street, fitting_locality,
-       fitting_town, fitting_county, fitting_postcode, fitting_what_3_words, fitting_directions,
+       site_same_as_customer, invoice_same_as_customer,
+       site_house_name, site_house_number, site_street,
+       site_locality, site_town, site_county, site_postcode,
+       site_what_3_words, fitting_directions,
        customer_id,
        customers(id, first_name, last_name, company_name, customer_type, house_name, house_number,
-         street, locality, town, county, postcode, what_3_words),
+         street, locality, town, county, postcode, what_3_words,
+         email, mobile, home_telephone),
        lead_notes(id, content, created_at),
        lead_checklist_items(id, action_name, status, due_date, priority, completed_at, completed_by_name),
        activities(id, type, description, created_at)`,
@@ -734,17 +744,17 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
       : [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || c.company_name || "Unknown"
     : "Unknown";
 
-  const install = l.same_as_customer_address && c
+  const site = l.site_same_as_customer && c
     ? addr(c)
     : addr({
-        house_name: l.installation_house_name,
-        house_number: l.installation_house_number,
-        street: l.installation_street,
-        locality: l.installation_locality,
-        town: l.installation_town,
-        county: l.installation_county,
-        postcode: l.installation_postcode,
-        what_3_words: l.installation_what_3_words,
+        house_name: l.site_house_name,
+        house_number: l.site_house_number,
+        street: l.site_street,
+        locality: l.site_locality,
+        town: l.site_town,
+        county: l.site_county,
+        postcode: l.site_postcode,
+        what_3_words: l.site_what_3_words,
       });
 
   return {
@@ -771,23 +781,20 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
     resultReason: l.result_reason,
     followUpDate: l.follow_up_date,
     notes: l.notes,
-    install,
-    sameAsCustomer: !!l.same_as_customer_address,
-    fittingSameAsCustomer: !!l.fitting_same_as_customer,
+    site,
+    siteSameAsCustomer: !!l.site_same_as_customer,
     invoiceSameAsCustomer: !!l.invoice_same_as_customer,
-    fitting: addr({
-      house_name: l.fitting_house_name,
-      house_number: l.fitting_house_number,
-      street: l.fitting_street,
-      locality: l.fitting_locality,
-      town: l.fitting_town,
-      county: l.fitting_county,
-      postcode: l.fitting_postcode,
-      what_3_words: l.fitting_what_3_words,
-    }),
-    fittingDirections: l.fitting_directions,
+    siteDirections: l.fitting_directions,
     customer: c
-      ? { id: c.id, name: customerName, address: addr(c), whatThreeWords: c.what_3_words ?? null }
+      ? {
+          id: c.id,
+          name: customerName,
+          address: addr(c),
+          whatThreeWords: c.what_3_words ?? null,
+          email: c.email ?? null,
+          mobile: c.mobile ?? null,
+          home: c.home_telephone ?? null,
+        }
       : null,
     leadNotes: (l.lead_notes ?? []).sort(
       (a: LeadNote, b: LeadNote) => +new Date(b.created_at) - +new Date(a.created_at),

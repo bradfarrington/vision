@@ -94,11 +94,15 @@ export default async function CustomerDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-2.5 overflow-hidden px-[26px] py-[18px]">
-      <div className="text-[12.5px] text-[#71717a]">
-        <RememberedLink href="/customers" className="hover:text-[#3f3f46]">Customers</RememberedLink>
-        <span className="mx-1 text-[#d4d4d8]">/</span>
-        <span className="font-semibold text-[#0a0a0a]">{c.displayName}</span>
-      </div>
+      {/* Back to the customers list, restoring its remembered filters/sort. The
+          customer's name/number lives in the identity row below — no breadcrumb. */}
+      <RememberedLink
+        href="/customers"
+        className="inline-flex w-fit items-center gap-1 text-[12.5px] text-[#71717a] hover:text-[#3f3f46]"
+      >
+        <Icon name="chevron-left" size={14} strokeWidth={1.75} />
+        Customers
+      </RememberedLink>
 
       <div className="flex items-center gap-3.5">
         <Avatar name={c.displayName} size={46} />
