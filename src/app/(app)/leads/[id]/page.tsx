@@ -75,7 +75,7 @@ export default async function LeadDetailPage({
             </Link>
           )}
           <button className={btnSecondary} type="button">
-            <Icon name="calendar" size={13} strokeWidth={1.75} /> Book survey
+            <Icon name="calendar" size={13} strokeWidth={1.75} /> Book appointment
           </button>
           <button
             className={`${btnPrimary} shadow-[0_4px_12px_rgba(47,125,225,0.25)]`}
@@ -157,6 +157,7 @@ function OverviewTab({
     <div className="grid max-w-[1320px] items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
       <div className="flex flex-col gap-4">
         <LeadPanel lead={lead} opts={opts} salesStaff={salesStaff} />
+        <AppointmentsPanel lead={lead} />
       </div>
       <div className="flex flex-col gap-4">
         {/* The customer themselves — name, home address, phone — so their
@@ -181,6 +182,67 @@ function OverviewTab({
       </div>
     </div>
   );
+}
+
+/**
+ * Read-only list of the lead's appointments (sales call, survey, measure-up…).
+ * Booking/editing arrives with the diary — for now this surfaces what was booked
+ * at capture. "Book appointment" in the header is the (placeholder) entry point.
+ */
+function AppointmentsPanel({ lead }: { lead: LeadDetail }) {
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between">
+        <CardTitle className="text-[14px]">Appointments</CardTitle>
+        {lead.appointments.length > 0 && (
+          <span className="text-[12px] font-medium text-[#a1a1aa]">{lead.appointments.length}</span>
+        )}
+      </div>
+      {lead.appointments.length === 0 ? (
+        <p className="text-[12.5px] text-[#a1a1aa]">
+          None booked yet. Use &ldquo;Book appointment&rdquo; above to add one.
+        </p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-[#f4f4f5]">
+          {lead.appointments.map((a) => {
+            const when = fmtApptWhen(a.date, a.time);
+            return (
+              <li key={a.id} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
+                <span aria-hidden className="mt-[3px] shrink-0 text-[#a1a1aa]">
+                  <Icon name="calendar" size={14} strokeWidth={1.75} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold text-[#0a0a0a]">
+                    {a.type || a.title || "Appointment"}
+                  </div>
+                  <div className="text-[12px] text-[#71717a]">
+                    {[when || "No date set", a.assignedTo].filter(Boolean).join(" · ")}
+                  </div>
+                  {a.notes && (
+                    <div className="mt-0.5 line-clamp-2 text-[12px] text-[#71717a]">{a.notes}</div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/** "Tue 5 Aug 2026, 14:30" — date, plus the loose time text if there is one. */
+function fmtApptWhen(date: string | null, time: string | null): string {
+  if (!date) return "";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return time ? `${day}, ${time}` : day;
 }
 
 /** A tab that needs the owning customer (for file storage) but hasn't got one. */

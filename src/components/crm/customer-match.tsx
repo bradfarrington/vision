@@ -100,11 +100,33 @@ export function CustomerMatchPanel({
 
   const strong = matches.some((m) => m.strength === "strong");
 
+  // A STRONG match (same email/phone/address = probably a real duplicate) gets
+  // the amber "stop and look" treatment — the same one the Review step uses right
+  // above Create — so it can't read as a quiet suggestion and get missed. A
+  // POSSIBLE match (surname coincidence) stays a quiet grey card; shouting about
+  // a coincidence would just train people to ignore the amber.
+  if (strong) {
+    return (
+      <div className="overflow-hidden rounded-lg border border-[#f0d9a8] bg-[#fdf2dc]">
+        <div className="flex items-center gap-2 px-3.5 py-2.5">
+          <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#b86e00]">
+            We may already have them
+          </span>
+        </div>
+        <ul className="divide-y divide-[#f0d9a8] border-t border-[#f0d9a8] bg-white">
+          {matches.map((m) => (
+            <MatchRow key={m.id} match={m} onLink={() => onLink(m)} />
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-[#e7e7ea] bg-white">
       <div className="flex items-center gap-2 border-b border-[#f4f4f5] bg-[#fafafa] px-3.5 py-2">
         <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#71717a]">
-          {strong ? "We may already have them" : "Possible matches"}
+          Possible matches
         </span>
         <span className="ml-auto text-[11.5px] text-[#a1a1aa]">
           {matches.length} {matches.length === 1 ? "match" : "matches"}

@@ -14,6 +14,7 @@ const LOOKUP_KEYS = [
   "quote_type",
   "payment_method",
   "salesperson_type",
+  "appointment_type",
   "title",
   "locality",
   "town",

@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +19,7 @@ import type { Database } from "@/lib/supabase/types";
 
 type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
 
-export type LeadFormState = { error?: string };
+export type LeadFormState = { error?: string; leadId?: string };
 
 /**
  * Load one more chunk of lead rows for the list's infinite scroll. Same
@@ -218,9 +217,63 @@ export async function createLead(
     .single();
   if (error) return { error: error.message };
 
+  // --- Appointments booked during capture -----------------------------------
+  // A lead can carry one or more (a sales call, a survey…). Fails soft: the lead
+  // is created regardless — a failed appointment insert must not lose the lead.
+  await insertAppointments(supabase, formData, companyId, inserted.id, customerId);
+
   revalidatePath("/leads");
   revalidatePath(`/customers/${customerId}`);
-  redirect(`/leads/${inserted.id}`);
+  // Return the id rather than redirecting server-side, so the wizard gets a
+  // definite client moment to drop its saved draft before navigating (otherwise
+  // a stale draft would resurrect the just-created lead next time it opened).
+  return { leadId: inserted.id };
+}
+
+type ApptDraft = {
+  type?: string;
+  date?: string;
+  time?: string;
+  duration?: string;
+  assigned_to?: string;
+  notes?: string;
+};
+
+async function insertAppointments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  formData: FormData,
+  companyId: string,
+  leadId: string,
+  customerId: string,
+) {
+  const raw = formData.get("appointments");
+  if (typeof raw !== "string" || !raw) return;
+  let drafts: ApptDraft[];
+  try {
+    drafts = JSON.parse(raw) as ApptDraft[];
+  } catch {
+    return;
+  }
+  const rows = (Array.isArray(drafts) ? drafts : [])
+    .filter((a) => a && typeof a.date === "string" && a.date.trim())
+    .map((a) => {
+      const duration = Number((a.duration ?? "").replace(/[^0-9]/g, ""));
+      return {
+        company_id: companyId,
+        lead_id: leadId,
+        customer_id: customerId,
+        title: (a.type ?? "").trim() || "Appointment",
+        type: (a.type ?? "").trim() || "appointment",
+        date: a.date!.trim(),
+        time: (a.time ?? "").trim() || null,
+        duration: Number.isFinite(duration) && duration > 0 ? duration : 60,
+        assigned_to: (a.assigned_to ?? "").trim() || null,
+        notes: (a.notes ?? "").trim() || null,
+        status: "scheduled",
+      };
+    });
+  if (rows.length === 0) return;
+  await supabase.from("appointments").insert(rows);
 }
 
 function norm(v: string | null | undefined): string {

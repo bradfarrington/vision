@@ -525,8 +525,12 @@ last page). All in `src/components/crm/view-state.tsx`, layered on top of the pe
   territory; a record needs no query and a list's filters already live in `viewstate:`.
 - **`SectionMemorySaver` is mounted ONCE in `(app)/layout.tsx`**, given the sidebar hrefs as its
   section list. On every navigation it records the current pathname under its longest-matching section
-  (`sectionForPath`). **Create wizards (`…/new`) are skipped** — resuming an emptied form is jarring,
-  not "where I was".
+  (`sectionForPath`). **Create wizards (`…/new`) are skipped by `SectionMemorySaver`** — resuming an
+  emptied form is jarring, not "where I was". **EXCEPTION: the New Lead wizard opts back in** while it
+  has a dirty draft, by writing `section:/leads = /leads/new` itself — because it persists the draft,
+  so returning lands on a *filled* form, not an empty one (see § The wizard SURVIVES leaving and
+  coming back). Any future create wizard that persists its draft may do the same; a wizard that does
+  NOT persist must stay skipped.
 - **The rail reads section memory FIRST** (`loadSectionPath`), then falls back to `loadViewState` for
   the list's filters. If the remembered page is a record it pushes it directly; if it's the bare list
   (or nothing is saved) it restores the filters — so the pre-existing behaviour is intact for anyone
@@ -920,10 +924,12 @@ old single flat form. It captures the full customer field set the record holds, 
   submits the whole record at once.** The visible step UI only edits state — so copy-across buttons, the
   Review summary, and jumping back all work without losing entries. `useActionState(saveCustomer)` still
   drives the submit.
-- **The final Create action lives IN the Review card, never in the fixed top bar.** The last "Continue"
-  click lands you on Review, and a reflex second click in the same spot must not create the customer
-  before it's read (this was the reported bug). The top bar carries Cancel/Back/Continue only; Enter is
-  swallowed on every non-textarea field so a keystroke can't submit early.
+- **The final Create action lives IN the Review card** (the customer wizard's choice). The last
+  "Continue" click lands you on Review, and a reflex second click in the same spot must not create the
+  customer before it's read (this was the reported bug), so its top bar carries Cancel/Back/Continue
+  only. **The New Lead wizard solves the same bug differently** — a top-bar Create with a ~450ms
+  arrival guard (see § The wizard shell is shared); the two can be unified whenever wanted. Either way,
+  Enter is swallowed on every non-textarea field so a keystroke can't submit early.
 - **Copy-across buttons** avoid re-typing: on Billing, **"Same as main address"** fills the invoice
   name/address/postcode/tel from the customer + main address. Any future step with a duplicate-entry risk
   should get the same affordance.
@@ -949,24 +955,82 @@ New Customer and New Lead. Extracted when the lead wizard was built, for the sam
 - **A form owns its steps, its state and its validation.** `onNext`/`onStep` are the form's, so it
   can refuse to leave a step whose required fields are empty — the customer wizard gates on
   first/last name, the lead wizard on the customer.
-- **The two rules `WizardFrame` exists to hold:** the final Create button is rendered by the form
-  inside its **Review card** and `WizardFrame` renders **no submit at all**; and `swallowEnter`
-  blocks Enter outside textareas. Both were bugs once; neither should be re-litigated per form.
-- Entity-specific controls stay in their own file (the customer's Residential/Commercial `SegType`,
-  the lead's stage and priority segmented pickers).
+- **The final Create button and the reflex-click guard (changed 2026-07-24).** `WizardFrame` renders
+  the final submit in the **top bar**, in the same stable place as Continue across every step, when a
+  form passes `submitLabel` (the New Lead wizard does). The reflex-double-click bug that first pushed
+  the button into the review card is now closed by a **guard in `WizardFrame`**, not by hiding the
+  button: on arriving at Review the submit is **disabled for ~450ms** and rendered **success-green**
+  (`btnSuccess`, platform-fixed — a commit, never the tenant accent), so the click that follows
+  Continue can't fire it before the summary is read. **A form without `submitLabel` gets no top-bar
+  submit** and keeps its own in-card button — the **New Customer wizard still does that** (see its
+  bullet above); it can move to the top-bar+guard model whenever someone wants the two consistent.
+  `swallowEnter` still blocks Enter outside textareas — that half was never the bug and stays.
+- Entity-specific controls stay in their own file (the customer's Residential/Commercial `SegType`).
+  The lead's **Stage and Priority are the shared `Combo` dropdowns** (fixed enum options, no
+  add/remove, `clearable={false}`) as of 2026-07-24 — they were segmented pickers until then.
 
 ## New Lead wizard — built 2026-07-23
 
 `/leads/new` is a **staged wizard** on the shell above: **Contact → Address → Enquiry → Value →
-Quote (optional) → Notes (optional) → Review**. It replaced a flat form of plain inputs whose Source
-list was a hardcoded seven-item array in the component — the last place in the CRM minting free text.
+Appointment (optional) → Quote (optional) → Notes (optional) → Review**. It replaced a flat form of
+plain inputs whose Source list was a hardcoded seven-item array in the component — the last place in
+the CRM minting free text.
 
 - **Every pick-list is a real tenant-editable lookup** (`lead_source`, `lead_sub_source`,
-  `product_type`, `quote_type`, `payment_method`, `salesperson_type`), seeded for all tenants by
-  `20260723090000_lead_lookup_defaults.sql`. **Salesperson comes from `staff_members`** via
-  `getSalesStaff`/`addSalesStaff`/`deleteSalesStaff`, like the customer's Sales manager.
+  `product_type`, `quote_type`, `payment_method`, `salesperson_type`, `appointment_type`), seeded for
+  all tenants by `20260723090000_lead_lookup_defaults.sql` and `20260724090000_appointment_type_defaults.sql`.
+  **Salesperson comes from `staff_members`** via `getSalesStaff`/`addSalesStaff`/`deleteSalesStaff`,
+  like the customer's Sales manager.
 - `createLead` accepts `quote_type`, `quote_date`, `payment_method`, `estimated_value` and
   `window_count`, and **`lead_date` can be backdated** for a lead entered after the fact.
+
+### Appointments on a lead — built 2026-07-24
+
+A lead can carry **one or more appointments** (a sales call, a survey, a measure-up…), booked in the
+wizard's Appointment step and written to the **existing `public.appointments` table** (which already
+had `lead_id`/`customer_id`/`title`/`type`/`date`/`time`/`duration`/`assigned_to`/`status`/`notes`
+and is already RLS-isolated — **no migration was needed for the data**, only the `appointment_type`
+lookup seed).
+
+- **"Appointment", NOT "survey".** In this industry not everyone surveys a lead, so the type is a
+  **tenant-editable `appointment_type` lookup** (Sales call · Survey · Measure up · Follow-up call ·
+  …), never a fixed "survey". The lead detail's header button is **"Book appointment"** (was "Book
+  survey"); it's still a Phase-6 placeholder, and the detail shows a **read-only `AppointmentsPanel`**
+  (soonest first) on the overview. Full booking/editing from the detail lands with the diary.
+- **Multi-appointment UI:** the step holds a structured `Appt[]` (type/date/time/assigned_to/
+  duration/notes) — NOT flat `Values` — serialised into ONE hidden `appointments` input for the
+  native submit. `createLead`'s `insertAppointments` parses it, drops any without a date, and
+  **fails soft**: the lead is created even if the appointment insert fails (losing the lead over an
+  appointment would be worse). Time is a native `<input type="time">` — the app replaced native DATE
+  inputs with `DatePicker`, but there's no custom time picker yet; a bespoke one is the follow-up.
+- **Availability is a PLACEHOLDER for now.** The step shows a dashed "Live availability coming soon"
+  note; once the diary exists, the team's open slots render there so you can book into a free time.
+  Don't wire it to anything until the diary lands.
+
+### The wizard SURVIVES leaving and coming back — decided 2026-07-24
+
+You can navigate away mid-capture (e.g. to check the diary) and return with the wizard **exactly as
+you left it** — filled fields, linked customer, current step, appointments. This deliberately
+**reverses the "`…/new` is skipped" rule** in § the sidebar RESUMES, but ONLY for this wizard: losing
+a half-filled capture is worse than resuming an empty form ever was.
+
+- **The whole draft mirrors to `sessionStorage`** (`leaddraft:new-lead`) on every change, restored
+  once on mount. Restore is gated behind a `hydrated` flag so the save effect can't wipe the draft
+  before the restored state lands, and the initial `useState` stays SSR-safe (no sessionStorage read
+  during render → no hydration mismatch).
+- **A draft is only kept once it's DIRTY** (differs from a fresh seed) — an untouched wizard leaves
+  no trace and never resumes, preserving the spirit of the original skip.
+- **While a dirty draft exists, the Leads sidebar RESUMES `/leads/new`** — the wizard writes
+  `section:/leads = /leads/new` via the now-exported `saveSectionPath`, so clicking Leads returns to
+  the draft instead of the list. Cleared on create and on Cancel (`clearSectionPath(base, only)` only
+  drops the pointer if it still points at `/leads/new`, so a real record recorded since is untouched).
+- **A DEEP LINK wins over a stale draft.** Arriving via `?customer=` (a customer's "New lead" button)
+  ignores any saved draft and starts fresh from that customer — an explicit intent shouldn't resume
+  someone else's half-finished lead.
+- **`createLead` now RETURNS `{ leadId }` instead of redirecting server-side.** The client needs a
+  definite success moment to drop the draft before navigating; a server redirect would leave the
+  draft in storage to resurrect the just-created lead next time the wizard opened. The client effect
+  clears the draft + section pointer, then `router.push`es to the new lead.
 
 ### Capture first, match second — decided 2026-07-23
 
@@ -993,6 +1057,14 @@ was silently wrong past that anyway) are both **deleted; don't reinstate either.
     a score is unjudgeable and those three facts are not equally strong. Phone/email/full-address
     hits clear the `strong` bar (accent rule + filled button); surname or postcode alone is
     `possible` (neutral). Below `FLOOR` a candidate isn't shown at all.
+  - **STRENGTH drives the panel's whole loudness, not just the row (2026-07-24).** A `strong` match
+    escalates the entire capture-step panel to the **amber "stop and look"** treatment — the same
+    `#fdf2dc`/`#b86e00` block the Review step already uses above Create — so a likely duplicate can't
+    read as a quiet suggestion and get missed. A `possible`-only panel stays a **quiet grey card**;
+    shouting about a surname coincidence would just train people to ignore the amber. This was chosen
+    over a **popup**: the panel re-runs ~400ms after every keystroke, so a modal would steal focus
+    from someone mid-call and fights the capture-first, never-gate design. The real hard backstop is
+    still the Review-step amber warning right before commit, so nothing needs to block during typing.
   - **A postcode alone is a NEIGHBOURHOOD, not an identity** (~15 houses — the same fact the map's
     full-address geocoding exists for). It scores 22; only postcode **+ house number/name** counts
     as "Same address" at 50.
@@ -1035,13 +1107,16 @@ was silently wrong past that anyway) are both **deleted; don't reinstate either.
 ## Lead lookups — decided 2026-07-23
 
 The lead record's Source · Sub-Source · Product type · Quote type · Payment method · Result reason ·
-Salesperson type are **tenant-editable lookups**, not free text (they were free text until
-2026-07-23, which is exactly the mixed-data problem the pattern exists to prevent).
+Salesperson type · Appointment type are **tenant-editable lookups**, not free text (they were free
+text until 2026-07-23, which is exactly the mixed-data problem the pattern exists to prevent).
 
 - **`lead_source` is its OWN list, separate from the customer's `marketing_source`.** They share a
   vocabulary today but answer different questions — "how did we get this customer" vs "how did this
   enquiry arrive" — and a tenant must be able to curate them apart. Don't merge them.
 - `product_type` backs Main Interest AND Second Interest — one vocabulary, two fields.
+- **`appointment_type`** (Sales call · Survey · Measure up · …) backs the lead's appointments — its
+  own list, NOT "survey", because not everyone surveys a lead (see § Appointments on a lead). Seeded
+  by `20260724090000_appointment_type_defaults.sql`.
 
 ## snake_case NEVER reaches the UI — decided 2026-07-23
 
@@ -1510,11 +1585,17 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   tightened. **`20260723092000_site_address_merge` was applied to the remote on 2026-07-23**, the
   schema cache reloaded and `types.ts` regenerated + committed. It RENAMEd `installation_*` address
   columns → `site_*`, folded `fitting_*` in as a fallback, and DROPped the `fitting_*` address columns
-  + `fitting_same_as_customer`. Nothing is outstanding. See § Site address below.
-  Two of this session's are safe to RE-RUN as tenants are added, and should be:
-  `20260723090000_lead_lookup_defaults` and the earlier `20260721097000_lookup_defaults` are both
-  `insert … on conflict do nothing`, so a new tenant gets its pick-lists by re-running them (until
-  onboarding seeds them itself — see § Lookup dropdowns).
+  + `fitting_same_as_customer`. See § Site address below.
+  **OUTSTANDING (apply by hand): `20260724090000_appointment_type_defaults.sql`** — seeds the
+  `appointment_type` lookup for every tenant so the New Lead wizard's Appointment step has its pick-list
+  (see § Appointments on a lead). It's a pure `insert … on conflict do nothing`, so it needs no type
+  regen (no schema change — the `appointments` table already existed) and is safe to RE-RUN as tenants
+  are added. Until it's applied, the appointment type dropdown is simply empty (tenants can still add
+  their own from it) — nothing else breaks.
+  Three of this session's seed migrations are safe to RE-RUN as tenants are added, and should be:
+  `20260724090000_appointment_type_defaults`, `20260723090000_lead_lookup_defaults` and the earlier
+  `20260721097000_lookup_defaults` are all `insert … on conflict do nothing`, so a new tenant gets its
+  pick-lists by re-running them (until onboarding seeds them itself — see § Lookup dropdowns).
 - **Custom Access Token hook must be enabled** in the cloud dashboard (docs/auth-setup.md §2b) and
   `public.users.read`-for-`supabase_auth_admin` policy present (`20260721093000`) — without them
   the JWT carries no `company_id` and every tenant read is empty.

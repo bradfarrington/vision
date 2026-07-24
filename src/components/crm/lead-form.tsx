@@ -1,14 +1,18 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { createLead, type LeadFormState } from "@/app/(app)/leads/actions";
 import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
 import type { CustomerMatch, MatchCriteria } from "@/lib/data/customer-match";
 import { LEAD_STAGES, customerRef } from "@/lib/leads";
 import { humanLabel } from "@/lib/format";
+import { Combo } from "./combo";
 import { CustomerMatchPanel, MatchRow, useCustomerMatches } from "./customer-match";
-import { btnPrimary, RefChip } from "./primitives";
+import { Icon } from "./icon";
+import { btnSecondary, RefChip } from "./primitives";
+import { clearSectionPath, saveSectionPath } from "./view-state";
 import {
   Area,
   CopyButton,
@@ -20,6 +24,7 @@ import {
   SumRow,
   Txt,
   WizardFrame,
+  inputClass,
   swallowEnter,
   type LookupList,
   type WizardStep,
@@ -102,10 +107,73 @@ const STEPS: WizardStep[] = [
   { key: "address", label: "Address" },
   { key: "enquiry", label: "Enquiry" },
   { key: "value", label: "Value" },
+  { key: "appointment", label: "Appointment", optional: true },
   { key: "quote", label: "Quote", optional: true },
   { key: "notes", label: "Notes", optional: true },
   { key: "review", label: "Review" },
 ];
+
+// A lead can carry one or more appointments (a sales call, a survey, a
+// measure-up…), booked here and written to public.appointments on create. Held
+// as a structured array — not flat `Values` — and serialised into one hidden
+// input for the native form submit.
+type Appt = {
+  type: string;
+  date: string;
+  time: string;
+  duration: string;
+  assigned_to: string;
+  notes: string;
+};
+const emptyAppt = (): Appt => ({ type: "", date: "", time: "", duration: "", assigned_to: "", notes: "" });
+/** An appointment is only bookable once it has a date — the rest is optional. */
+const apptHasContent = (a: Appt) => !!a.date || !!a.type.trim() || !!a.notes.trim();
+
+// --- Draft persistence ------------------------------------------------------
+// The wizard survives leaving and coming back (e.g. to check the diary): the
+// whole draft is mirrored to sessionStorage, and while a draft exists the Leads
+// sidebar resumes /leads/new instead of the list (see § the sidebar RESUMES).
+// This deliberately overrides the "…/new is skipped" rule for THIS wizard —
+// losing a half-filled capture is worse than resuming an empty form ever was.
+const DRAFT_KEY = "leaddraft:new-lead";
+const LEADS_SECTION = "/leads";
+const NEW_LEAD_PATH = "/leads/new";
+
+type Draft = {
+  values: Values;
+  linked: CustomerMatch | null;
+  typed: Values | null;
+  step: number;
+  appointments: Appt[];
+};
+
+function loadDraft(): Draft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
+function saveDraft(d: Draft) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  } catch {
+    /* storage unavailable — degrade to no persistence */
+  }
+}
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+/** A signature of the parts a draft is worth persisting for — compared against a
+ *  fresh baseline so an untouched wizard leaves no trace (and never resumes). */
+function draftSig(values: Values, linked: CustomerMatch | null, step: number, appts: Appt[]) {
+  return JSON.stringify({ v: values, l: linked?.id ?? null, s: step, a: appts });
+}
 
 function seed(linked: CustomerMatch | null): Values {
   const v: Values = {};
@@ -113,6 +181,7 @@ function seed(linked: CustomerMatch | null): Values {
   v.status = "new";
   v.priority = "medium";
   v.c_customer_type = "residential";
+  v.lead_date = todayISO(); // Date Received defaults to today (backdatable if entered late)
   if (linked) applyCustomer(v, linked);
   return v;
 }
@@ -148,16 +217,77 @@ export function LeadForm({
   lookups?: LeadLookups;
   salesStaff?: LookupList;
 }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState<LeadFormState, FormData>(createLead, {});
   const [values, setValues] = useState<Values>(() => seed(initialLinked));
   const [linked, setLinked] = useState<CustomerMatch | null>(initialLinked);
   // What was typed before linking, so "Not them" gives it back and a conflict can
   // offer the alternative rather than losing it.
   const [typed, setTyped] = useState<Values | null>(null);
+  const [appointments, setAppointments] = useState<Appt[]>([]);
+  const [step, setStep] = useState(0);
+  const [touched, setTouched] = useState(false);
 
   const set = (k: string) => (val: string | null) => setValues((s) => ({ ...s, [k]: val ?? "" }));
   const f = (k: string) => ({ value: values[k] ?? "", onChange: set(k) });
   const ctx: Ctx = { values, set, f, lookups, salesStaff };
+
+  // --- Draft persistence: restore on mount, mirror on change ----------------
+  // Restore runs once, before the mirror effect is allowed to touch storage, so
+  // the mirror can't clear the draft while the restored state is still landing.
+  const baseline = useMemo(() => draftSig(seed(initialLinked), initialLinked, 0, []), [initialLinked]);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (hydrated) return;
+    // A deep link ("New lead" for THIS customer) is an explicit intent that wins
+    // over any stale draft; otherwise resume where we left off.
+    if (!initialLinked) {
+      const d = loadDraft();
+      if (d) {
+        setValues(d.values);
+        setLinked(d.linked ?? null);
+        setTyped(d.typed ?? null);
+        setStep(typeof d.step === "number" ? d.step : 0);
+        setAppointments(Array.isArray(d.appointments) ? d.appointments : []);
+      }
+    }
+    setHydrated(true);
+  }, [hydrated, initialLinked]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const dirty = draftSig(values, linked, step, appointments) !== baseline;
+    if (dirty) {
+      saveDraft({ values, linked, typed, step, appointments });
+      // While a draft is in flight, the Leads sidebar item resumes the wizard.
+      saveSectionPath(LEADS_SECTION, NEW_LEAD_PATH);
+    } else {
+      clearDraft();
+      clearSectionPath(LEADS_SECTION, NEW_LEAD_PATH);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, values, linked, typed, step, appointments, baseline]);
+
+  // On a successful create the action returns the new lead's id (rather than
+  // redirecting server-side) so we get a definite client moment to drop the
+  // draft before navigating — otherwise a stale draft would resurrect the
+  // already-created lead next time the wizard opened.
+  useEffect(() => {
+    if (!state.leadId) return;
+    clearDraft();
+    clearSectionPath(LEADS_SECTION, NEW_LEAD_PATH);
+    router.push(`/leads/${state.leadId}`);
+  }, [state.leadId, router]);
+
+  function discardDraft() {
+    clearDraft();
+    clearSectionPath(LEADS_SECTION, NEW_LEAD_PATH);
+  }
+
+  const addAppt = () => setAppointments((a) => [...a, emptyAppt()]);
+  const updateAppt = (i: number, key: keyof Appt, val: string) =>
+    setAppointments((a) => a.map((x, j) => (j === i ? { ...x, [key]: val } : x)));
+  const removeAppt = (i: number) => setAppointments((a) => a.filter((_, j) => j !== i));
 
   const criteria: MatchCriteria = useMemo(
     () => ({
@@ -239,9 +369,6 @@ export function LeadForm({
     });
   }, [linked, values]);
 
-  const [step, setStep] = useState(0);
-  const [touched, setTouched] = useState(false);
-
   const commercial = values.c_customer_type === "commercial";
   const contactValid =
     !!linked ||
@@ -274,6 +401,11 @@ export function LeadForm({
       {ALL_KEYS.map((k) => (
         <input key={k} type="hidden" name={k} value={values[k] ?? ""} />
       ))}
+      <input
+        type="hidden"
+        name="appointments"
+        value={JSON.stringify(appointments.filter(apptHasContent))}
+      />
 
       <WizardFrame
         heading={heading}
@@ -282,7 +414,10 @@ export function LeadForm({
         step={step}
         onStep={goTo}
         onNext={goNext}
+        onCancel={discardDraft}
         error={state.error}
+        submitLabel={linked ? "Create lead" : "Create customer & lead"}
+        pending={pending}
       >
         {step === 0 && (
           <ContactStep
@@ -298,14 +433,23 @@ export function LeadForm({
         {step === 1 && <AddressStep ctx={ctx} linked={linked} />}
         {step === 2 && <EnquiryStep ctx={ctx} />}
         {step === 3 && <ValueStep ctx={ctx} />}
-        {step === 4 && <QuoteStep ctx={ctx} />}
-        {step === 5 && <NotesStep ctx={ctx} />}
-        {step === 6 && (
+        {step === 4 && (
+          <AppointmentStep
+            ctx={ctx}
+            appointments={appointments}
+            onAdd={addAppt}
+            onUpdate={updateAppt}
+            onRemove={removeAppt}
+          />
+        )}
+        {step === 5 && <QuoteStep ctx={ctx} />}
+        {step === 6 && <NotesStep ctx={ctx} />}
+        {step === 7 && (
           <ReviewStep
             ctx={ctx}
             onEdit={setStep}
-            pending={pending}
             linked={linked}
+            appointments={appointments}
             matches={matches}
             onLink={link}
             conflicts={conflicts}
@@ -532,9 +676,6 @@ function EnquiryStep({ ctx }: { ctx: Ctx }) {
       <Field label="Second Interest">
         <Lookup {...f("product_interest_2")} options={lookups.product_type} listKey="product_type" placeholder="Optional" />
       </Field>
-      <Field label="Windows">
-        <Txt {...text(ctx, "window_count")} inputMode="numeric" placeholder="Number of windows" />
-      </Field>
     </StepShell>
   );
 }
@@ -574,6 +715,148 @@ function ValueStep({ ctx }: { ctx: Ctx }) {
   );
 }
 
+function AppointmentStep({
+  ctx,
+  appointments,
+  onAdd,
+  onUpdate,
+  onRemove,
+}: {
+  ctx: Ctx;
+  appointments: Appt[];
+  onAdd: () => void;
+  onUpdate: (i: number, key: keyof Appt, val: string) => void;
+  onRemove: (i: number) => void;
+}) {
+  const { lookups, salesStaff } = ctx;
+  return (
+    <div className="rounded-xl border border-[#e7e7ea] bg-white p-6 shadow-[0_1px_3px_rgba(10,10,10,0.06)]">
+      <div className="mb-0.5 font-[family-name:var(--font-inter-tight)] text-[17px] font-bold text-[#0a0a0a]">
+        Book an appointment
+      </div>
+      <p className="mb-4 text-[12.5px] text-[#71717a]">
+        A sales call, survey or measure-up — add as many as you need, or skip and book later from the lead.
+      </p>
+
+      {/* Availability placeholder — the diary isn't built yet. Once it is, open
+          slots for the team will render here (see § New Lead wizard). */}
+      <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-dashed border-[#d4d4d8] bg-[#fafafa] px-3.5 py-3 text-[12.5px] text-[#71717a]">
+        <Icon name="calendar" size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-[#a1a1aa]" />
+        <span>
+          <span className="font-semibold text-[#52525b]">Live availability coming soon.</span> Once
+          the diary is set up, your team&rsquo;s open slots will show here so you can book straight
+          into a free time.
+        </span>
+      </div>
+
+      {appointments.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {appointments.map((a, i) => (
+            <ApptCard
+              key={i}
+              index={i}
+              appt={a}
+              lookups={lookups}
+              salesStaff={salesStaff}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
+      )}
+
+      <button type="button" onClick={onAdd} className={cn(btnSecondary, appointments.length > 0 && "mt-3")}>
+        <Icon name="plus" size={14} strokeWidth={2} />
+        {appointments.length > 0 ? "Add another appointment" : "Add appointment"}
+      </button>
+    </div>
+  );
+}
+
+function ApptCard({
+  index,
+  appt,
+  lookups,
+  salesStaff,
+  onUpdate,
+  onRemove,
+}: {
+  index: number;
+  appt: Appt;
+  lookups: LeadLookups;
+  salesStaff: LookupList;
+  onUpdate: (i: number, key: keyof Appt, val: string) => void;
+  onRemove: (i: number) => void;
+}) {
+  const upd = (key: keyof Appt) => (v: string | null) => onUpdate(index, key, v ?? "");
+  return (
+    <div className="rounded-lg border border-[#e7e7ea] bg-[#fafafa] p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#71717a]">
+          Appointment {index + 1}
+        </span>
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          className="text-[#a1a1aa] transition-colors hover:text-[#d64545]"
+          aria-label={`Remove appointment ${index + 1}`}
+        >
+          <Icon name="trash" size={15} strokeWidth={1.75} />
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
+        <Field label="Type">
+          <Lookup
+            value={appt.type}
+            onChange={upd("type")}
+            options={lookups.appointment_type}
+            listKey="appointment_type"
+            placeholder="e.g. Sales call"
+          />
+        </Field>
+        <Field label="Assigned To">
+          <Lookup
+            value={appt.assigned_to}
+            onChange={upd("assigned_to")}
+            options={salesStaff}
+            onAddNew={addSalesStaff}
+            onDelete={deleteSalesStaff}
+            placeholder="Who's attending?"
+            addNounLabel="person"
+          />
+        </Field>
+        <Field label="Date">
+          <DateField value={appt.date} onChange={upd("date")} />
+        </Field>
+        <Field label="Time">
+          <input
+            type="time"
+            value={appt.time}
+            onChange={(e) => onUpdate(index, "time", e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Duration (min)">
+          <Txt
+            value={appt.duration}
+            onChange={(v) => onUpdate(index, "duration", v)}
+            inputMode="numeric"
+            placeholder="60"
+          />
+        </Field>
+        <Field label="Notes" full>
+          <Area
+            value={appt.notes}
+            onChange={(v) => onUpdate(index, "notes", v)}
+            rows={2}
+            placeholder="Anything the attendee should know…"
+          />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
 function QuoteStep({ ctx }: { ctx: Ctx }) {
   const { f, lookups } = ctx;
   return (
@@ -610,8 +893,8 @@ function NotesStep({ ctx }: { ctx: Ctx }) {
 function ReviewStep({
   ctx,
   onEdit,
-  pending,
   linked,
+  appointments,
   matches,
   onLink,
   conflicts,
@@ -620,8 +903,8 @@ function ReviewStep({
 }: {
   ctx: Ctx;
   onEdit: (i: number) => void;
-  pending: boolean;
   linked: CustomerMatch | null;
+  appointments: Appt[];
   matches: CustomerMatch[];
   onLink: (m: CustomerMatch) => void;
   conflicts: Conflict[];
@@ -736,8 +1019,24 @@ function ReviewStep({
             )}
           </ReviewGroup>
 
+          {appointments.some(apptHasContent) && (
+            <ReviewGroup title="Appointments" onEdit={() => onEdit(4)}>
+              {appointments.filter(apptHasContent).map((a, i) => (
+                <SumRow key={i} label={a.type || "Appointment"}>
+                  {[
+                    a.date ? fmtDate(a.date) : "No date",
+                    a.time || null,
+                    a.assigned_to || null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </SumRow>
+              ))}
+            </ReviewGroup>
+          )}
+
           {(values.quote_type || values.quote_date || values.gross_value || values.payment_method) && (
-            <ReviewGroup title="Quote" onEdit={() => onEdit(4)}>
+            <ReviewGroup title="Quote" onEdit={() => onEdit(5)}>
               {values.quote_type && <SumRow label="Type">{values.quote_type}</SumRow>}
               {values.quote_date && <SumRow label="Dated">{fmtDate(values.quote_date)}</SumRow>}
               {values.gross_value && <SumRow label="Value">{money(values.gross_value)}</SumRow>}
@@ -746,19 +1045,10 @@ function ReviewStep({
           )}
 
           {values.notes && (
-            <ReviewGroup title="Notes" onEdit={() => onEdit(5)}>
+            <ReviewGroup title="Notes" onEdit={() => onEdit(6)}>
               <SumRow label="Notes">{values.notes}</SumRow>
             </ReviewGroup>
           )}
-        </div>
-
-        {/* The ONLY submit button in the wizard — deliberately here and not in the
-            top bar, so the click that lands you on Review can't also create. */}
-        <div className="mt-5 flex items-center gap-2.5 border-t border-[#f4f4f5] pt-4">
-          <button type="submit" disabled={pending} className={btnPrimary}>
-            {pending ? "Creating…" : linked ? "Create lead" : "Create customer & lead"}
-          </button>
-          <span className="text-[12px] text-[#a1a1aa]">You&rsquo;ll land on the new lead.</span>
         </div>
       </div>
     </div>
@@ -850,27 +1140,40 @@ function SegType({ value, onChange }: { value: string; onChange: (v: string) => 
   );
 }
 
+// Stage + Priority are fixed enum lists (not tenant-editable), so they use the
+// custom Combo dropdown with static options and no add/remove. Both are required
+// and seeded with a default, so they're not clearable — the value stored is the
+// enum key (e.g. "survey_booked"), the label is what's shown.
+const STAGE_OPTIONS = LEAD_STAGES.map((s) => ({ value: s.key, label: s.label }));
+const PRIORITY_OPTIONS = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+];
+
 function SegStage({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="inline-flex flex-wrap gap-1 rounded-lg border border-[#e7e7ea] bg-[#fafafa] p-0.5">
-      {LEAD_STAGES.map((s) => (
-        <Seg key={s.key} active={value === s.key} onClick={() => onChange(s.key)}>
-          {s.label}
-        </Seg>
-      ))}
-    </div>
+    <Combo
+      variant="input"
+      options={STAGE_OPTIONS}
+      value={value || null}
+      onChange={onChange}
+      clearable={false}
+      placeholder="Select a stage"
+    />
   );
 }
 
 function SegPriority({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="inline-flex rounded-lg border border-[#e7e7ea] bg-[#fafafa] p-0.5">
-      {["low", "medium", "high"].map((p) => (
-        <Seg key={p} active={value === p} onClick={() => onChange(p)}>
-          {cap(p)}
-        </Seg>
-      ))}
-    </div>
+    <Combo
+      variant="input"
+      options={PRIORITY_OPTIONS}
+      value={value || null}
+      onChange={onChange}
+      clearable={false}
+      placeholder="Select a priority"
+    />
   );
 }
 
@@ -941,4 +1244,12 @@ function fmtDate(v: string): string {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Today as a local YYYY-MM-DD, matching DatePicker's value format. */
+function todayISO(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Combo } from "./combo";
 import { DatePicker } from "./date-picker";
 import { Icon } from "./icon";
-import { btnPrimary, btnSecondary } from "./primitives";
+import { btnPrimary, btnSecondary, btnSuccess } from "./primitives";
 import { addTenantOption, deleteTenantOption } from "@/app/(app)/customers/actions";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +20,14 @@ import { cn } from "@/lib/utils";
 //     the native form action submits the whole record at once. The visible step
 //     UI only edits state, so jumping back and the Review summary work without
 //     losing entries.
-//   - The final Create action lives IN the Review card, never in the top bar:
-//     the last "Continue" click lands on Review, and a reflex second click in
-//     the same spot must not create the record before it is read.
+//   - The final Create action sits in the top bar where Continue was, so the
+//     button stays in ONE stable place across every step. Because that means the
+//     Continue click that lands you on Review is followed by a Create button in
+//     the same spot, the button is GUARDED: disabled for ~450ms on arriving at
+//     Review (and coloured success-green, not accent) so a reflex second click
+//     can't create the record before the summary is read. A form opts in by
+//     passing `submitLabel`; without it WizardFrame renders no submit and the
+//     form keeps its own in-card button (the New Customer wizard still does).
 //   - Enter is swallowed on every non-textarea field so a keystroke can't
 //     submit early.
 // Own the steps and the state in your form; this module owns the chrome.
@@ -45,8 +50,11 @@ export function WizardFrame({
   step,
   onStep,
   onNext,
+  onCancel,
   error,
   children,
+  submitLabel,
+  pending,
 }: {
   heading: string;
   cancelHref: string;
@@ -54,10 +62,29 @@ export function WizardFrame({
   step: number;
   onStep: (i: number) => void;
   onNext: () => void;
+  /** Fires as Cancel is clicked (before navigation) — e.g. to drop a saved draft. */
+  onCancel?: () => void;
   error?: string;
   children: React.ReactNode;
+  /** When set, the top bar shows the final submit on the Review step (guarded).
+   *  Omit to keep no top-bar submit and render the button in your own card. */
+  submitLabel?: string;
+  pending?: boolean;
 }) {
   const isReview = step === steps.length - 1;
+  const hasTopSubmit = isReview && !!submitLabel;
+
+  // The Continue that lands you on Review is followed by Create in the same spot,
+  // so hold the button disabled briefly on arrival — a reflex second click must
+  // not create the record before the summary is read.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!hasTopSubmit) return;
+    setArmed(false);
+    const t = setTimeout(() => setArmed(true), 450);
+    return () => clearTimeout(t);
+  }, [hasTopSubmit]);
+
   return (
     <>
       {/* Fixed top: title, actions, and the step tracker. Stays put while the
@@ -68,7 +95,7 @@ export function WizardFrame({
             {heading}
           </h1>
           <div className="ml-auto flex shrink-0 items-center gap-2.5">
-            <Link href={cancelHref} className={btnSecondary}>
+            <Link href={cancelHref} onClick={onCancel} className={btnSecondary}>
               Cancel
             </Link>
             {step > 0 && (
@@ -76,15 +103,19 @@ export function WizardFrame({
                 Back
               </button>
             )}
-            {/* The final Create action lives in the review card, NOT here — the
-                last "Continue" click lands on Review, and a reflex second click in
-                the same spot must never create the record before it's read. */}
-            {!isReview && (
+            {!isReview ? (
               <button type="button" onClick={onNext} className={btnPrimary}>
                 Continue
                 <Icon name="chevron-right" size={13} strokeWidth={2.2} />
               </button>
-            )}
+            ) : hasTopSubmit ? (
+              // Guarded: disabled for ~450ms on arriving at Review, and green
+              // rather than accent, so the reflex click that follows Continue
+              // can't create the record before it's read.
+              <button type="submit" disabled={!armed || pending} className={btnSuccess}>
+                {pending ? "Creating…" : submitLabel}
+              </button>
+            ) : null}
           </div>
         </div>
         <Stepper steps={steps} current={step} onSelect={onStep} />

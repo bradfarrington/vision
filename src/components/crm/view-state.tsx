@@ -60,11 +60,23 @@ function sectionForPath(pathname: string, sections: string[]): string | null {
   return match;
 }
 
-function saveSectionPath(base: string, pathname: string) {
+export function saveSectionPath(base: string, pathname: string) {
   try {
     sessionStorage.setItem(sectionKey(base), pathname);
   } catch {
     /* storage unavailable — degrade to no memory */
+  }
+}
+
+/** Forget a section's remembered page IFF it currently points at `only` — used to
+ *  drop a resume pointer (e.g. a create wizard) without clobbering a real record
+ *  another navigation may have since recorded. */
+export function clearSectionPath(base: string, only?: string) {
+  try {
+    if (only && sessionStorage.getItem(sectionKey(base)) !== only) return;
+    sessionStorage.removeItem(sectionKey(base));
+  } catch {
+    /* storage unavailable */
   }
 }
 

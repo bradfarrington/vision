@@ -211,6 +211,11 @@ export const TOOLBAR_H = "h-[38px]";
 export const btnPrimary =
   "inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-blue)] px-[14px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-60";
 
+// Platform-fixed success green (#1a7f3e) — a final "create" commit, never themed
+// per tenant. Semantic, like the Won badge; see AGENTS.md § UI build method.
+export const btnSuccess =
+  "inline-flex items-center gap-1.5 rounded-lg bg-[#1a7f3e] px-[14px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:bg-[#166a34] disabled:opacity-60 disabled:hover:bg-[#1a7f3e]";
+
 // Filter pill (default + active). Active tracks the tenant accent.
 export const pillDefault =
   "inline-flex items-center gap-1.5 rounded-full border border-[#e7e7ea] bg-white px-3 py-[7px] text-[12.5px] font-medium text-[#3f3f46] transition-colors hover:bg-[#fafafa]";

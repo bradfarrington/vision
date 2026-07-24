@@ -628,6 +628,20 @@ export type LeadDetail = {
    * duplicate-free path the customer record offers).
    */
   documents: DocumentItem[];
+  /** Appointments booked against this lead (sales call, survey…), soonest first. */
+  appointments: LeadAppointment[];
+};
+
+export type LeadAppointment = {
+  id: string;
+  title: string | null;
+  type: string | null;
+  date: string | null;
+  time: string | null;
+  duration: number | null;
+  assignedTo: string | null;
+  status: string | null;
+  notes: string | null;
 };
 
 export type AddressParts = {
@@ -704,6 +718,7 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
          email, mobile, home_telephone),
        lead_notes(id, content, created_at),
        lead_checklist_items(id, action_name, status, due_date, priority, completed_at, completed_by_name),
+       appointments(id, title, type, date, time, duration, assigned_to, status, notes),
        activities(id, type, description, created_at)`,
     )
     .eq("id", id)
@@ -809,6 +824,21 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
     noteThread: ((notesRes.data ?? []) as any[]).map(mapNoteRow),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     documents: ((docsRes.data ?? []) as any[]).map(mapDocumentRow),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    appointments: ((l.appointments ?? []) as any[])
+      .map((a) => ({
+        id: a.id,
+        title: a.title ?? null,
+        type: a.type ?? null,
+        date: a.date ?? null,
+        time: a.time ?? null,
+        duration: a.duration ?? null,
+        assignedTo: a.assigned_to ?? null,
+        status: a.status ?? null,
+        notes: a.notes ?? null,
+      }))
+      // Soonest first — an upcoming appointment is what staff look for.
+      .sort((a, b) => +new Date(a.date ?? 0) - +new Date(b.date ?? 0)),
   };
 }
 
