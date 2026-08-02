@@ -11,6 +11,7 @@ import {
 } from "./documents";
 import { NOTE_SELECT, NOTE_SELECT_BASE, mapNoteRow, type NoteItem } from "./notes";
 import type { AddressParts } from "./leads";
+import { getAppointmentsFor, type DiaryEvent } from "./appointments";
 
 // Contract columns a user may filter the list by, applied server-side so paging
 // and counts stay correct. Allowlisted (never interpolated from input) — the
@@ -689,6 +690,8 @@ export type ContractDetail = {
   paid: number;
   balance: number;
   checklist: ContractChecklistItem[];
+  /** Every booking against this contract — surveys, the fit, service visits. */
+  appointments: DiaryEvent[];
   noteThread: NoteItem[];
   /**
    * Documents reachable from this contract: its own plus the owning customer's,
@@ -772,7 +775,7 @@ export async function getContract(id: string): Promise<ContractDetail | null> {
   // pending-migration fallbacks), which don't compose into the embed above.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as unknown as { from(t: string): any };
-  const [notesRes, docsRes] = await Promise.all([
+  const [notesRes, docsRes, appointments] = await Promise.all([
     selectWithFallback(
       () => db.from("lead_notes").select(NOTE_SELECT).eq("contract_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
       () => db.from("lead_notes").select(NOTE_SELECT_BASE).eq("contract_id", id).or("category.is.null,category.neq.marketing").order("created_at", { ascending: false }),
@@ -786,6 +789,9 @@ export async function getContract(id: string): Promise<ContractDetail | null> {
           () => db.from("documents").select(DOCUMENT_SELECT).eq("contract_id", id).order("created_at", { ascending: false }),
           () => db.from("documents").select(DOCUMENT_SELECT_BASE).eq("contract_id", id).order("created_at", { ascending: false }),
         ),
+    // The Fitting tab's bookings. Same table the diary reads, so anything
+    // booked here shows there immediately.
+    getAppointmentsFor({ contractId: id }),
   ]);
 
   const customerName = c
@@ -905,6 +911,7 @@ export async function getContract(id: string): Promise<ContractDetail | null> {
     checklist: ((ct.contract_checklist_items ?? []) as ContractChecklistItem[]).sort(
       (a, b) => (a.id ?? 0) - (b.id ?? 0),
     ),
+    appointments,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     noteThread: ((notesRes.data ?? []) as any[]).map(mapNoteRow),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

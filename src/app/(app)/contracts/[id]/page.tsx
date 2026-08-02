@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getContract, type ContractDetail, type FinanceLine } from "@/lib/data/contracts";
 import { getTenantOptionLists, type TenantOption } from "@/lib/data/customer-record";
-import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
+import { getDiaryStaff, getSalesStaff, type StaffOption } from "@/lib/data/staff";
 import { gbp, humanLabel } from "@/lib/format";
 import type { AddressParts } from "@/lib/data/leads";
 import { Card, CardTitle, Icon, Pill, RefChip, btnSecondary } from "@/components/crm/primitives";
@@ -21,13 +21,15 @@ import {
   ContractStageChanger,
   StageStepper,
 } from "@/components/crm/contract-interactions";
+import { FittingPanel } from "@/components/crm/fitting-panel";
 import { cn } from "@/lib/utils";
 
 // Contract detail — transcribed from `Vision CRM Screens.dc.html` screen 05.
 //
-// FIVE tabs, not the design's nine: Communications, Fitting, Deliveries & stock
-// and Service calls belong to Phases 6/7/8 and a dead tab is worse than a
-// missing one (the same call that kept Quotes off the lead record until now).
+// SIX tabs, not the design's nine. Fitting (05b) went live with Phase 6's
+// diary; Communications, Deliveries & stock and Service calls belong to Phases
+// 7 and 8, and a dead tab is worse than a missing one (the same call that kept
+// Quotes off the lead record).
 export default async function ContractDetailPage({
   params,
 }: {
@@ -37,10 +39,19 @@ export default async function ContractDetailPage({
   const contract = await getContract(id);
   if (!contract) notFound();
 
-  const [opts, salesStaff, tabOrder] = await Promise.all([
-    getTenantOptionLists(["lead_source", "contract_type", "payment_method", "document_category"]),
+  const [opts, salesStaff, tabOrder, diaryStaff] = await Promise.all([
+    getTenantOptionLists([
+      "lead_source",
+      "contract_type",
+      "payment_method",
+      "document_category",
+      // For the Fitting tab's booking dialog.
+      "appointment_type",
+    ]),
     getSalesStaff(),
     getUserOrder("contract_tabs"),
+    // EVERY active staff member — a fit is booked to installers, not sales.
+    getDiaryStaff(),
   ]);
 
   return (
@@ -107,6 +118,23 @@ export default async function ContractDetailPage({
           {
             label: "Overview",
             content: <OverviewTab contract={contract} opts={opts} salesStaff={salesStaff} />,
+          },
+          {
+            // Live as of Phase 6 — one of the four tabs Phase 5a deferred.
+            label: "Fitting",
+            count: contract.appointments.length,
+            content: (
+              <FittingPanel
+                appointments={contract.appointments}
+                staff={diaryStaff}
+                types={opts.appointment_type ?? []}
+                contractId={contract.id}
+                customerId={contract.customer?.id ?? null}
+                contractRef={contract.ref}
+                customerName={contract.customer?.name ?? null}
+                siteDirections={contract.siteDirections}
+              />
+            ),
           },
           {
             label: "Financials",
