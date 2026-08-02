@@ -22,12 +22,19 @@ export function DatePicker({
   variant = "input",
   placeholder = "—",
   className,
+  triggerLabel,
 }: {
   value: string | null;
   onChange: (value: string | null) => void;
-  variant?: "input" | "text";
+  variant?: "input" | "text" | "button";
   placeholder?: string;
   className?: string;
+  /**
+   * Face for the `button` variant, when the trigger should read as something
+   * other than the raw date — the diary shows its WINDOW there ("Mon 20 – Sun
+   * 26 Jul") rather than the anchor date the picker actually emits.
+   */
+  triggerLabel?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"day" | "month" | "year">("day");
@@ -88,8 +95,18 @@ export function DatePicker({
         : `${yearBlockStart} – ${yearBlockStart + 11}`;
 
   return (
-    <div ref={ref} className={cn("relative", variant === "text" && "inline-block", className)}>
-      {variant === "text" ? (
+    <div ref={ref} className={cn("relative", variant !== "input" && "inline-block", className)}>
+      {variant === "button" ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={toggle}
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-semibold text-[#0a0a0a] transition-colors hover:bg-[#f4f4f5]"
+        >
+          {triggerLabel ?? shown ?? placeholder}
+          <Icon name="chevron-down" size={12} strokeWidth={2} className="text-[#a1a1aa]" />
+        </button>
+      ) : variant === "text" ? (
         <button
           ref={triggerRef}
           type="button"

@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { getDiary } from "@/lib/data/appointments";
 import { getDiaryStaff } from "@/lib/data/staff";
 import { WORK_CATEGORIES, type WorkCategory } from "@/lib/appointments";
@@ -13,13 +11,12 @@ import {
   windowLabel,
   type DiaryView,
 } from "@/lib/diary";
-import { Icon, TOOLBAR_H, btnSecondary } from "@/components/crm/primitives";
+import { DiaryNav } from "@/components/crm/diary-nav";
 import { DiaryDayView, DiaryWeekView } from "@/components/crm/diary-views";
 import { DiaryMonth } from "@/components/crm/diary-month";
 import { DiaryFiltersButton } from "@/components/crm/diary-filters";
 import { ViewToggle } from "@/components/crm/view-toggle";
 import { ViewStateSaver } from "@/components/crm/view-state";
-import { cn } from "@/lib/utils";
 
 // The diary — transcribed from design screens 07 (day), 08a (week), 08b (month).
 //
@@ -93,21 +90,15 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
               Diary
             </h1>
 
-            {/* Period navigation — ‹ · the window's label · › · Today. */}
-            <div className={cn(TOOLBAR_H, "inline-flex items-center gap-1")}>
-              <Link href={keep(prev)} className={cn(btnSecondary, "!px-2")} aria-label="Previous">
-                <Icon name="chevron-left" size={14} strokeWidth={2} />
-              </Link>
-              <span className="min-w-[190px] px-1 text-center text-[13px] font-semibold text-[#0a0a0a]">
-                {windowLabel(view, anchor)}
-              </span>
-              <Link href={keep(next)} className={cn(btnSecondary, "!px-2")} aria-label="Next">
-                <Icon name="chevron-right" size={14} strokeWidth={2} />
-              </Link>
-              <Link href={keep(toDateParam(new Date()))} className={cn(btnSecondary, "ml-1")}>
-                Today
-              </Link>
-            </div>
+            {/* Period navigation — the label doubles as a date picker, so
+                jumping to a week months out doesn't mean twenty arrow clicks. */}
+            <DiaryNav
+              label={windowLabel(view, anchor)}
+              anchor={toDateParam(anchor)}
+              prev={keep(prev)}
+              next={keep(next)}
+              today={keep(toDateParam(new Date()))}
+            />
 
             <div className="ml-auto flex items-center gap-2.5">
               <DiaryFiltersButton staff={staff} />
