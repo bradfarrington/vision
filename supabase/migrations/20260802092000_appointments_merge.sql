@@ -59,6 +59,12 @@ where starts_at is null;
 
 alter table public.appointments alter column starts_at set not null;
 
+-- `date` is NOT NULL and is dropped at the END of this migration — but it still
+-- exists while the fold below runs, and the fold writes starts_at rather than
+-- date. Relax the constraint first, or every folded row trips over a column
+-- that is on its way out.
+alter table public.appointments alter column date drop not null;
+
 -- `status` becomes the one lifecycle column: provisional | confirmed | done |
 -- cancelled. The old default was 'scheduled'.
 update public.appointments set status = 'confirmed' where status = 'scheduled' or status is null;
