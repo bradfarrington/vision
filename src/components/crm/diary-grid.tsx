@@ -84,7 +84,10 @@ export function DiaryGrid({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* One scroller for BOTH axes, so the gutter and headers stay pinned to
           their own edges while the grid moves under them. */}
-      <div className="min-h-0 flex-1 overflow-auto px-[26px]">
+      {/* No LEFT padding — the time gutter sits flush against the panel edge,
+          like the list table (AGENTS.md § a list table is EDGE TO EDGE). Every
+          pixel of width belongs to the grid. */}
+      <div className="min-h-0 flex-1 overflow-auto pr-[26px]">
         {/* min-h-full makes the grid FILL a tall window; the body's own
             min-height stops it squashing in a short one (it scrolls instead). */}
         <div className="flex min-h-full min-w-full flex-col">
@@ -409,7 +412,7 @@ function packIntoLanes(events: DiaryEvent[]): DiaryEvent[][] {
 
 function Legend() {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-[#e7e7ea] px-[26px] py-2.5">
+    <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-[#e7e7ea] pl-3 pr-[26px] py-2.5">
       <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
         Legend
       </span>
