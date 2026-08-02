@@ -738,16 +738,22 @@ function AppointmentStep({
         A sales call, survey or measure-up — add as many as you need, or skip and book later from the lead.
       </p>
 
-      {/* Availability placeholder — the diary isn't built yet. Once it is, open
-          slots for the team will render here (see § New Lead wizard). */}
-      <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-dashed border-[#d4d4d8] bg-[#fafafa] px-3.5 py-3 text-[12.5px] text-[#71717a]">
-        <Icon name="calendar" size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-[#a1a1aa]" />
+      {/* Live as of Phase 6 — the slot finder searches the real diary. Opens in
+          a new tab ON PURPOSE: this wizard holds a half-captured lead, and
+          navigating away mid-call to go looking for a date is exactly what the
+          draft persistence exists to survive. A new tab avoids needing it. */}
+      <a
+        href="/diary/slots"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mb-4 flex items-start gap-2.5 rounded-lg border border-[#e7e7ea] bg-[#fafafa] px-3.5 py-3 text-[12.5px] text-[#71717a] transition-colors hover:border-[var(--accent-blue)] hover:bg-[var(--accent-tint)]"
+      >
+        <Icon name="calendar" size={15} strokeWidth={1.75} className="mt-0.5 shrink-0 text-[var(--accent-blue)]" />
         <span>
-          <span className="font-semibold text-[#52525b]">Live availability coming soon.</span> Once
-          the diary is set up, your team&rsquo;s open slots will show here so you can book straight
-          into a free time.
+          <span className="font-semibold text-[var(--accent-blue)]">Find the next free slot →</span>{" "}
+          Search the diary for a window that fits the whole team, then book straight into it.
         </span>
-      </div>
+      </a>
 
       {appointments.length > 0 && (
         <div className="flex flex-col gap-3">

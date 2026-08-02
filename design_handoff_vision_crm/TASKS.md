@@ -88,10 +88,26 @@ Deferred beyond Phase 5 and why: product catalogue + picker (11c), the item desi
 (11d), the pricing engine and its supplier APIs (12, marked PROPOSED in the design itself), internal
 costing (13), and quote → supplier order (14, Phase 7).
 
-## Phase 6 — Diary & scheduling
-- [ ] Week/day calendar: surveys, installations, service calls (fixed block-colour legend)
-- [ ] Fitting appointments linked to contracts; team assignment
-- [ ] Provisional vs confirmed states (dashed vs solid per design)
+## Phase 6 — Diary & scheduling — DONE 2026-08-02
+Taken before Phase 5b: nothing in the diary depends on quotes, and four placeholders plus a real
+data inconsistency all resolved into it.
+- [x] Merge the TWO appointment tables into one (`20260802092000`) — the dashboard's diary read a
+      table nothing wrote, so wizard-booked appointments were invisible to it
+- [x] Day + week time grid: times down the left in half-hour blocks, staff (day) or days (week) as
+      columns, jobs spanning the blocks they occupy, crosshair on hover — `diary-grid.tsx`
+- [x] Month calendar (density overview, click a day to drop into it)
+- [x] Fixed block-colour legend (Installation · Survey · Service · Provisional)
+- [x] Provisional vs confirmed (dashed vs filled, per design)
+- [x] Appointments linked to leads AND contracts; multi-staff assignment
+- [x] One booking dialog behind the diary, the lead and the Fitting tab; clashes reported not blocked
+- [x] Contract Fitting tab (design 05b) — appointments table, mark done, cancel, access notes
+- [x] TimePicker — retires the last native input in the CRM
+- [x] Slot finder (design 09) + availability engine — "2.5 days for any 2 installers"
+- [x] Diary date picker, so reaching a date months out isn't twenty arrow clicks
+
+Deferred from this phase: travel-time estimation between consecutive jobs (the design's "18 min
+travel" — needs geocoded distance, left out rather than guessed), and **per-company working hours**
+(the constants are isolated in `lib/diary.ts` ready for it).
 
 ## Phase 7 — Stock, purchase orders, financials
 - [ ] Suppliers, stock items (SKU pattern), purchase orders (`VSN-PO-…`), delivery lines

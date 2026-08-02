@@ -1099,6 +1099,131 @@ previously-placeholder "Convert to Contract" button.
 | `14` quote → supplier order | Phase 7 (stock & purchase orders) |
 | `05a/b/c/e` contract tabs | Communications, Fitting, Deliveries, Service calls — Phases 6/7/8 |
 
+# Phase 6 — Diary & scheduling — built 2026-08-02
+
+## ONE appointment table — decided 2026-08-02
+
+**`public.appointments` backs every booking in the CRM.** There were two tables
+and they never met:
+
+- `appointments` — sales-side (`lead_id`, one `assigned_to`, minutes, timestamptz). Written by the
+  New Lead wizard, read by the lead record.
+- `fitting_appointments` — install-side (`contract_id`, `assigned_staff_ids[]`, days AND hours, a
+  TEXT date, provisional/confirmed/locked, travel time). Read by the dashboard's today's diary —
+  **and nothing ever wrote it.**
+
+So the dashboard's diary was permanently empty while every appointment the wizard booked was
+invisible to it. **The split had already failed in production**, which is the evidence, not the
+theory. `20260802092000_appointments_merge` folds fitting into appointments and drops it.
+
+- **The deciding argument is DOUBLE-BOOKING, not tidiness.** "Is Dave free Tuesday?" must consult
+  every commitment he has. With two tables, the clash check, the diary and the slot finder each have
+  to union both — and the day one forgets, a fitter is booked onto a job he is already on. That bug
+  is invisible until a van turns up at the wrong house. Brad questioned the merge and this is the
+  answer that settled it; **don't re-split them.**
+- **The accepted cost:** ~10 install-only columns (`staff_ids`, `travel_minutes`, confirmed/locked)
+  sit null on a sales call. Much cheaper than a union on every availability query.
+- **`starts_at timestamptz` replaced the `date` + `time text` pair.** A date column plus a text time
+  cannot be ORDERed or overlap-tested, and a diary does both constantly. **Duration is MINUTES
+  throughout** (1.5 days = 720), so the `duration_days`/`duration_hours` pair that could disagree
+  with itself is gone. `MINUTES_PER_WORKING_DAY` (480) is the conversion.
+- **GOTCHA that bit on apply:** `date` was `NOT NULL` and is dropped at the END of the migration, so
+  the fold — which writes `starts_at` — tripped over a column on its way out. The constraint is
+  relaxed before the insert. Watch for this shape in any migration that replaces a required column.
+- `status` is `provisional | confirmed | done | cancelled`; the old default was `scheduled`.
+
+## The diary — built 2026-08-02
+
+`/diary`, `view=day|week|month` as a URL param like `/leads?view=board`.
+
+- **Day and week share ONE time grid** (`diary-grid.tsx`): times down the left in half-hour blocks,
+  columns across the top, a job occupying as many blocks as it lasts. **Only what a COLUMN means
+  changes** — staff on the day, days on the week — so time is always the y-axis and switching period
+  never reorients the screen. The two can't drift because there is one grid.
+- **This DEPARTS from design screens 07/08a**, which laid the day out as staff ROWS against an hour
+  ruler. Brad asked for the column form and it is better here: a row against a ruler spends most of
+  its width on empty time, where a column shows only what's booked (ten staff fit where four did).
+- **ROWS FLEX.** The grid fills its container and the slots divide it evenly; `MIN_SLOT_H` (34px) is
+  the floor, below which it scrolls rather than squashing the labels together. **Job blocks are
+  positioned as a PERCENTAGE of column height, not in pixels**, so they stay aligned however it
+  flexes. A fixed pixel stack left a dead band under a tall window — that was the first version.
+- **Everything derives from `DAY_START_HOUR` / `DAY_END_HOUR` / `SLOT_MINUTES`** in `lib/diary.ts`
+  (07:00–17:00, 30 min). **No hour is hard-coded in the rendering** — that file is the single place
+  the per-company working hours setting will replace, and the slot finder reads the same numbers.
+- **The crosshair**: hovering a cell lights BOTH the time in the gutter and the column header, so
+  you can read off which slot and whose it is without tracing the row and column by eye.
+- **The window label IS a date picker.** Stepping a week at a time is fine for "next week" and
+  useless for "the week of 14 March" — twenty clicks. `DatePicker` gained a `button` variant with a
+  `triggerLabel`, because the diary shows its WINDOW there rather than the anchor date it emits.
+- **The grid runs flush to the panel's LEFT edge**, like the list table — height and width on a diary
+  are hours and people, and a gutter spends width saying nothing. The legend follows it in.
+- **Overlapping bookings pack into side-by-side lanes.** A clash is exactly the thing that must not
+  hide behind itself. Multi-day jobs clamp to the grid and show "cont." / "→" at the edges.
+- **Anything unassigned gets its own column** — a job with nobody on it is what needs chasing.
+- **The diary is deliberately NOT a `ListSpec`.** It is a time canvas, not a table; forcing it
+  through `data-list.tsx` would fight the module. Its filter popover IS the shared one.
+- **Month stays a calendar grid** (density overview, capped rows + "+N more" per day, click a day to
+  drop into it) — a genuinely different question from "who is doing what at 2pm".
+
+## Booking — one dialog — built 2026-08-02
+
+`booking-dialog.tsx` is behind **every** way of making an appointment: a diary slot click, "Book
+appointment" on a lead (the last dead button in the app), and "Add appointment" on the contract's
+Fitting tab. They differ only in what arrives pre-filled.
+
+- **Durations are SLOT MULTIPLES.** A booking that isn't a whole number of slots renders between two
+  grid rows and can never be picked from the grid again.
+- **CLASHES ARE REPORTED, NOT BLOCKED.** Double-booking is usually a mistake and occasionally
+  deliberate (two people, one van, a quick call on the way), so the first attempt is refused with the
+  conflicting jobs NAMED and "Book it anyway" is one click. Silently allowing it hides the mistake;
+  silently blocking it makes the diary unusable the day someone needs the exception.
+- **The clash check reads a FORTNIGHT BACK**, because a two-day fit overlapping today may have
+  started well before it. A query bounded to the booking's own window misses exactly the clash that
+  matters. It also **fails soft** — a guard, not a gate.
+- **The dialog REMOUNTS per seed** (keyed on `seedKey`) rather than re-seeding through an effect:
+  clicking a second slot must not reopen it holding the first one's time, and a key does that
+  without the setState-in-effect cascade the lint rule is about.
+- **Cancelling is a soft cancel** (`status`), not a delete — the visit leaves the diary and frees the
+  person but stays on the record as history, and the confirm says so.
+
+## TimePicker — the last native input — built 2026-08-02
+
+`<input type="time">` renders differently in every browser, ignores the tenant accent, and on some
+platforms opens an OS wheel — the same reasons `DatePicker` replaced `<input type="date">`. **There
+are now NO native date or time inputs in the CRM.**
+
+- **Its options are the DIARY's own half-hour slots**, not free minutes — see the slot-multiple rule
+  above. A value already off-step (legacy, or set elsewhere) is still shown and selectable, so
+  opening the field can't silently rewrite the booking.
+- Shape mirrors `DatePicker` (`value`/`onChange`/`variant`), and clicking the selected option clears
+  the field — the same tick-becomes-✕ affordance as `Combo`.
+
+## Slot finder + availability — built 2026-08-02
+
+`/diary/slots` (design screen 09), engine in `lib/data/availability.ts`. This is what replaced the
+New Lead wizard's "Live availability coming soon" note.
+
+- **A multi-day job is split into WORKING STRETCHES**, not treated as one long interval: a 2.5-day
+  fit runs 07:00–17:00, stops, resumes next working day. As a single interval every evening and
+  weekend counts as busy and it finds almost nothing.
+- **One suggestion per day.** Ten start times on the same Tuesday is one option pretending to be ten.
+- **Every suggestion says WHY** ("both free · within the week · spans a weekend"). A bare list of
+  dates is unjudgeable — the same reason the duplicate matcher states its evidence.
+- **`searchSlots` fails soft to "no slots"** rather than taking the screen down, and never falls back
+  to something naive: a wrong slot is worse than no answer.
+- **Booking from a suggestion passes `force`** — the engine just verified the window, so a clash
+  there is a race, not a mistake.
+- **Travel time is NOT yet modelled.** The design shows "18 min travel from prior job"; that needs
+  the geocoded distance between consecutive jobs. Deliberately left out rather than guessed — the
+  `AddressMap` rule applies, don't narrate precision we don't have.
+- **Weekends are skipped by default** and stated in the reasons where a slot straddles one.
+
+## Still open after Phase 6
+
+The dashboard's revenue-by-month bars (team performance IS live), the three contract tabs deferred to
+Phases 7/8 (Communications · Deliveries & stock · Service calls), Phase 5b's quote builder, and
+**per-company working hours** — the constants are isolated in `lib/diary.ts` ready for it.
+
 ## New Customer wizard — built 2026-07-22
 
 `/customers/new` is a **staged, survey-style wizard** (`src/components/crm/customer-form.tsx`), not the
@@ -1753,7 +1878,7 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`, then `npx tsc --noEmit`,
   then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
   doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
-  2026-08-02**, through `20260802091000_contracts_phase5` — every migration is applied to the remote
+  2026-08-02**, through `20260802092000_appointments_merge` — every migration is applied to the remote
   and the types regenerated, so the leads and contracts `site_*` columns AND the contract `stage` /
   stage-date / `quote_id` columns are all reflected. Nothing is stale.
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
@@ -1781,7 +1906,11 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   `(company_id, contract_number)`** that leads has always had, and the board's `(company_id, stage)`
   index. Idempotent (`add column if not exists` / `create index if not exists`), so safe to re-run.
 
-  **APPLIED 2026-08-02, all three — nothing is outstanding:**
+  **`20260802092000_appointments_merge` — APPLIED 2026-08-02.** DESTRUCTIVE and NOT re-runnable:
+  it drops `fitting_appointments` and replaces the `date`/`time` pair with `starts_at`. See
+  § ONE appointment table, including the `date NOT NULL` gotcha that failed the first run.
+
+  **APPLIED 2026-08-02, all four — nothing is outstanding:**
   `20260724090000_appointment_type_defaults` (seeds the `appointment_type` lookup for every tenant so
   the New Lead wizard's Appointment step has its pick-list — a pure `insert … on conflict do nothing`,
   no schema change, so it needed no type regen and is safe to RE-RUN as tenants are added) and
@@ -1802,9 +1931,11 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   the shared list machinery, the lead record has real tabs with the shared notes/documents panels,
   New Lead is a staged wizard, and every lead pick-list is a tenant-editable lookup.
 - **Phase 5a (contracts) landed 2026-08-02** — `/contracts` list + board, the contract record with
-  its stage stepper, and lead → contract conversion, which turned the lead header's
-  "Convert to Contract" placeholder into the real thing. See § Phase 5. **Phase 5b (the line-item
-  quote builder) is next**, and is where the lead record's **Quotes** tab finally arrives.
-  Still deliberately open after 5a: **"Book appointment"** in the lead header (a placeholder until the
-  Phase 6 diary), the four contract tabs deferred to Phases 6/7/8, and the dashboard's richer
-  analytics widgets (still representative figures — see § Phase 4).
+  its stage stepper, and lead → contract conversion. See § Phase 5.
+- **Phase 6 (diary) landed 2026-08-02**, taken BEFORE 5b at Brad's call — nothing in the diary
+  depends on quotes. It merged the two appointment tables, built `/diary` (day/week time grid +
+  month), the shared booking dialog, the TimePicker, the contract's Fitting tab and the slot finder.
+  That closed every placeholder pointing at it: "Book appointment", "Live availability coming soon",
+  the Fitting tab, and the last native input. See § Phase 6.
+- **Phase 5b (the line-item quote builder) is what remains of Phase 5**, and is where the lead
+  record's **Quotes** tab finally arrives.

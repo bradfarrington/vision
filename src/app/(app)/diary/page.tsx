@@ -12,7 +12,11 @@ import {
   windowLabel,
   type DiaryView,
 } from "@/lib/diary";
+import Link from "next/link";
+
 import { DiaryNav } from "@/components/crm/diary-nav";
+import { Icon, TOOLBAR_H, btnSecondary } from "@/components/crm/primitives";
+import { cn } from "@/lib/utils";
 import { DiaryDayView, DiaryWeekView } from "@/components/crm/diary-views";
 import { DiaryMonth } from "@/components/crm/diary-month";
 import { DiaryFiltersButton } from "@/components/crm/diary-filters";
@@ -106,7 +110,12 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
             <div className="ml-auto flex items-center gap-2.5">
               <DiaryFiltersButton staff={staff} />
               <ViewToggle views={DIARY_VIEWS} />
-              {/* Booking lands in Stage 3 with the shared appointment dialog. */}
+              {/* "When can we fit this in?" is a different question from
+                  "what's on Tuesday", so it's its own screen rather than a
+                  mode of this one. */}
+              <Link href="/diary/slots" className={cn(TOOLBAR_H, btnSecondary)}>
+                <Icon name="search" size={13} strokeWidth={1.75} /> Find a slot
+              </Link>
             </div>
           </div>
         </div>
