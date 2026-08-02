@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { CONTRACT_STAGES } from "@/lib/contracts";
 import { addNote } from "@/app/(app)/notes/actions";
+import type { Database } from "@/lib/supabase/types";
 import {
   CONTRACTS_PAGE_SIZE,
   getBoardColumn,
@@ -72,15 +73,17 @@ export async function setContractStage(contractId: string, stage: string): Promi
   const patch: Record<string, unknown> = { stage };
 
   if (def.dateColumn && def.dateColumn !== "contract_date" && def.dateColumn !== "cancel_date") {
-    // Read first so an existing date is left alone.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as unknown as { from(t: string): any };
-    const { data } = await db
+    // Read first so an existing date is left alone. The column name comes from
+    // the stage registry rather than a literal, so PostgREST's generated types
+    // can't resolve the row shape — hence the cast. NOT a types-lag artefact;
+    // it stays even with types current.
+    const { data } = await supabase
       .from("contracts")
       .select(def.dateColumn)
       .eq("id", contractId)
       .maybeSingle();
-    if (data && !data[def.dateColumn]) patch[def.dateColumn] = new Date().toISOString();
+    const row = data as Record<string, string | null> | null;
+    if (row && !row[def.dateColumn]) patch[def.dateColumn] = new Date().toISOString();
   }
 
   // The cancelled stage carries the cancellation flags with it, so the closed
@@ -92,9 +95,10 @@ export async function setContractStage(contractId: string, stage: string): Promi
     patch.contract_cancelled = false;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as unknown as { from(t: string): any };
-  const { error } = await db.from("contracts").update(patch).eq("id", contractId);
+  const { error } = await supabase
+    .from("contracts")
+    .update(patch as Database["public"]["Tables"]["contracts"]["Update"])
+    .eq("id", contractId);
   if (error) throw new Error(`setContractStage: ${error.message}`);
 
   revalidatePath(`/contracts/${contractId}`);
@@ -135,9 +139,10 @@ export async function updateContractField(
   }
 
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as unknown as { from(t: string): any };
-  const { error } = await db.from("contracts").update({ [field]: normalised }).eq("id", id);
+  const { error } = await supabase
+    .from("contracts")
+    .update({ [field]: normalised } as Database["public"]["Tables"]["contracts"]["Update"])
+    .eq("id", id);
   if (error) return { error: error.message };
 
   revalidatePath(`/contracts/${id}`);
@@ -161,9 +166,7 @@ export async function toggleContractChecklistItem(
   done: boolean,
 ): Promise<void> {
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as unknown as { from(t: string): any };
-  const { error } = await db
+  const { error } = await supabase
     .from("contract_checklist_items")
     .update({
       status: done ? "complete" : "pending",
@@ -203,10 +206,8 @@ export async function convertLeadToContract(
   },
 ): Promise<ConvertResult> {
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as unknown as { from(t: string): any; rpc(fn: string, args: object): any };
 
-  const { data: lead, error: leadError } = await db
+  const { data: lead, error: leadError } = await supabase
     .from("leads")
     .select(
       `id, customer_id, gross_value, estimated_value, source, salesman, sales_area,
@@ -225,7 +226,7 @@ export async function convertLeadToContract(
 
   // One contract per lead. Converting twice would split one job's history in
   // two, and there is no way back once payments are recorded against both.
-  const { data: existing } = await db
+  const { data: existing } = await supabase
     .from("contracts")
     .select("id")
     .eq("lead_id", leadId)
@@ -236,7 +237,7 @@ export async function convertLeadToContract(
 
   // Per-tenant, gap-tolerant reference — the same counter leads and customers
   // use. Derives the tenant from the JWT, so it can only ever advance our own.
-  const { data: number, error: refError } = await db.rpc("next_reference", {
+  const { data: number, error: refError } = await supabase.rpc("next_reference", {
     p_name: "contract",
   });
   if (refError) return { error: `Could not allocate a contract number: ${refError.message}` };
@@ -285,16 +286,16 @@ export async function convertLeadToContract(
     invoice_same_as_customer: lead.invoice_same_as_customer,
   };
 
-  const { data: created, error } = await db
+  const { data: created, error } = await supabase
     .from("contracts")
-    .insert(payload)
+    .insert(payload as Database["public"]["Tables"]["contracts"]["Insert"])
     .select("id")
     .single();
   if (error) return { error: error.message };
 
   // The lead is won BY the conversion — recording it here keeps the two facts
   // from disagreeing, rather than relying on someone also dragging the card.
-  await db
+  await supabase
     .from("leads")
     .update({ status: "won", result: "won", result_date: new Date().toISOString() })
     .eq("id", leadId);

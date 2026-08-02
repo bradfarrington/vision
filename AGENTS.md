@@ -1753,9 +1753,9 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   `npx supabase gen types typescript --linked > src/lib/supabase/types.ts`, then `npx tsc --noEmit`,
   then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
   doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
-  2026-08-02**, through `20260802090000_contracts_site_address` — every migration is applied to the
-  remote and the types regenerated, so BOTH the leads and contracts tables' `site_*` columns are
-  reflected and nothing is stale.
+  2026-08-02**, through `20260802091000_contracts_phase5` — every migration is applied to the remote
+  and the types regenerated, so the leads and contracts `site_*` columns AND the contract `stage` /
+  stage-date / `quote_id` columns are all reflected. Nothing is stale.
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
@@ -1774,17 +1774,14 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   schema cache reloaded and `types.ts` regenerated + committed. It RENAMEd `installation_*` address
   columns → `site_*`, folded `fitting_*` in as a fallback, and DROPped the `fitting_*` address columns
   + `fitting_same_as_customer`. See § Site address below.
-  **OUTSTANDING (apply by hand): `20260802091000_contracts_phase5.sql`** — adds the contract `stage`
-  column + its per-stage date columns, the nullable `quote_id` (added now so Phase 5b's agreed-quote
-  link is a write, not a migration), the **missing per-tenant unique index on
+  **`20260802091000_contracts_phase5.sql` — APPLIED 2026-08-02**, cache reloaded, types regenerated
+  and committed, and every cast it had forced was tightened in the same session. It added the
+  contract `stage` column + its per-stage date columns, the nullable `quote_id` (so Phase 5b's
+  agreed-quote link is a write, not a migration), the **missing per-tenant unique index on
   `(company_id, contract_number)`** that leads has always had, and the board's `(company_id, stage)`
-  index. A schema change, so it needs the **cache reload AND a types regen + commit**. It is
-  idempotent (`add column if not exists` / `create index if not exists`), so it is safe to re-run.
-  **Until it is applied, `/contracts` will error** — the list and board read `stage`. The one place
-  that names `stage` in a select (`getContractPipeline`) carries a documented loose cast, because
-  `types.ts` predates the migration; **tighten it after the regen.**
+  index. Idempotent (`add column if not exists` / `create index if not exists`), so safe to re-run.
 
-  **APPLIED 2026-08-02, both — nothing else is outstanding:**
+  **APPLIED 2026-08-02, all three — nothing is outstanding:**
   `20260724090000_appointment_type_defaults` (seeds the `appointment_type` lookup for every tenant so
   the New Lead wizard's Appointment step has its pick-list — a pure `insert … on conflict do nothing`,
   no schema change, so it needed no type regen and is safe to RE-RUN as tenants are added) and

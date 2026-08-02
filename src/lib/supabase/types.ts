@@ -1164,6 +1164,7 @@ export type Database = {
           cancel_date: string | null
           cancel_reason: string | null
           company_id: string
+          completed_date: string | null
           contract_cancelled: boolean | null
           contract_date: string | null
           contract_number: number | null
@@ -1181,6 +1182,8 @@ export type Database = {
           hold_date_on: string | null
           hold_reason: string | null
           id: string
+          install_end_date: string | null
+          install_start_date: string | null
           installation_completed: string | null
           installation_manager: string | null
           insurance_backed_guarantee_ref: string | null
@@ -1199,6 +1202,8 @@ export type Database = {
           office_reference_2: string | null
           old_balance_reason: string | null
           on_hold: boolean | null
+          order_date: string | null
+          quote_id: string | null
           sales_area: string | null
           sales_director: string | null
           salesman: string | null
@@ -1215,14 +1220,17 @@ export type Database = {
           site_town: string | null
           site_what_3_words: string | null
           source: string | null
+          stage: string | null
           status: string | null
           supply_only: boolean | null
+          survey_date: string | null
         }
         Insert: {
           balance_reason?: string | null
           cancel_date?: string | null
           cancel_reason?: string | null
           company_id: string
+          completed_date?: string | null
           contract_cancelled?: boolean | null
           contract_date?: string | null
           contract_number?: number | null
@@ -1240,6 +1248,8 @@ export type Database = {
           hold_date_on?: string | null
           hold_reason?: string | null
           id?: string
+          install_end_date?: string | null
+          install_start_date?: string | null
           installation_completed?: string | null
           installation_manager?: string | null
           insurance_backed_guarantee_ref?: string | null
@@ -1258,6 +1268,8 @@ export type Database = {
           office_reference_2?: string | null
           old_balance_reason?: string | null
           on_hold?: boolean | null
+          order_date?: string | null
+          quote_id?: string | null
           sales_area?: string | null
           sales_director?: string | null
           salesman?: string | null
@@ -1274,14 +1286,17 @@ export type Database = {
           site_town?: string | null
           site_what_3_words?: string | null
           source?: string | null
+          stage?: string | null
           status?: string | null
           supply_only?: boolean | null
+          survey_date?: string | null
         }
         Update: {
           balance_reason?: string | null
           cancel_date?: string | null
           cancel_reason?: string | null
           company_id?: string
+          completed_date?: string | null
           contract_cancelled?: boolean | null
           contract_date?: string | null
           contract_number?: number | null
@@ -1299,6 +1314,8 @@ export type Database = {
           hold_date_on?: string | null
           hold_reason?: string | null
           id?: string
+          install_end_date?: string | null
+          install_start_date?: string | null
           installation_completed?: string | null
           installation_manager?: string | null
           insurance_backed_guarantee_ref?: string | null
@@ -1317,6 +1334,8 @@ export type Database = {
           office_reference_2?: string | null
           old_balance_reason?: string | null
           on_hold?: boolean | null
+          order_date?: string | null
+          quote_id?: string | null
           sales_area?: string | null
           sales_director?: string | null
           salesman?: string | null
@@ -1333,8 +1352,10 @@ export type Database = {
           site_town?: string | null
           site_what_3_words?: string | null
           source?: string | null
+          stage?: string | null
           status?: string | null
           supply_only?: boolean | null
+          survey_date?: string | null
         }
         Relationships: [
           {
@@ -1356,6 +1377,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
         ]

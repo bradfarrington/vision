@@ -497,14 +497,8 @@ export async function getContractPipeline(
   void _stage;
   const resolved =
     search !== undefined ? search : await resolveSearch(client, filters.search);
-  // `stage` is added by 20260802091000 and so is not in the generated types
-  // until that migration is applied and `types.ts` regenerated. Naming it in a
-  // select is otherwise a compile error. TIGHTEN THIS once the types are
-  // refreshed — see AGENTS.md § KEEP types.ts IN SYNC.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = client as unknown as { from(t: string): any };
   const q = applyContractFilters(
-    db.from("contracts").select("stage, gross_value"),
+    client.from("contracts").select("stage, gross_value"),
     rest,
     resolved,
   );
@@ -512,7 +506,7 @@ export async function getContractPipeline(
   if (error) throw new Error(`getContractPipeline: ${error.message}`);
 
   const buckets = new Map<string, StageBucket>();
-  for (const row of (data ?? []) as { stage: string | null; gross_value: number | null }[]) {
+  for (const row of data ?? []) {
     const key = row.stage ?? "signed";
     const value = Number(row.gross_value ?? 0);
     const b = buckets.get(key) ?? { key, count: 0, value: 0 };
