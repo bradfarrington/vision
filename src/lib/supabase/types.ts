@@ -1173,16 +1173,7 @@ export type Database = {
           customer_id: string | null
           delivery_method: string | null
           estimated_fitting_days: number | null
-          fitting_county: string | null
           fitting_directions: string | null
-          fitting_house_name: string | null
-          fitting_house_number: string | null
-          fitting_locality: string | null
-          fitting_postcode: string | null
-          fitting_same_as_customer: boolean | null
-          fitting_street: string | null
-          fitting_town: string | null
-          fitting_what_3_words: string | null
           gross_value: number | null
           guarantee_date: string | null
           guarantee_number: string | null
@@ -1214,6 +1205,15 @@ export type Database = {
           send_letters_to_fitting: boolean | null
           signboard_date: string | null
           signboard_left: boolean | null
+          site_county: string | null
+          site_house_name: string | null
+          site_house_number: string | null
+          site_locality: string | null
+          site_postcode: string | null
+          site_same_as_customer: boolean | null
+          site_street: string | null
+          site_town: string | null
+          site_what_3_words: string | null
           source: string | null
           status: string | null
           supply_only: boolean | null
@@ -1232,16 +1232,7 @@ export type Database = {
           customer_id?: string | null
           delivery_method?: string | null
           estimated_fitting_days?: number | null
-          fitting_county?: string | null
           fitting_directions?: string | null
-          fitting_house_name?: string | null
-          fitting_house_number?: string | null
-          fitting_locality?: string | null
-          fitting_postcode?: string | null
-          fitting_same_as_customer?: boolean | null
-          fitting_street?: string | null
-          fitting_town?: string | null
-          fitting_what_3_words?: string | null
           gross_value?: number | null
           guarantee_date?: string | null
           guarantee_number?: string | null
@@ -1273,6 +1264,15 @@ export type Database = {
           send_letters_to_fitting?: boolean | null
           signboard_date?: string | null
           signboard_left?: boolean | null
+          site_county?: string | null
+          site_house_name?: string | null
+          site_house_number?: string | null
+          site_locality?: string | null
+          site_postcode?: string | null
+          site_same_as_customer?: boolean | null
+          site_street?: string | null
+          site_town?: string | null
+          site_what_3_words?: string | null
           source?: string | null
           status?: string | null
           supply_only?: boolean | null
@@ -1291,16 +1291,7 @@ export type Database = {
           customer_id?: string | null
           delivery_method?: string | null
           estimated_fitting_days?: number | null
-          fitting_county?: string | null
           fitting_directions?: string | null
-          fitting_house_name?: string | null
-          fitting_house_number?: string | null
-          fitting_locality?: string | null
-          fitting_postcode?: string | null
-          fitting_same_as_customer?: boolean | null
-          fitting_street?: string | null
-          fitting_town?: string | null
-          fitting_what_3_words?: string | null
           gross_value?: number | null
           guarantee_date?: string | null
           guarantee_number?: string | null
@@ -1332,6 +1323,15 @@ export type Database = {
           send_letters_to_fitting?: boolean | null
           signboard_date?: string | null
           signboard_left?: boolean | null
+          site_county?: string | null
+          site_house_name?: string | null
+          site_house_number?: string | null
+          site_locality?: string | null
+          site_postcode?: string | null
+          site_same_as_customer?: boolean | null
+          site_street?: string | null
+          site_town?: string | null
+          site_what_3_words?: string | null
           source?: string | null
           status?: string | null
           supply_only?: boolean | null
