@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { LEAD_STAGES, isLiveLead, leadRef } from "@/lib/leads";
+import { LEAD_STAGES, contractRef, isLiveLead, leadRef } from "@/lib/leads";
 import { isCommercial } from "@/lib/format";
 import {
   DOCUMENT_SELECT,
@@ -630,6 +630,12 @@ export type LeadDetail = {
   documents: DocumentItem[];
   /** Appointments booked against this lead (sales call, survey…), soonest first. */
   appointments: LeadAppointment[];
+  /**
+   * The contract this lead was converted into, if it has been. Present so the
+   * header's "Convert to Contract" becomes "View contract" rather than offering
+   * a second conversion — converting twice would split one job's history in two.
+   */
+  contract: { id: string; ref: string; contractNumber: number | null } | null;
 };
 
 export type LeadAppointment = {
@@ -719,6 +725,7 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
        lead_notes(id, content, created_at),
        lead_checklist_items(id, action_name, status, due_date, priority, completed_at, completed_by_name),
        appointments(id, title, type, date, time, duration, assigned_to, status, notes),
+       contracts(id, contract_number),
        activities(id, type, description, created_at)`,
     )
     .eq("id", id)
@@ -839,6 +846,14 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
       }))
       // Soonest first — an upcoming appointment is what staff look for.
       .sort((a, b) => +new Date(a.date ?? 0) - +new Date(b.date ?? 0)),
+    // One contract per lead, so the embed's first row is THE contract.
+    contract: l.contracts?.[0]
+      ? {
+          id: l.contracts[0].id,
+          ref: contractRef(l.contracts[0].contract_number),
+          contractNumber: l.contracts[0].contract_number,
+        }
+      : null,
   };
 }
 

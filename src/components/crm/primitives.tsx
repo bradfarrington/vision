@@ -43,17 +43,22 @@ export function Avatar({ name, size = 32, tone = "neutral", className }: AvatarP
 }
 
 // ---------------------------------------------------------------------------
-// Stage badge — the lead pipeline pill. Resolves a `leads.status` string to its
-// stage + tone. The `new` stage carries a leading dot per the design system.
+// Stage badge — the pipeline pill. Resolves a raw stage string to its label +
+// tone. Defaults to the LEAD stage model; `resolve` swaps in another entity's
+// registry (contracts pass `contractStage`), so both read identically and there
+// is only ever one copy of the badge geometry.
 // ---------------------------------------------------------------------------
 export function StageBadge({
   status,
+  resolve = leadStage,
   className,
 }: {
   status: string | null | undefined;
+  /** Stage registry lookup. Any `(raw) => { label, tone }` works. */
+  resolve?: (status: string | null | undefined) => { label: string; tone: StageTone };
   className?: string;
 }) {
-  const stage = leadStage(status);
+  const stage = resolve(status);
   return (
     <span
       className={cn(

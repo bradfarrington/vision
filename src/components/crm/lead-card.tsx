@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { gbp } from "@/lib/format";
+import { gbp, humanLabel } from "@/lib/format";
 import { leadRef, contractRef } from "@/lib/leads";
 import type { CustomerLead, ContractSummary } from "@/lib/data/customers";
 import { StageBadge, Pill, RefChip } from "./primitives";
@@ -43,7 +43,12 @@ export function ContractCard({
   fromLead?: string;
 }) {
   return (
-    <div className="rounded-xl border border-[#e7e7ea] bg-white px-[18px] py-4 shadow-[0_4px_12px_rgba(10,10,10,0.06)]">
+    // A LINK as of Phase 5. It always carried a chevron, but until the contract
+    // record existed there was nowhere for it to go.
+    <Link
+      href={`/contracts/${contract.id}`}
+      className="block rounded-xl border border-[#e7e7ea] bg-white px-[18px] py-4 shadow-[0_4px_12px_rgba(10,10,10,0.06)] transition-colors hover:bg-[#fafafa]"
+    >
       <div className="flex items-center gap-3.5">
         <RefChip inverted>{contractRef(contract.contract_number)}</RefChip>
         <div className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-[#0a0a0a]">
@@ -53,9 +58,13 @@ export function ContractCard({
         <div className="shrink-0 text-[14px] font-bold text-[#0a0a0a]">
           {gbp(contract.gross_value)}
         </div>
-        <Pill tone="amber">{contract.status ?? "In progress"}</Pill>
+        {/* humanLabel, not the raw column: `status` is stored lowercase
+            ("active") and no raw enum reaches the UI. */}
+        <Pill tone="amber">
+          {contract.status ? humanLabel(contract.status) : "In progress"}
+        </Pill>
         <span className="shrink-0 text-[#a1a1aa]">›</span>
       </div>
-    </div>
+    </Link>
   );
 }

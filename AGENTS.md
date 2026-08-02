@@ -937,10 +937,124 @@ Checklist, drag-reorderable and saved per user under `lead_tabs`. Its old tab ba
   customer says so instead of half-working.
 - **`getLead` loads the owning customer's documents alongside the lead's**, so an existing file can be
   attached instead of uploaded twice; `DocumentItem` gained `leadId` so the tab still counts its own.
-- **Quotes is deliberately NOT a tab yet** — it arrives with Phase 5. A dead tab is worse than a
-  missing one.
+- **Quotes is deliberately NOT a tab yet** — it arrives with **Phase 5b**, the line-item quote
+  builder (Phase 5a shipped contracts only). A dead tab is worse than a missing one.
 - `LeadDetail.noteThread` is the shared `NoteItem[]`; `LeadDetail.notes` is still the lead row's own
   free-text column. Different things, hence the name.
+
+# Phase 5 — Quoting & contracts
+
+## Contracts and quotes are TRANSCRIBED, not designed — decided 2026-08-02
+
+**Do not carry Phase 4's "design coverage is uneven, so design it net-new" note into this phase.**
+`Vision CRM Screens.dc.html` has authoritative screens for all of it: **05**–**05i** (contract record
+and its nine tabs), **04c**/**04d** (quotes on a lead), **11a**–**11d** (quote list, items, product
+picker, item designer), **12** (pricing engine), **13** (internal costing), **14** (quote → supplier
+order). Phase 4 had to invent the leads list and both wizards because no screen existed; here the
+opposite applies — read the screen first.
+
+Three scope decisions taken with Brad on 2026-08-02:
+
+1. **Phase 5 ships the LINE-ITEM quote builder only** (`04d`). The catalogue-backed product picker
+   (`11c`), the graph-paper item designer (`11d`), the pricing engine (`12`) and supplier ordering
+   (`14`) are deferred — see § What is deferred.
+2. **A contract is created by CONVERSION FROM A LEAD ONLY.** No "New Contract" button on the list.
+   This matches `contracts.lead_id not null`, and the rejected alternative — a standalone wizard —
+   would have had to mint a phantom lead to satisfy the FK, which then shows up on the customer's
+   record as an enquiry that never happened.
+3. **Quotes get two doors**: a Quotes tab on the lead record (`04c`) and a top-level `/quoting` list
+   of every quote (`11a`). Same rows, two routes; the Quoting nav item goes live with them.
+
+## The contract record — built 2026-08-02
+
+`/contracts` and `/contracts/[id]`, transcribed from screen 05 and built as the **third consumer** of
+the shared list machinery — which is exactly what § One list machinery said contracts would be.
+
+- **`stage` sits BESIDE `status`, and they mean different things.** `contracts.stage` is how far the
+  JOB has got (Signed → Survey → Ordered → Delivery → Installation → Complete → Cancelled);
+  `contracts.status` + `contract_cancelled` stay the alive/cancelled axis. Same split as
+  `leads.status` / `leads.result`, and it is what lets a contract be "cancelled while at the Ordered
+  stage" without either fact overwriting the other. Registry in `src/lib/contracts.ts`
+  (`CONTRACT_STAGES`, `contractStage()`, `STEPPER_STAGES`, `stageIndex()`).
+- **Stage tones REUSE the lead badge palette** via the shared `StageTone`, so a stage pill reads
+  identically wherever it appears. `StageBadge` (`primitives.tsx`) gained a **`resolve` prop**
+  defaulting to `leadStage` — contracts pass `contractStage`. **Don't fork the badge**; there is one
+  copy of that geometry.
+- **Each stage carries its own date column** (`survey_date`, `order_date`, `install_start_date`,
+  `install_end_date`, `completed_date`; Signed reads the existing `contract_date`). **Delivery has no
+  contract-level date on purpose** — `delivery_lines` carries per-line due dates, and a single
+  contract-level one would immediately disagree with them once Phase 7 lands.
+- **`setContractStage` stamps a stage's date only if it is EMPTY.** When a job was first surveyed is
+  a fact; dragging a card back and forth on the board must not rewrite history.
+- **The stepper is CLICKABLE**, not a picture. Every step moves the job, so the stepper does the same
+  work as the header dropdown rather than sitting inertly beside the only control that changes it.
+  A cancelled contract has no position in it — the header badge carries that instead.
+- **FIVE tabs, not the design's nine**: Overview · Financials · Notes · Documents · Checklist.
+  Communications, Fitting, Deliveries & stock and Service calls belong to Phases 6/7/8, and **a dead
+  tab is worse than a missing one** — the same call that kept Quotes off the lead record until now.
+- **Notes and documents are the SHARED panels, third use, no fork.** `NotesPanel`'s `fixedLeadId`
+  was generalised to **`fixedLink: { kind: "lead" | "contract"; id }`** — on either record the note
+  is about that record by definition, so the picker hides and `customer_id` still gets set. An edit
+  with the picker hidden keeps the note's existing link.
+- **`DocumentItem` gained `contractId`** alongside `leadId` (and both selects now name
+  `contract_id`), so the Documents tab can count its own files apart from the customer's.
+- **Financials reads `finance_lines`/`finance_payments`** and computes the balance the same way the
+  customer record already does — value minus everything recorded as paid. Outstanding renders red
+  ONLY when there is something outstanding; a settled contract showing a red zero cries wolf.
+
+### The board is SHARED now — `board.tsx` — decided 2026-08-02
+
+**The kanban was extracted out of `lead-board.tsx` into `src/components/crm/board.tsx` when contracts
+became its second consumer.** A board screen is a **`BoardSpec`**, not a copy — same rule, and the
+same reason, as `data-list.tsx`: everything hard-won in there is behavioural (optimistic moves that
+revert on failure, the 6px drag-vs-click threshold plus the `justDragged` click suppression, the
+per-column infinite scroll, fixed-height columns that scroll their own cards) and a fork lets one
+board silently regress it. `lead-board.tsx` and `contract-board.tsx` are now ~30 lines each.
+
+- **The spec owns:** `name` (→ the stable `board-${name}` DndContext id), `stageOf`/`withStage`,
+  `resolveStage`, `rowHref`, `defaultStage`, `loadColumn`, `moveToStage`.
+- **`moveToStage` MUST return its error rather than throw** — the board moves optimistically and has
+  to decide whether to keep the move or put the card back. That is why `moveContractToStage` wraps
+  `setContractStage` exactly as `moveLeadToStage` wraps `setLeadStage`.
+- **The board iterates every stage including the closed ones** (`CONTRACT_STAGES`, not
+  `STEPPER_STAGES`) — a kanban must have somewhere to drop every state.
+
+### Conversion — lead → contract — built 2026-08-02
+
+`convertLeadToContract` in `src/app/(app)/contracts/actions.ts`, wired to the lead header's
+previously-placeholder "Convert to Contract" button.
+
+- **A DIALOG, not a wizard.** The lead already holds nearly everything, so it asks ONLY what
+  conversion itself decides — contract date, type, install manager, value, estimated fitting days.
+  Re-collecting the enquiry in five steps would be the same dead end the New Lead flow was built to
+  remove.
+- **The lead's data carries across** (per § Contracts got the same treatment): customer, site
+  address, salesperson, source, value, delivery method, office refs, directions. The contract then
+  **owns its copy** — a later edit to the lead must not rewrite a signed contract.
+- **`contract_number` comes from `next_reference('contract')`** — the same per-tenant, gap-tolerant
+  counter as leads and customers, deriving the tenant from the JWT.
+- **ONE contract per lead.** The action refuses a second conversion, and the header button becomes
+  **"View contract"** once one exists: converting twice would split one job's history in two, with no
+  way back once payments are recorded against both. `getLead` now embeds `contracts(id,
+  contract_number)` so the header knows.
+- **The lead is set to won by the conversion itself**, in the same action, so the two facts can't
+  disagree with each other.
+- **Returns `{ contractId }` rather than redirecting** — the client owns the navigation, the shape
+  `createLead` settled on.
+- **The customer record's contract rows now link to `/contracts/[id]`.** The overview digest used to
+  link a contract to its originating LEAD, and `ContractCard` had a chevron pointing nowhere at all —
+  both were stand-ins for a record that didn't exist yet.
+
+### What is deferred, and why
+
+| Screen | Why not now |
+| --- | --- |
+| `11c` product picker | Needs a product/range catalogue; `products` exists but not the range/option model |
+| `11d` item designer | A window configurator in its own right — canvas, openers, live repricing; needs the catalogue first |
+| `12` pricing engine | The supplier APIs it draws on are marked `PROPOSED` in the design itself |
+| `13` internal costing | Needs staff hourly rates + the costing model |
+| `14` quote → supplier order | Phase 7 (stock & purchase orders) |
+| `05a/b/c/e` contract tabs | Communications, Fitting, Deliveries, Service calls — Phases 6/7/8 |
 
 ## New Customer wizard — built 2026-07-22
 
@@ -1615,7 +1729,17 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   schema cache reloaded and `types.ts` regenerated + committed. It RENAMEd `installation_*` address
   columns → `site_*`, folded `fitting_*` in as a fallback, and DROPped the `fitting_*` address columns
   + `fitting_same_as_customer`. See § Site address below.
-  **APPLIED 2026-08-02, both — nothing is outstanding:**
+  **OUTSTANDING (apply by hand): `20260802091000_contracts_phase5.sql`** — adds the contract `stage`
+  column + its per-stage date columns, the nullable `quote_id` (added now so Phase 5b's agreed-quote
+  link is a write, not a migration), the **missing per-tenant unique index on
+  `(company_id, contract_number)`** that leads has always had, and the board's `(company_id, stage)`
+  index. A schema change, so it needs the **cache reload AND a types regen + commit**. It is
+  idempotent (`add column if not exists` / `create index if not exists`), so it is safe to re-run.
+  **Until it is applied, `/contracts` will error** — the list and board read `stage`. The one place
+  that names `stage` in a select (`getContractPipeline`) carries a documented loose cast, because
+  `types.ts` predates the migration; **tighten it after the regen.**
+
+  **APPLIED 2026-08-02, both — nothing else is outstanding:**
   `20260724090000_appointment_type_defaults` (seeds the `appointment_type` lookup for every tenant so
   the New Lead wizard's Appointment step has its pick-list — a pure `insert … on conflict do nothing`,
   no schema change, so it needed no type regen and is safe to RE-RUN as tenants are added) and
@@ -1634,7 +1758,11 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   the JWT carries no `company_id` and every tenant read is empty.
 - **Phase 4 closed on 2026-07-23.** The lead side caught up with the customer side: `/leads` runs on
   the shared list machinery, the lead record has real tabs with the shared notes/documents panels,
-  New Lead is a staged wizard, and every lead pick-list is a tenant-editable lookup. What is
-  deliberately still open: the lead record's **Quotes** tab (Phase 5 builds it), the "Book survey" and
-  "Convert to Contract" buttons in the lead header (both still visual placeholders, Phases 6 and 5),
-  and the dashboard's richer analytics widgets (still representative figures — see § Phase 4).
+  New Lead is a staged wizard, and every lead pick-list is a tenant-editable lookup.
+- **Phase 5a (contracts) landed 2026-08-02** — `/contracts` list + board, the contract record with
+  its stage stepper, and lead → contract conversion, which turned the lead header's
+  "Convert to Contract" placeholder into the real thing. See § Phase 5. **Phase 5b (the line-item
+  quote builder) is next**, and is where the lead record's **Quotes** tab finally arrives.
+  Still deliberately open after 5a: **"Book appointment"** in the lead header (a placeholder until the
+  Phase 6 diary), the four contract tabs deferred to Phases 6/7/8, and the dashboard's richer
+  analytics widgets (still representative figures — see § Phase 4).

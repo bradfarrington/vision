@@ -5,7 +5,7 @@ import { getLead, type AddressParts, type LeadDetail } from "@/lib/data/leads";
 import { getTenantOptionLists, type TenantOption } from "@/lib/data/customer-record";
 import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
 import { gbp, humanLabel } from "@/lib/format";
-import { Card, CardTitle, Icon, Pill, RefChip, btnPrimary, btnSecondary } from "@/components/crm/primitives";
+import { Card, CardTitle, Icon, Pill, RefChip, btnSecondary } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
 import { updateLeadField } from "@/app/(app)/leads/actions";
 import { addSalesStaff, deleteSalesStaff } from "@/app/(app)/customers/actions";
@@ -16,6 +16,7 @@ import { NotesPanel } from "@/components/crm/notes-panel";
 import { DocumentsPanel } from "@/components/crm/documents-panel";
 import { getUserOrder } from "@/lib/data/user-layouts";
 import { ChecklistToggle, StageChanger } from "@/components/crm/lead-interactions";
+import { ConvertToContractButton } from "@/components/crm/convert-to-contract";
 import { cn } from "@/lib/utils";
 
 // Lead detail — transcribed from `Vision CRM Screens.dc.html` screen 04.
@@ -38,6 +39,8 @@ export default async function LeadDetailPage({
       "result_reason",
       "salesperson_type",
       "document_category",
+      // For the Convert to Contract dialog's type picker.
+      "contract_type",
     ]),
     getSalesStaff(),
     getUserOrder("lead_tabs"),
@@ -77,12 +80,18 @@ export default async function LeadDetailPage({
           <button className={btnSecondary} type="button">
             <Icon name="calendar" size={13} strokeWidth={1.75} /> Book appointment
           </button>
-          <button
-            className={`${btnPrimary} shadow-[0_4px_12px_rgba(47,125,225,0.25)]`}
-            type="button"
-          >
-            Convert to Contract <Icon name="arrow-right" size={13} />
-          </button>
+          {/* Live as of Phase 5: opens the conversion dialog, or links straight
+              to the contract once this lead has already been converted. */}
+          <ConvertToContractButton
+            leadId={lead.id}
+            leadRef={lead.ref}
+            defaultValue={lead.value}
+            defaultContractType={lead.productType}
+            contractTypes={opts.contract_type ?? []}
+            installManagers={salesStaff}
+            alreadyConverted={!!lead.contract}
+            contractId={lead.contract?.id ?? null}
+          />
         </div>
       </div>
 
@@ -103,11 +112,11 @@ export default async function LeadDetailPage({
             count: lead.noteThread.length,
             content: lead.customer ? (
               // The shared notes panel: stamped, versioned, with attachments.
-              // `fixedLeadId` files every new note against THIS lead while
+              // `fixedLink` files every new note against THIS lead while
               // keeping customer_id set, so it reads from both records.
               <NotesPanel
                 customerId={lead.customer.id}
-                fixedLeadId={lead.id}
+                fixedLink={{ kind: "lead", id: lead.id }}
                 notes={lead.noteThread}
                 documents={lead.documents}
                 linkTargets={[]}

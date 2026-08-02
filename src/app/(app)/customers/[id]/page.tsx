@@ -634,16 +634,17 @@ function ContractsCard({ c }: { c: CustomerRecord }) {
                 </span>
               </div>
             );
-            return k.lead_id ? (
+            // Straight to the CONTRACT as of Phase 5. This used to link to the
+            // originating lead, which was only ever a stand-in for a contract
+            // record that didn't exist yet.
+            return (
               <Link
                 key={k.id}
-                href={`/leads/${k.lead_id}`}
+                href={`/contracts/${k.id}`}
                 className="-mx-2 block rounded px-2 hover:bg-[#fafafa]"
               >
                 {row}
               </Link>
-            ) : (
-              <div key={k.id}>{row}</div>
             );
           })}
         </FitRows>

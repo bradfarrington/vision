@@ -17,6 +17,7 @@ import type { ViewColumns, ViewEntity, ViewQuery } from "@/lib/views/views";
 const PATHS: Record<ViewEntity, string> = {
   leads: "/leads",
   customers: "/customers",
+  contracts: "/contracts",
 };
 
 type Result = { id?: string; error?: string };

@@ -60,15 +60,33 @@ Goal: if the platform ever outgrows one database, tenants can be moved in groups
 - [x] Lead stage transitions + stage badges per design
 - [x] Dashboard v1: KPI stats, pipeline by stage, lead sources, today's diary (live data)
 
-Carried into later phases by design: the lead record's **Quotes** tab and the "Convert to Contract"
-button (Phase 5), "Book survey" (Phase 6), and the dashboard's richer analytics widgets (team
-performance / revenue-by-month still show representative figures until their data paths land).
+Carried into later phases by design: the lead record's **Quotes** tab (Phase 5b), "Book appointment"
+(Phase 6), and the dashboard's richer analytics widgets (team performance / revenue-by-month still
+show representative figures until their data paths land). "Convert to Contract" went live in Phase 5a.
 
 ## Phase 5 — Quoting & contracts
-- [ ] Quote builder: line items, pricing, gross/net, VAT
-- [ ] Quote send/track states (sent, awaiting decision, accepted, lost)
-- [ ] Convert quote → contract (dialog per design); contract numbering
-- [ ] Contract detail: payments/stage tracking
+
+### Phase 5a — Contracts — DONE 2026-08-02
+- [x] Contracts list + kanban board on the shared list machinery (third consumer); saved views, card
+      fields, date range, continuous scroll — `contracts-list.tsx`, `contract-board.tsx`
+- [x] Contract stage model beside the alive/cancelled axis, with per-stage dates — `lib/contracts.ts`
+- [x] Contract detail: tabbed record (Overview · Financials · Notes · Documents · Checklist), bento
+      overview, clickable stage stepper, map on the site address
+- [x] Convert lead → contract (dialog per design); contract numbering via `next_reference('contract')`;
+      the lead's data carries across and the contract then owns it
+- [x] The kanban extracted into a SHARED `board.tsx` — a board is a `BoardSpec`, not a copy
+
+### Phase 5b — Quotes (next)
+- [ ] Quote builder: line items, qty/unit price, discount, gross/net, VAT (design screen 04d)
+- [ ] Quote versions: draft → sent → locked → superseded; lock, then copy to a new version
+- [ ] Mark one locked quote as agreed; only an agreed quote converts
+- [ ] Quotes tab on the lead record (04c) + a top-level `/quoting` list (11a)
+- [ ] Link the agreed quote to its contract (`contracts.quote_id` already exists) and copy
+      `quote_items` → `contract_products`
+
+Deferred beyond Phase 5 and why: product catalogue + picker (11c), the item designer's drawing canvas
+(11d), the pricing engine and its supplier APIs (12, marked PROPOSED in the design itself), internal
+costing (13), and quote → supplier order (14, Phase 7).
 
 ## Phase 6 — Diary & scheduling
 - [ ] Week/day calendar: surveys, installations, service calls (fixed block-colour legend)

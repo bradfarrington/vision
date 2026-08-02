@@ -41,6 +41,14 @@ import { documentRef, noteRef } from "@/lib/leads";
 
 export type NoteLinkTarget = { id: string; label: string; kind: "lead" | "contract" };
 
+/**
+ * The record a notes panel is EMBEDDED IN, when it is embedded in one. On a
+ * lead or contract every note is about that record, so the link picker is
+ * hidden and this is written instead. `customer_id` is still set alongside, so
+ * the note reads from the customer record too.
+ */
+export type FixedLink = { id: string; kind: "lead" | "contract" };
+
 const NO_LINK = "none";
 
 export function NotesPanel({
@@ -48,7 +56,7 @@ export function NotesPanel({
   notes,
   documents,
   linkTargets,
-  fixedLeadId,
+  fixedLink,
 }: {
   /**
    * The customer the notes and their files hang off. Required even in
@@ -63,10 +71,11 @@ export function NotesPanel({
   /** Leads + contracts a note can be pinned to. */
   linkTargets: NoteLinkTarget[];
   /**
-   * Set on a lead record: every new note is about THIS lead, so the link is
-   * fixed and its picker is hidden rather than offering other leads.
+   * Set on a LEAD or CONTRACT record: every new note is about that record by
+   * definition, so the link is fixed and its picker is hidden rather than
+   * offering other leads/contracts to file it wrongly against.
    */
-  fixedLeadId?: string;
+  fixedLink?: FixedLink;
 }) {
   // The composer's open state lives here so the empty state's button can open
   // it — with no notes there's one call to action, not a link and a card.
@@ -115,7 +124,7 @@ export function NotesPanel({
           {(!empty || composing) && (
             <NoteComposer
               customerId={customerId}
-              fixedLeadId={fixedLeadId}
+              fixedLink={fixedLink}
               linkTargets={linkTargets}
               documents={documents}
               open={composing}
@@ -131,7 +140,7 @@ export function NotesPanel({
                   <NoteRow
                     key={n.id}
                     customerId={customerId}
-                    fixedLeadId={fixedLeadId}
+                    fixedLink={fixedLink}
                     note={n}
                     attachments={attachmentsFor(n.id)}
                     linkTargets={linkTargets}
@@ -189,14 +198,14 @@ function EmptyNotes({ onAdd }: { onAdd: () => void }) {
 // --- Composer ---------------------------------------------------------------
 function NoteComposer({
   customerId,
-  fixedLeadId,
+  fixedLink,
   linkTargets,
   documents,
   open,
   setOpen,
 }: {
   customerId: string;
-  fixedLeadId?: string;
+  fixedLink?: FixedLink;
   linkTargets: NoteLinkTarget[];
   documents: DocumentItem[];
   open: boolean;
@@ -229,10 +238,22 @@ function NoteComposer({
     start(async () => {
       const res = await addNote({
         customerId,
-        // On a lead record the link is the lead itself; elsewhere it comes from
-        // the picker.
-        leadId: fixedLeadId ?? (target?.kind === "lead" ? target.id : null),
-        contractId: fixedLeadId ? null : target?.kind === "contract" ? target.id : null,
+        // On a lead or contract record the link is that record itself;
+        // elsewhere it comes from the picker.
+        leadId: fixedLink
+          ? fixedLink.kind === "lead"
+            ? fixedLink.id
+            : null
+          : target?.kind === "lead"
+            ? target.id
+            : null,
+        contractId: fixedLink
+          ? fixedLink.kind === "contract"
+            ? fixedLink.id
+            : null
+          : target?.kind === "contract"
+            ? target.id
+            : null,
         content: text,
       });
       if (res.error || !res.id) {
@@ -289,7 +310,7 @@ function NoteComposer({
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {/* On a lead record the note is about that lead by definition — offering
             a picker of other leads would only be a way to file it wrongly. */}
-        {!fixedLeadId && (
+        {!fixedLink && (
           <div className="min-w-[220px] flex-1">
             <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
           </div>
@@ -385,7 +406,7 @@ function NoteComposer({
 // --- One note ---------------------------------------------------------------
 function NoteRow({
   customerId,
-  fixedLeadId,
+  fixedLink,
   note,
   attachments,
   linkTargets,
@@ -395,7 +416,7 @@ function NoteRow({
   onPreview,
 }: {
   customerId: string;
-  fixedLeadId?: string;
+  fixedLink?: FixedLink;
   note: NoteItem;
   attachments: DocumentItem[];
   linkTargets: NoteLinkTarget[];
@@ -429,8 +450,11 @@ function NoteRow({
         text,
         // With the picker hidden, an edit must not silently unlink the note —
         // keep whatever it is already filed under.
-        fixedLeadId
-          ? { leadId: note.leadId ?? fixedLeadId, contractId: note.contractId ?? null }
+        fixedLink
+          ? {
+              leadId: note.leadId ?? (fixedLink.kind === "lead" ? fixedLink.id : null),
+              contractId: note.contractId ?? (fixedLink.kind === "contract" ? fixedLink.id : null),
+            }
           : {
               leadId: t?.kind === "lead" ? t.id : null,
               contractId: t?.kind === "contract" ? t.id : null,
@@ -496,7 +520,7 @@ function NoteRow({
             onChange={(e) => setDraft(e.target.value)}
             className="w-full resize-y rounded-lg border border-[#d4d4d8] bg-white px-3 py-2 text-[12.5px] text-[#0a0a0a] focus:border-[var(--accent-blue)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-tint)]"
           />
-          {!fixedLeadId && (
+          {!fixedLink && (
             <div className="mt-2 max-w-[280px]">
               <LinkPicker value={link} onChange={setLink} linkTargets={linkTargets} />
             </div>

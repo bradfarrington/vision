@@ -11,7 +11,7 @@
 // tell "this is the saved view" from "this is the saved view plus two changes".
 // ---------------------------------------------------------------------------
 
-export type ViewEntity = "leads" | "customers";
+export type ViewEntity = "leads" | "customers" | "contracts";
 
 /** The URL params a view owns. Everything else is transient or bookkeeping. */
 export type ViewQuery = Record<string, string>;

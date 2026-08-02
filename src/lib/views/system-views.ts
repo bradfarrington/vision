@@ -48,9 +48,24 @@ const CUSTOMER_VIEWS: SavedView[] = [
   sys("moved", "Moved away", { f_customer_moved_away: "1" }),
 ];
 
+// Every one of these is expressible in params the contracts list already
+// applies (`f_stage`/`f_on_hold` against its server allowlist, `range`,
+// `view`) — a system view that silently does nothing is worse than none.
+const CONTRACT_VIEWS: SavedView[] = [
+  { ...sys("all", "All contracts", {}), id: ALL_VIEW_ID },
+  sys("in-flight", "In progress", { f_stage: "installation" }),
+  sys("awaiting-survey", "Awaiting survey", { f_stage: "signed" }),
+  sys("ordered", "On order", { f_stage: "ordered" }),
+  sys("hold", "On hold", { f_on_hold: "1" }),
+  sys("signed-month", "Signed this month", { range: "this_month" }),
+  sys("complete-year", "Completed this year", { f_stage: "complete", range: "this_year" }),
+  sys("board", "Job board", { view: "board" }),
+];
+
 const BY_ENTITY: Record<ViewEntity, SavedView[]> = {
   leads: LEAD_VIEWS,
   customers: CUSTOMER_VIEWS,
+  contracts: CONTRACT_VIEWS,
 };
 
 export function systemViews(entity: ViewEntity): SavedView[] {
