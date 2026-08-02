@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export type StaffOption = { id: string; label: string };
 
+/** A staff member as a DIARY ROW — the role is shown under the name. */
+export type DiaryStaff = { id: string; name: string; role: string | null; initials: string };
+
 /** "brad farrington" → "Brad Farrington". Names are shown Title Case everywhere. */
 export function titleCaseName(s: string): string {
   return s
@@ -33,4 +36,37 @@ export async function getSalesStaff(): Promise<StaffOption[]> {
         titleCaseName([s.first_name, s.last_name].filter(Boolean).join(" ").trim()) ||
         "Staff member",
     }));
+}
+
+/**
+ * EVERY active staff member, for the diary's rows.
+ *
+ * Deliberately NOT `getSalesStaff()`: that filters to the sales role, and the
+ * diary's whole point is that installers and surveyors have days too — screen
+ * 07 has Dave and Ryan (installers) and Gary and Aaron (surveyors) as rows.
+ * Ordered by role then surname so the same trades sit together.
+ */
+export async function getDiaryStaff(): Promise<DiaryStaff[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("staff_members")
+    .select("id, first_name, last_name, role, roles, active")
+    .eq("active", true)
+    .order("role")
+    .order("last_name");
+
+  return (data ?? []).map((s) => {
+    const name =
+      titleCaseName([s.first_name, s.last_name].filter(Boolean).join(" ").trim()) || "Staff member";
+    return {
+      id: s.id,
+      name,
+      role: s.role ? titleCaseName(s.role) : null,
+      initials:
+        [s.first_name, s.last_name]
+          .filter(Boolean)
+          .map((n) => (n as string).charAt(0).toUpperCase())
+          .join("") || "?",
+    };
+  });
 }
