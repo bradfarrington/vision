@@ -876,13 +876,34 @@ merges them:
 - **Allowlists updated in lockstep** — `leads.ts` `SORTABLE_COLUMNS`/`VALUE_FILTER_COLUMNS`/
   `BOOL_FILTER_COLUMNS`/the search `ilike` list, and `leads-list.tsx`'s columns + `VALUE_FIELD_KEYS`
   (server allowlist and client `valueFieldKeys` must stay mirrored or a condition silently no-ops).
-- **`contracts` has its OWN parallel `fitting_*` block — deliberately NOT touched** (contracts is a
-  future phase and no `src/` code reads it yet). If contracts should share the site-address concept,
-  merge it when that phase lands.
 - **APPLIED 2026-07-23** — the migration is live on the remote, the schema cache was reloaded and
   `types.ts` was regenerated (via `supabase gen types --linked`) and committed, so the `site_*`
   columns are reflected. (A hand-edit of `types.ts` was deliberately avoided because the contracts
-  `fitting_*` block is byte-identical and a bulk edit would have corrupted it — the regen was clean.)
+  `fitting_*` block was byte-identical at the time and a bulk edit would have corrupted it — the
+  regen was clean. That hazard is gone now contracts has been merged too.)
+
+### Contracts got the same treatment — decided 2026-08-02
+
+`contracts` carried its OWN parallel `fitting_*` address block, deliberately left alone on
+2026-07-23 because contracts was a future phase and no `src/` code read it. **Phase 5 builds
+contracts, so it adopts the concept now** rather than shipping a screen that calls the same place by
+a different name than the lead it came from — `20260802090000_contracts_site_address`.
+
+- **A pure RENAME, nothing folded and nothing dropped.** Contracts never had a second
+  `installation_*` ADDRESS set (its `installation_completed`/`installation_manager` are operational),
+  so unlike the leads merge there is no `coalesce` pass and no `drop column`. No data moves.
+- **The same columns are KEPT under their old names**, for the same reason — they are not addresses:
+  `installation_completed`, `installation_manager`, `fitting_directions`, `estimated_fitting_days`,
+  `send_letters_to_fitting`, `invoice_same_as_customer`. **`fitting_directions` stays the site
+  address's note**, exactly as on leads (`LeadDetail.siteDirections`) — so the contract record should
+  render it the same way.
+- **`site_same_as_customer` keeps `default true`**, restated explicitly after the rename like leads.
+- **Nothing in `src/` needed changing** — contracts has no data module, list or record yet. When
+  Phase 5 builds them, they speak `site_*` from the first line, and the lead's Addresses card is the
+  pattern to follow (one "Site address" row + Invoice, map on the site address).
+- **A contract's site address is not automatically its lead's.** They're separate columns and a
+  contract may be signed for a different property than the enquiry named; the Phase 5 create flow
+  should COPY the lead's site address across as a default the user can change, not read through to it.
 
 ## The lead record — tabs, notes, documents — built 2026-07-23
 
@@ -1569,7 +1590,9 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   then **commit it in the same session** (the repo is the source of truth; a regen left on one machine
   doesn't count). After a refresh, tighten any loose casts the new types now cover. **Current as of
   2026-07-23**, through `20260723092000_site_address_merge` — applied to the remote and regenerated,
-  so the leads table's `site_*` columns are reflected and nothing is stale.
+  so the leads table's `site_*` columns are reflected. **`20260802090000_contracts_site_address` is
+  written but NOT yet applied**, so `types.ts` still shows the contracts table's OLD `fitting_*`
+  address columns — regenerate the moment that migration goes in.
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
@@ -1586,12 +1609,19 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   schema cache reloaded and `types.ts` regenerated + committed. It RENAMEd `installation_*` address
   columns → `site_*`, folded `fitting_*` in as a fallback, and DROPped the `fitting_*` address columns
   + `fitting_same_as_customer`. See § Site address below.
-  **OUTSTANDING (apply by hand): `20260724090000_appointment_type_defaults.sql`** — seeds the
-  `appointment_type` lookup for every tenant so the New Lead wizard's Appointment step has its pick-list
-  (see § Appointments on a lead). It's a pure `insert … on conflict do nothing`, so it needs no type
-  regen (no schema change — the `appointments` table already existed) and is safe to RE-RUN as tenants
-  are added. Until it's applied, the appointment type dropdown is simply empty (tenants can still add
-  their own from it) — nothing else breaks.
+  **OUTSTANDING (apply by hand), two, in this order:**
+  1. **`20260724090000_appointment_type_defaults.sql`** — seeds the `appointment_type` lookup for every
+     tenant so the New Lead wizard's Appointment step has its pick-list (see § Appointments on a lead).
+     A pure `insert … on conflict do nothing`, so it needs **no type regen** (no schema change — the
+     `appointments` table already existed) and is safe to RE-RUN as tenants are added. Until it's
+     applied the appointment type dropdown is simply empty (tenants can still add their own from it) —
+     nothing else breaks.
+  2. **`20260802090000_contracts_site_address.sql`** — renames the CONTRACTS `fitting_*` address block
+     to `site_*` (+ `fitting_same_as_customer` → `site_same_as_customer`), so contracts speaks the same
+     site-address language as leads before Phase 5 builds its screens. See § Contracts got the same
+     treatment. This one IS a schema change, so it needs the **schema-cache reload AND a types regen +
+     commit** — and note it is NOT re-runnable: a second run errors on the already-renamed columns.
+     Nothing in `src/` reads these columns yet, so applying it breaks nothing either way.
   Three of this session's seed migrations are safe to RE-RUN as tenants are added, and should be:
   `20260724090000_appointment_type_defaults`, `20260723090000_lead_lookup_defaults` and the earlier
   `20260721097000_lookup_defaults` are all `insert … on conflict do nothing`, so a new tenant gets its
