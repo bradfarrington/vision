@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createLead, type LeadFormState } from "@/app/(app)/leads/actions";
@@ -25,7 +25,6 @@ import {
   SumRow,
   Txt,
   WizardFrame,
-  inputClass,
   swallowEnter,
   type LookupList,
   type WizardStep,

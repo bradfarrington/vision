@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
+
 import { isSameDay, toDateParam } from "@/lib/diary";
 import { DiaryGrid, type GridColumn } from "@/components/crm/diary-grid";
+import { BookingDialog, type BookingSeed } from "@/components/crm/booking-dialog";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import type { DiaryStaff } from "@/lib/data/staff";
+import type { TenantOption } from "@/lib/data/customer-record";
 
-// What a COLUMN means, per view. The grid itself (lib times down the left, jobs
+// What a COLUMN means, per view. The grid itself (times down the left, jobs
 // positioned by start and duration) is identical either way — only the columns
 // change, which is why the two views can't drift apart.
 //
@@ -33,12 +37,16 @@ export function DiaryDayView({
   events,
   staff,
   day,
+  types,
 }: {
   events: DiaryEvent[];
   staff: DiaryStaff[];
   day: string;
+  types: TenantOption[];
 }) {
   const date = new Date(day);
+  const [seed, setSeed] = useState<BookingSeed | null>(null);
+
   const byStaff = new Map<string, DiaryEvent[]>();
   for (const s of staff) byStaff.set(s.id, []);
   const unassigned: DiaryEvent[] = [];
@@ -72,10 +80,44 @@ export function DiaryDayView({
     });
   }
 
-  return <DiaryGrid columns={columns} />;
+  return (
+    <>
+      <DiaryGrid
+        columns={columns}
+        onPick={(columnKey, start) =>
+          // On the day view a column IS a person, so clicking their slot books
+          // it against them — no need to pick the staff member again.
+          setSeed({
+            startsAt: start,
+            staffIds: columnKey === "unassigned" ? [] : [columnKey],
+          })
+        }
+      />
+      <BookingDialog
+        open={!!seed}
+        onOpenChange={(o) => !o && setSeed(null)}
+        seed={seed}
+        staff={staff}
+        types={types}
+        context={seed?.startsAt ? whenLabel(seed.startsAt) : null}
+      />
+    </>
+  );
 }
 
-export function DiaryWeekView({ events, days }: { events: DiaryEvent[]; days: string[] }) {
+export function DiaryWeekView({
+  events,
+  days,
+  staff,
+  types,
+}: {
+  events: DiaryEvent[];
+  days: string[];
+  staff: DiaryStaff[];
+  types: TenantOption[];
+}) {
+  const [seed, setSeed] = useState<BookingSeed | null>(null);
+
   const columns: GridColumn[] = days.map((iso) => {
     const d = new Date(iso);
     const today = isSameDay(d, new Date());
@@ -91,5 +133,32 @@ export function DiaryWeekView({ events, days }: { events: DiaryEvent[]; days: st
     };
   });
 
-  return <DiaryGrid columns={columns} />;
+  return (
+    <>
+      <DiaryGrid
+        columns={columns}
+        // On the week view a column is a DAY, so the slot fixes the when and
+        // the dialog still has to ask who.
+        onPick={(_columnKey, start) => setSeed({ startsAt: start, staffIds: [] })}
+      />
+      <BookingDialog
+        open={!!seed}
+        onOpenChange={(o) => !o && setSeed(null)}
+        seed={seed}
+        staff={staff}
+        types={types}
+        context={seed?.startsAt ? whenLabel(seed.startsAt) : null}
+      />
+    </>
+  );
+}
+
+function whenLabel(d: Date): string {
+  return d.toLocaleString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

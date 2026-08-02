@@ -1,5 +1,6 @@
 import { getDiary } from "@/lib/data/appointments";
 import { getDiaryStaff } from "@/lib/data/staff";
+import { getTenantOptionLists } from "@/lib/data/customer-record";
 import { WORK_CATEGORIES, type WorkCategory } from "@/lib/appointments";
 import {
   addDays,
@@ -48,7 +49,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
     .filter(Boolean)
     .filter((c): c is WorkCategory => WORK_CATEGORIES.some((w) => w.key === c));
 
-  const [events, staff] = await Promise.all([
+  const [events, staff, opts] = await Promise.all([
     getDiary({
       from: from.toISOString(),
       to: to.toISOString(),
@@ -56,6 +57,8 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
       categories: categories.length ? categories : undefined,
     }),
     getDiaryStaff(),
+    // The tenant's own appointment types, for the booking dialog's picker.
+    getTenantOptionLists(["appointment_type"]),
   ]);
 
   // The day view draws a row per staff member, so a staff filter narrows the
@@ -112,10 +115,20 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
             blocks, a job spanning as many as it lasts. Only what a column means
             changes: staff on the day, days on the week. */}
         {view === "day" && (
-          <DiaryDayView events={events} staff={shownStaff} day={anchor.toISOString()} />
+          <DiaryDayView
+            events={events}
+            staff={shownStaff}
+            day={anchor.toISOString()}
+            types={opts.appointment_type ?? []}
+          />
         )}
         {view === "week" && (
-          <DiaryWeekView events={events} days={spannedDays.map((d) => d.toISOString())} />
+          <DiaryWeekView
+            events={events}
+            days={spannedDays.map((d) => d.toISOString())}
+            staff={shownStaff}
+            types={opts.appointment_type ?? []}
+          />
         )}
         {view === "month" && <DiaryMonth events={events} anchor={anchor.toISOString()} />}
       </div>

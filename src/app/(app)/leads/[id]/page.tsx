@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getLead, type AddressParts, type LeadDetail } from "@/lib/data/leads";
 import { getTenantOptionLists, type TenantOption } from "@/lib/data/customer-record";
-import { getSalesStaff, type StaffOption } from "@/lib/data/staff";
+import { getSalesStaff, type DiaryStaff, type StaffOption } from "@/lib/data/staff";
 import { gbp, humanLabel } from "@/lib/format";
 import { Card, CardTitle, Icon, Pill, RefChip, btnSecondary } from "@/components/crm/primitives";
 import { EditableField, type EditableType } from "@/components/crm/editable-field";
@@ -17,6 +17,8 @@ import { DocumentsPanel } from "@/components/crm/documents-panel";
 import { getUserOrder } from "@/lib/data/user-layouts";
 import { ChecklistToggle, StageChanger } from "@/components/crm/lead-interactions";
 import { ConvertToContractButton } from "@/components/crm/convert-to-contract";
+import { BookAppointmentButton } from "@/components/crm/book-appointment-button";
+import { getDiaryStaff } from "@/lib/data/staff";
 import { cn } from "@/lib/utils";
 
 // Lead detail — transcribed from `Vision CRM Screens.dc.html` screen 04.
@@ -29,7 +31,7 @@ export default async function LeadDetailPage({
   const lead = await getLead(id);
   if (!lead) notFound();
 
-  const [opts, salesStaff, tabOrder] = await Promise.all([
+  const [opts, salesStaff, tabOrder, diaryStaff] = await Promise.all([
     getTenantOptionLists([
       "lead_source",
       "lead_sub_source",
@@ -41,9 +43,14 @@ export default async function LeadDetailPage({
       "document_category",
       // For the Convert to Contract dialog's type picker.
       "contract_type",
+      // For the booking dialog's type picker.
+      "appointment_type",
     ]),
     getSalesStaff(),
     getUserOrder("lead_tabs"),
+    // EVERY active staff member — a survey is booked to a surveyor, not a
+    // salesperson, so this can't be getSalesStaff().
+    getDiaryStaff(),
   ]);
 
   return (
@@ -77,9 +84,15 @@ export default async function LeadDetailPage({
               <Icon name="user" size={13} strokeWidth={1.75} /> View customer
             </Link>
           )}
-          <button className={btnSecondary} type="button">
-            <Icon name="calendar" size={13} strokeWidth={1.75} /> Book appointment
-          </button>
+          {/* Live as of Phase 6 — opens the SAME booking dialog the diary
+              uses, pre-filled with this lead and its customer. */}
+          <BookAppointmentButton
+            staff={diaryStaff}
+            types={opts.appointment_type ?? []}
+            leadId={lead.id}
+            customerId={lead.customer?.id ?? null}
+            context={`${lead.ref}${lead.customer ? ` · ${lead.customer.name}` : ""}`}
+          />
           {/* Live as of Phase 5: opens the conversion dialog, or links straight
               to the contract once this lead has already been converted. */}
           <ConvertToContractButton
@@ -104,7 +117,7 @@ export default async function LeadDetailPage({
         tabs={[
           {
             label: "Overview",
-            content: <OverviewTab lead={lead} opts={opts} salesStaff={salesStaff} />,
+            content: <OverviewTab lead={lead} opts={opts} salesStaff={salesStaff} diaryStaff={diaryStaff} />,
           },
           { label: "Activity", count: lead.activities.length, content: <ActivityPanel lead={lead} /> },
           {
@@ -157,16 +170,18 @@ function OverviewTab({
   lead,
   opts,
   salesStaff,
+  diaryStaff,
 }: {
   lead: LeadDetail;
   opts: Record<string, TenantOption[]>;
   salesStaff: StaffOption[];
+  diaryStaff: DiaryStaff[];
 }) {
   return (
     <div className="grid max-w-[1320px] items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
       <div className="flex flex-col gap-4">
         <LeadPanel lead={lead} opts={opts} salesStaff={salesStaff} />
-        <AppointmentsPanel lead={lead} />
+        <AppointmentsPanel lead={lead} opts={opts} diaryStaff={diaryStaff} />
       </div>
       <div className="flex flex-col gap-4">
         {/* The customer themselves — name, home address, phone — so their
@@ -194,18 +209,32 @@ function OverviewTab({
 }
 
 /**
- * Read-only list of the lead's appointments (sales call, survey, measure-up…).
- * Booking/editing arrives with the diary — for now this surfaces what was booked
- * at capture. "Book appointment" in the header is the (placeholder) entry point.
+ * The lead's appointments (sales call, survey, measure-up…), soonest first.
+ * Booking is live as of Phase 6 — both the header button and the one here open
+ * the shared dialog, and anything booked shows on the diary immediately.
  */
-function AppointmentsPanel({ lead }: { lead: LeadDetail }) {
+function AppointmentsPanel({
+  lead,
+  opts,
+  diaryStaff,
+}: {
+  lead: LeadDetail;
+  opts: Record<string, TenantOption[]>;
+  diaryStaff: DiaryStaff[];
+}) {
   return (
     <Card>
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <CardTitle className="text-[14px]">Appointments</CardTitle>
-        {lead.appointments.length > 0 && (
-          <span className="text-[12px] font-medium text-[#a1a1aa]">{lead.appointments.length}</span>
-        )}
+        <BookAppointmentButton
+          staff={diaryStaff}
+          types={opts.appointment_type ?? []}
+          leadId={lead.id}
+          customerId={lead.customer?.id ?? null}
+          context={`${lead.ref}${lead.customer ? ` · ${lead.customer.name}` : ""}`}
+          label="Add"
+          variant="link"
+        />
       </div>
       {lead.appointments.length === 0 ? (
         <p className="text-[12.5px] text-[#a1a1aa]">
