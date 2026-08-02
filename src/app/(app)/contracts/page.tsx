@@ -82,6 +82,9 @@ export default async function ContractsPage({ searchParams }: { searchParams: Se
   const filters: ContractFilters = {
     search: sp.search,
     stage: sp.stage,
+    // "Active" = any open stage. Its own param rather than `f_stage`, which
+    // matches a single stage only.
+    active: sp.active === "1",
     columnFilters,
     valueFilters,
     dateFrom,
@@ -122,6 +125,7 @@ export default async function ContractsPage({ searchParams }: { searchParams: Se
   const viewKey = JSON.stringify({
     search: sp.search,
     stage: sp.stage,
+    active: sp.active,
     columnFilters,
     valueFilters,
     range: sp.range,

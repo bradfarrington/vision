@@ -104,9 +104,24 @@ export type ContractRow = {
   record: Record<string, unknown>;
 };
 
+/**
+ * The stages a contract is still IN FLIGHT at — everything except complete and
+ * cancelled. Derived from the registry so adding a stage can't leave this
+ * behind, and shared by the `active` filter and the "Active Contracts" tile so
+ * the two always count the same population.
+ */
+export const OPEN_STAGE_KEYS = CONTRACT_STAGES.filter((s) => s.open).map((s) => s.key);
+
 export type ContractFilters = {
   search?: string;
   stage?: string;
+  /**
+   * "Active" = not completed, not cancelled. A real DB predicate (`stage in
+   * (…)`), NOT a post-filter — so paging and the exact count stay correct.
+   * `f_stage` can only express ONE stage, which is why this exists: the
+   * "Active contracts" system view needs "any open stage".
+   */
+  active?: boolean;
   page?: number;
   /**
    * Date-range bounds on `contract_date` (when the contract was signed — the
@@ -269,6 +284,9 @@ function applyContractFilters<Q>(
   let q = query as any;
 
   if (filters.stage) q = q.eq("stage", filters.stage);
+  // Every open stage at once. Applied at the DB like every other filter, so the
+  // count under it is the real one.
+  if (filters.active) q = q.in("stage", OPEN_STAGE_KEYS);
 
   // Date range on contract_date. Applied at the DB so paging and the exact
   // count stay correct. `lt` (not `lte`) on the upper bound: it is the first

@@ -53,9 +53,16 @@ const CUSTOMER_VIEWS: SavedView[] = [
 // `view`) — a system view that silently does nothing is worse than none.
 const CONTRACT_VIEWS: SavedView[] = [
   { ...sys("all", "All contracts", {}), id: ALL_VIEW_ID },
-  sys("in-flight", "In progress", { f_stage: "installation" }),
+  // ACTIVE = every stage that isn't complete or cancelled — signed, survey,
+  // ordered, delivery and installation all count. It rides on the `active`
+  // param, not `f_stage`, precisely because `f_stage` matches a single stage:
+  // this view was briefly "In progress" pinned to `f_stage: installation`,
+  // which silently hid every job that was signed but not yet being fitted.
+  // Same population as the "Active Contracts" tile, so the two always agree.
+  sys("active", "Active contracts", { active: "1" }),
   sys("awaiting-survey", "Awaiting survey", { f_stage: "signed" }),
   sys("ordered", "On order", { f_stage: "ordered" }),
+  sys("installing", "Being fitted", { f_stage: "installation" }),
   sys("hold", "On hold", { f_on_hold: "1" }),
   sys("signed-month", "Signed this month", { range: "this_month" }),
   sys("complete-year", "Completed this year", { f_stage: "complete", range: "this_year" }),

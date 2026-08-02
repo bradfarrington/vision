@@ -100,10 +100,15 @@ export type ListSpec<V, F> = {
   /** Mirrors the server's value-filter allowlist; labels come from `columns`. */
   valueFieldKeys: string[];
   /**
-   * A non-column boolean filter that can't be a plain column predicate — the
-   * customers list's lead-derived "Has live lead". Rendered under `Activity`.
+   * A boolean filter that rides on its OWN url param rather than `f_<column>`,
+   * because it isn't a single-column equality. Two kinds use it:
+   *   - the customers list's lead-derived "Has live lead" (a post-filter, with
+   *     the known caveat that the total reflects the pre-filter set), and
+   *   - the contracts list's "Active" (a real `stage in (…)` DB predicate, so
+   *     its count IS correct — `f_stage` can only express ONE stage).
+   * `group` says which filter group it renders under; defaults to `Activity`.
    */
-  extraBoolFilter?: { param: string; label: string };
+  extraBoolFilter?: { param: string; label: string; group?: string };
   /** Plural noun for the empty state ("No leads found"). */
   noun: string;
   rowId: (v: V) => string;
@@ -626,7 +631,7 @@ export function FiltersButton({ filterOptions }: { filterOptions: Record<string,
             <SectionLabel>Quick filters</SectionLabel>
             {spec.filterGroups.map((group) => {
               const inGroup = spec.filters.filter((f) => f.group === group);
-              const showExtra = !!extra && group === "Activity";
+              const showExtra = !!extra && group === (extra.group ?? "Activity");
               if (inGroup.length === 0 && !showExtra) return null;
               return (
                 <div key={group} className="pb-1">

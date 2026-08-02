@@ -38,7 +38,11 @@ export type SavedView = {
  * `sv` are bookkeeping.
  */
 const VIEW_PARAM_PREFIXES = ["f_"];
-const VIEW_PARAM_KEYS = ["fq", "range", "from", "to", "sort", "dir", "view", "stage", "live"];
+// `live` (customers) and `active` (contracts) are the two non-`f_` boolean
+// filters — see ListSpec.extraBoolFilter. A filter missing from this list is
+// neither captured when a view is saved nor cleared when views are switched,
+// so it silently leaks across views. Add here AND to the list's spec.
+const VIEW_PARAM_KEYS = ["fq", "range", "from", "to", "sort", "dir", "view", "stage", "live", "active"];
 
 export function isViewParam(key: string): boolean {
   return VIEW_PARAM_KEYS.includes(key) || VIEW_PARAM_PREFIXES.some((p) => key.startsWith(p));

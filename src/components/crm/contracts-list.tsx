@@ -242,6 +242,10 @@ const CONTRACTS_SPEC: ListSpec<ContractRow, ContractFilters> = {
   filters: FILTERS,
   filterGroups: FILTER_GROUPS,
   valueFieldKeys: VALUE_FIELD_KEYS,
+  // "Active" spans every open stage at once, which `f_stage` can't express (it
+  // matches ONE stage). Unlike the customers list's "Has live lead", this is a
+  // real `stage in (…)` predicate at the DB, so the count under it is correct.
+  extraBoolFilter: { param: "active", label: "Active only", group: "Contract" },
   noun: "contracts",
   rowId: (ct) => ct.id,
   rowHref: (ct) => `/contracts/${ct.id}`,
