@@ -14,7 +14,7 @@ import {
   type DiaryView,
 } from "@/lib/diary";
 import { Icon, TOOLBAR_H, btnSecondary } from "@/components/crm/primitives";
-import { DiaryColumns } from "@/components/crm/diary-columns";
+import { DiaryDayView, DiaryWeekView } from "@/components/crm/diary-views";
 import { DiaryMonth } from "@/components/crm/diary-month";
 import { DiaryFiltersButton } from "@/components/crm/diary-filters";
 import { ViewToggle } from "@/components/crm/view-toggle";
@@ -117,11 +117,14 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
           </div>
         </div>
 
-        {/* Day and week are the SAME component — staff as columns, jobs down
-            each in time order. They differ only in how many days the columns
-            span, so a week is one day's column with date dividers in it. */}
-        {view !== "month" && (
-          <DiaryColumns events={events} staff={shownStaff} days={spannedDays} />
+        {/* Day and week share ONE time grid — times down the left in half-hour
+            blocks, a job spanning as many as it lasts. Only what a column means
+            changes: staff on the day, days on the week. */}
+        {view === "day" && (
+          <DiaryDayView events={events} staff={shownStaff} day={anchor.toISOString()} />
+        )}
+        {view === "week" && (
+          <DiaryWeekView events={events} days={spannedDays.map((d) => d.toISOString())} />
         )}
         {view === "month" && <DiaryMonth events={events} anchor={anchor.toISOString()} />}
       </div>

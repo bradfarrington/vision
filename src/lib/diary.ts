@@ -9,15 +9,46 @@ export function isDiaryView(v: string | null | undefined): v is DiaryView {
 }
 
 /**
- * The working day the timeline spans. UK trade default 08:00–17:00, matching
- * the design's column headers (screen 07).
+ * The working day the grid spans, and the size of one bookable block.
  *
- * A CONSTANT for now, and it must not stay one: a firm starting at 07:30 should
- * change a setting, not the source. Tenant-configurable working hours land with
- * the slot finder, which needs the same numbers — see AGENTS.md § Diary.
+ * 07:00–17:00 in half hours: a 30-minute appointment fills one block, a
+ * two-hour one spans four. Everything about the grid — row height, a job's
+ * position, what a click means — is derived from these, so changing them
+ * changes the whole diary consistently.
+ *
+ * CONSTANTS for now, and they must not stay constants: working hours are
+ * per-company (a firm starting at 07:30, or working Saturdays, shouldn't need a
+ * code change). They live here as the single place the tenant setting will
+ * replace — the slot finder reads the same numbers.
  */
-export const DAY_START_HOUR = 8;
+export const DAY_START_HOUR = 7;
 export const DAY_END_HOUR = 17;
+export const SLOT_MINUTES = 30;
+
+/** Bookable blocks in a working day — 07:00→17:00 at 30 min = 20. */
+export const SLOTS_PER_DAY = ((DAY_END_HOUR - DAY_START_HOUR) * 60) / SLOT_MINUTES;
+
+/** Slot index → its label ("07:00", "07:30", …). */
+export function slotLabel(index: number): string {
+  const total = DAY_START_HOUR * 60 + index * SLOT_MINUTES;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Slot index for an instant, or null when it falls outside working hours. */
+export function slotIndexFor(when: Date): number | null {
+  const mins = (when.getHours() - DAY_START_HOUR) * 60 + when.getMinutes();
+  if (mins < 0 || mins >= (DAY_END_HOUR - DAY_START_HOUR) * 60) return null;
+  return Math.floor(mins / SLOT_MINUTES);
+}
+
+/** The instant a slot starts on a given day. */
+export function slotStart(day: Date, index: number): Date {
+  const out = startOfDay(day);
+  out.setMinutes(DAY_START_HOUR * 60 + index * SLOT_MINUTES);
+  return out;
+}
 
 /** Monday. UK trade weeks start Monday, and the design's week runs Mon–Sun. */
 const WEEK_STARTS_ON = 1;
