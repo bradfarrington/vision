@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { LEAD_STAGES } from "@/lib/leads";
+import { DAY_START_HOUR } from "@/lib/diary";
 import { addNote } from "@/app/(app)/notes/actions";
 import { insertCustomer } from "@/lib/data/customer-write";
 import { matchCustomers, type CustomerMatch, type MatchCriteria } from "@/lib/data/customer-match";
@@ -264,16 +265,37 @@ async function insertAppointments(
         customer_id: customerId,
         title: (a.type ?? "").trim() || "Appointment",
         type: (a.type ?? "").trim() || "appointment",
-        date: a.date!.trim(),
-        time: (a.time ?? "").trim() || null,
+        // ONE instant, not a date plus a text time — see AGENTS.md § One
+        // appointment table. A booking with no time given starts at the top of
+        // the working day rather than at midnight, which is what a bare date
+        // would otherwise mean.
+        starts_at: startsAt(a.date!, a.time),
         duration: Number.isFinite(duration) && duration > 0 ? duration : 60,
         assigned_to: (a.assigned_to ?? "").trim() || null,
         notes: (a.notes ?? "").trim() || null,
-        status: "scheduled",
+        // Booked from the capture flow, so it is a real commitment, not a
+        // pencilled-in one.
+        status: "confirmed",
       };
     });
   if (rows.length === 0) return;
   await supabase.from("appointments").insert(rows);
+}
+
+/**
+ * Combine a `YYYY-MM-DD` (or ISO) date with an `HH:MM` time into one instant.
+ *
+ * The time is free text from the form, so only a well-formed HH:MM is trusted;
+ * anything else falls back to the start of the working day. A bare date would
+ * otherwise land the job at midnight, where it renders above every real booking
+ * and outside the diary's visible hours.
+ */
+function startsAt(date: string, time: string | undefined): string {
+  const d = new Date(date.trim());
+  if (Number.isNaN(d.getTime())) return new Date().toISOString();
+  const m = /^(\d{1,2}):(\d{2})/.exec((time ?? "").trim());
+  d.setHours(m ? Number(m[1]) : DAY_START_HOUR, m ? Number(m[2]) : 0, 0, 0);
+  return d.toISOString();
 }
 
 function norm(v: string | null | undefined): string {

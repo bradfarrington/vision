@@ -69,10 +69,8 @@ const SELECT = `id, title, type, work_type, description, starts_at, duration, tr
  */
 export async function getDiary(filters: DiaryFilters): Promise<DiaryEvent[]> {
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as unknown as { from(t: string): any };
 
-  let q = db
+  let q = supabase
     .from("appointments")
     .select(SELECT)
     .gte("starts_at", filters.from)
@@ -146,9 +144,7 @@ export async function getAppointmentsFor(
   owner: { leadId?: string; contractId?: string },
 ): Promise<DiaryEvent[]> {
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as unknown as { from(t: string): any };
-  let q = db.from("appointments").select(SELECT).order("starts_at", { ascending: true });
+  let q = supabase.from("appointments").select(SELECT).order("starts_at", { ascending: true });
   if (owner.leadId) q = q.eq("lead_id", owner.leadId);
   else if (owner.contractId) q = q.eq("contract_id", owner.contractId);
   else return [];

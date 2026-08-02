@@ -188,50 +188,80 @@ export type Database = {
         Row: {
           assigned_to: string | null
           company_id: string
+          completed_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_method: string | null
+          contract_id: string | null
           created_at: string
           customer_id: string | null
-          date: string
+          description: string | null
           duration: number | null
           id: string
           lead_id: string | null
           location: string | null
+          locked: boolean | null
           notes: string | null
+          staff_ids: string[] | null
+          staff_names: string[] | null
+          starts_at: string
           status: string | null
-          time: string | null
           title: string
+          travel_minutes: number | null
           type: string | null
+          work_type: string | null
         }
         Insert: {
           assigned_to?: string | null
           company_id: string
+          completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_method?: string | null
+          contract_id?: string | null
           created_at?: string
           customer_id?: string | null
-          date: string
+          description?: string | null
           duration?: number | null
           id?: string
           lead_id?: string | null
           location?: string | null
+          locked?: boolean | null
           notes?: string | null
+          staff_ids?: string[] | null
+          staff_names?: string[] | null
+          starts_at: string
           status?: string | null
-          time?: string | null
           title: string
+          travel_minutes?: number | null
           type?: string | null
+          work_type?: string | null
         }
         Update: {
           assigned_to?: string | null
           company_id?: string
+          completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_method?: string | null
+          contract_id?: string | null
           created_at?: string
           customer_id?: string | null
-          date?: string
+          description?: string | null
           duration?: number | null
           id?: string
           lead_id?: string | null
           location?: string | null
+          locked?: boolean | null
           notes?: string | null
+          staff_ids?: string[] | null
+          staff_names?: string[] | null
+          starts_at?: string
           status?: string | null
-          time?: string | null
           title?: string
+          travel_minutes?: number | null
           type?: string | null
+          work_type?: string | null
         }
         Relationships: [
           {
@@ -239,6 +269,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
             referencedColumns: ["id"]
           },
           {
@@ -2403,12 +2440,12 @@ export type Database = {
           },
         ]
       }
-      fitting_appointments: {
+      fitting_appointments_backup_20260802: {
         Row: {
           assigned_staff_ids: string[] | null
           assigned_staff_names: string[] | null
           comments: string | null
-          company_id: string
+          company_id: string | null
           completed: boolean | null
           completed_date: string | null
           confirmed: boolean | null
@@ -2416,12 +2453,12 @@ export type Database = {
           confirmed_date: string | null
           confirmed_method: string | null
           contract_id: string | null
-          created_at: string
+          created_at: string | null
           date: string | null
           description: string | null
           duration_days: number | null
           duration_hours: number | null
-          id: string
+          id: string | null
           lead_id: string | null
           locked: boolean | null
           provisional: boolean | null
@@ -2433,7 +2470,7 @@ export type Database = {
           assigned_staff_ids?: string[] | null
           assigned_staff_names?: string[] | null
           comments?: string | null
-          company_id: string
+          company_id?: string | null
           completed?: boolean | null
           completed_date?: string | null
           confirmed?: boolean | null
@@ -2441,12 +2478,12 @@ export type Database = {
           confirmed_date?: string | null
           confirmed_method?: string | null
           contract_id?: string | null
-          created_at?: string
+          created_at?: string | null
           date?: string | null
           description?: string | null
           duration_days?: number | null
           duration_hours?: number | null
-          id?: string
+          id?: string | null
           lead_id?: string | null
           locked?: boolean | null
           provisional?: boolean | null
@@ -2458,7 +2495,7 @@ export type Database = {
           assigned_staff_ids?: string[] | null
           assigned_staff_names?: string[] | null
           comments?: string | null
-          company_id?: string
+          company_id?: string | null
           completed?: boolean | null
           completed_date?: string | null
           confirmed?: boolean | null
@@ -2466,12 +2503,12 @@ export type Database = {
           confirmed_date?: string | null
           confirmed_method?: string | null
           contract_id?: string | null
-          created_at?: string
+          created_at?: string | null
           date?: string | null
           description?: string | null
           duration_days?: number | null
           duration_hours?: number | null
-          id?: string
+          id?: string | null
           lead_id?: string | null
           locked?: boolean | null
           provisional?: boolean | null
@@ -2479,29 +2516,7 @@ export type Database = {
           travel_time?: string | null
           work_type?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "fitting_appointments_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fitting_appointments_contract_id_fkey"
-            columns: ["contract_id"]
-            isOneToOne: false
-            referencedRelation: "contracts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fitting_appointments_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       inventory: {
         Row: {

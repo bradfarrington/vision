@@ -120,23 +120,41 @@ export async function getDashboard(): Promise<Dashboard> {
   };
 }
 
-// Today's diary from fitting_appointments (`date` is stored as a YYYY-MM-DD
-// text column). Colour-codes by work type per the design's diary legend.
+/**
+ * Today's diary — from `appointments`, THE one appointment table.
+ *
+ * This used to read `fitting_appointments`, which nothing ever wrote: the
+ * dashboard's diary was permanently empty while every appointment the New Lead
+ * wizard booked was invisible to it. That split is exactly what 20260802092000
+ * merged away, so this now shows the same bookings the /diary screen does.
+ */
 async function getTodaysDiary(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<DiaryItem[]> {
-  const today = new Date().toISOString().slice(0, 10);
+  // A day in LOCAL time, not a UTC date string: `starts_at` is an instant, and
+  // slicing toISOString() would put an 08:00 job on the previous day for any
+  // negative offset and miss late-evening ones under BST.
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+
   const { data } = await supabase
-    .from("fitting_appointments")
-    .select("id, date, time, work_type, description")
-    .eq("date", today)
-    .order("time");
+    .from("appointments")
+    .select("id, starts_at, type, work_type, title, description, status")
+    .gte("starts_at", from.toISOString())
+    .lt("starts_at", to.toISOString())
+    .neq("status", "cancelled")
+    .order("starts_at");
 
   return (data ?? []).map((a) => ({
     id: a.id,
-    time: a.time ?? null,
-    label: a.description ?? formatWorkType(a.work_type),
-    tone: toneForWork(a.work_type),
+    time: new Date(a.starts_at).toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    label: a.description ?? a.title ?? formatWorkType(a.work_type ?? a.type),
+    tone: toneForWork(a.work_type ?? a.type),
   }));
 }
 
@@ -147,8 +165,8 @@ function formatWorkType(t: string | null): string {
 
 function toneForWork(t: string | null): DiaryItem["tone"] {
   const s = (t ?? "").toLowerCase();
-  if (s.includes("survey")) return "amber";
-  if (s.includes("service")) return "success";
+  if (s.includes("survey") || s.includes("measure")) return "amber";
+  if (s.includes("service") || s.includes("remedial")) return "success";
   if (s.includes("fit") || s.includes("install")) return "accent";
   return "neutral";
 }
