@@ -9,6 +9,7 @@ import type { CustomerMatch, MatchCriteria } from "@/lib/data/customer-match";
 import { LEAD_STAGES, customerRef } from "@/lib/leads";
 import { humanLabel } from "@/lib/format";
 import { Combo } from "./combo";
+import { TimePicker } from "./time-picker";
 import { CustomerMatchPanel, MatchRow, useCustomerMatches } from "./customer-match";
 import { Icon } from "./icon";
 import { btnSecondary, RefChip } from "./primitives";
@@ -829,11 +830,12 @@ function ApptCard({
           <DateField value={appt.date} onChange={upd("date")} />
         </Field>
         <Field label="Time">
-          <input
-            type="time"
-            value={appt.time}
-            onChange={(e) => onUpdate(index, "time", e.target.value)}
-            className={inputClass}
+          {/* The shared TimePicker, offering the DIARY's own half-hour slots —
+              a booking at 07:17 would render between two grid rows and could
+              never be picked from the grid again. */}
+          <TimePicker
+            value={appt.time || null}
+            onChange={(v: string | null) => onUpdate(index, "time", v ?? "")}
           />
         </Field>
         <Field label="Duration (min)">
