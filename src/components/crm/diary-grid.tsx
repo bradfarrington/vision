@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import {
   DAY_START_HOUR,
+  DAY_END_HOUR,
   SLOTS_PER_DAY,
   SLOT_MINUTES,
   isSameDay,
@@ -25,20 +26,25 @@ import { cn } from "@/lib/utils";
 //   Week view → one column per day
 // Time is always the y-axis, so switching period never reorients the screen.
 //
-// Everything is derived from DAY_START_HOUR / DAY_END_HOUR / SLOT_MINUTES in
-// lib/diary, which is where the per-company working hours will land — the grid
-// doesn't hard-code a single hour anywhere.
+// Everything derives from DAY_START_HOUR / DAY_END_HOUR / SLOT_MINUTES in
+// lib/diary — the single place the per-company working hours will replace.
+//
+// ROWS FLEX. The grid fills its container's height and the slots divide it
+// evenly, rather than being a fixed pixel stack that leaves a dead band under a
+// tall window. MIN_SLOT_H is the floor: below that the grid scrolls instead of
+// squashing the labels into each other.
 // ---------------------------------------------------------------------------
 
-/** Height of one 30-minute block. The unit the whole grid is measured in. */
-const SLOT_H = 30;
-const GUTTER = 62;
+/** Smallest a half-hour row may get before the grid scrolls instead. */
+const MIN_SLOT_H = 34;
+const GUTTER = 68;
 const MIN_COL = 190;
+const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 
 export type GridColumn = {
   key: string;
   label: string;
-  /** Second line under the label — a staff role, or nothing. */
+  /** Second line under the label — a staff role, or the month. */
   hint?: string | null;
   /** Avatar initials, for the staff columns. */
   initials?: string;
@@ -65,7 +71,6 @@ export function DiaryGrid({
   const [picked, setPicked] = useState<{ col: string; slot: number } | null>(null);
 
   const slots = Array.from({ length: SLOTS_PER_DAY }, (_, i) => i);
-  const gridHeight = SLOTS_PER_DAY * SLOT_H;
 
   if (!columns.length) {
     return (
@@ -79,12 +84,14 @@ export function DiaryGrid({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* One scroller for BOTH axes, so the gutter and headers stay pinned to
           their own edges while the grid moves under them. */}
-      <div className="min-h-0 flex-1 overflow-auto px-[26px] pb-4">
-        <div className="inline-flex min-w-full flex-col">
+      <div className="min-h-0 flex-1 overflow-auto px-[26px]">
+        {/* min-h-full makes the grid FILL a tall window; the body's own
+            min-height stops it squashing in a short one (it scrolls instead). */}
+        <div className="flex min-h-full min-w-full flex-col">
           {/* --- Header row ------------------------------------------------ */}
-          <div className="sticky top-0 z-20 flex bg-white">
-            {/* Corner: sits above the gutter and left of the headers, so it has
-                to be sticky on BOTH axes or it slides away from one of them. */}
+          <div className="sticky top-0 z-20 flex shrink-0 bg-white">
+            {/* The corner sits above the gutter and left of the headers, so it
+                has to be sticky on BOTH axes or it slides away from one. */}
             <div
               className="sticky left-0 z-10 shrink-0 border-b border-r border-[#e7e7ea] bg-white"
               style={{ width: GUTTER }}
@@ -96,8 +103,7 @@ export function DiaryGrid({
                   key={col.key}
                   className={cn(
                     "flex flex-1 items-center gap-2 border-b border-r border-[#e7e7ea] px-2.5 py-2 transition-colors",
-                    active && "bg-[var(--accent-tint)]",
-                    col.muted && "bg-[#fafafa]",
+                    active ? "bg-[var(--accent-tint)]" : col.muted ? "bg-[#fafafa]" : "bg-white",
                   )}
                   style={{ minWidth: MIN_COL }}
                 >
@@ -135,13 +141,16 @@ export function DiaryGrid({
             })}
           </div>
 
-          {/* --- Body: gutter + columns ------------------------------------ */}
-          <div className="flex">
+          {/* --- Body: gutter + columns, filling the remaining height ------- */}
+          <div
+            className="flex min-h-0 flex-1"
+            style={{ minHeight: SLOTS_PER_DAY * MIN_SLOT_H }}
+          >
             {/* Time gutter. Sticky left so the times stay readable however far
                 the grid is scrolled sideways. */}
             <div
-              className="sticky left-0 z-10 shrink-0 border-r border-[#e7e7ea] bg-white"
-              style={{ width: GUTTER, height: gridHeight }}
+              className="sticky left-0 z-10 flex shrink-0 flex-col border-r border-[#e7e7ea] bg-white"
+              style={{ width: GUTTER }}
             >
               {slots.map((i) => {
                 const onTheHour = i % 2 === 0;
@@ -150,22 +159,23 @@ export function DiaryGrid({
                   <div
                     key={i}
                     className={cn(
-                      "relative flex items-start justify-end pr-2 transition-colors",
-                      // The gutter's own gridlines match the columns' — the
-                      // hour line is solid, the half-hour lighter.
+                      // The label is CENTRED in its own row rather than sitting
+                      // on the gridline: on the line, the first one clips
+                      // against the header and every one reads as belonging to
+                      // the row above as much as its own.
+                      "flex flex-1 items-center justify-end pr-2.5 transition-colors",
                       onTheHour ? "border-t border-[#e7e7ea]" : "border-t border-[#f4f4f5]",
                       lit && "bg-[var(--accent-tint)]",
                     )}
-                    style={{ height: SLOT_H }}
                   >
                     <span
                       className={cn(
-                        "-mt-[7px] text-[10.5px] tabular-nums transition-colors",
+                        "tabular-nums transition-colors",
                         lit
-                          ? "font-bold text-[var(--accent-active)]"
+                          ? "text-[11.5px] font-bold text-[var(--accent-active)]"
                           : onTheHour
-                            ? "font-semibold text-[#71717a]"
-                            : "text-[#c4c4c8]",
+                            ? "text-[11.5px] font-semibold text-[#3f3f46]"
+                            : "text-[11px] text-[#a1a1aa]",
                       )}
                     >
                       {slotLabel(i)}
@@ -180,7 +190,6 @@ export function DiaryGrid({
                 key={col.key}
                 col={col}
                 slots={slots}
-                gridHeight={gridHeight}
                 hover={hover}
                 picked={picked}
                 setHover={setHover}
@@ -202,7 +211,6 @@ export function DiaryGrid({
 function Column({
   col,
   slots,
-  gridHeight,
   hover,
   picked,
   setHover,
@@ -210,7 +218,6 @@ function Column({
 }: {
   col: GridColumn;
   slots: number[];
-  gridHeight: number;
   hover: { col: string; slot: number } | null;
   picked: { col: string; slot: number } | null;
   setHover: (v: { col: string; slot: number } | null) => void;
@@ -221,16 +228,15 @@ function Column({
   return (
     <div
       className={cn(
-        "relative flex-1 border-r border-[#e7e7ea]",
-        isWeekend(col.day) && "bg-[#fafafa]",
-        col.muted && "bg-[#fafafa]",
+        "relative flex flex-1 flex-col border-r border-[#e7e7ea]",
+        (isWeekend(col.day) || col.muted) && "bg-[#fafafa]",
       )}
-      style={{ minWidth: MIN_COL, height: gridHeight }}
+      style={{ minWidth: MIN_COL }}
       onMouseLeave={() => setHover(null)}
     >
-      {/* Empty slot cells — the gridlines, the hover target, and (once the
-          booking dialog lands) what you click to book. They sit UNDER the job
-          blocks, so a booked slot isn't clickable through its job. */}
+      {/* Empty slot cells — the gridlines, the hover target, and what you click
+          to book. They flex to share the column's height, so a taller window
+          gives roomier rows rather than leaving dead space at the bottom. */}
       {slots.map((i) => {
         const isHover = hover?.col === col.key && hover.slot === i;
         const isPicked = picked?.col === col.key && picked.slot === i;
@@ -247,30 +253,25 @@ function Column({
               onPickSlot(i, start);
             }}
             className={cn(
-              "absolute inset-x-0 transition-colors",
+              "flex-1 transition-colors",
               onTheHour ? "border-t border-[#e7e7ea]" : "border-t border-[#f4f4f5]",
               isPicked
                 ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
                 : isHover
                   ? "bg-[var(--accent-tint)]"
-                  : "hover:bg-[#fafafa]",
+                  : "hover:bg-[#f4f4f5]",
             )}
-            style={{ top: i * SLOT_H, height: SLOT_H }}
             aria-label={`${slotLabel(i)} — ${col.label}`}
           />
         );
       })}
 
-      {/* Job blocks, positioned by start time and sized by duration. */}
+      {/* Job blocks, positioned as a PERCENTAGE of the column height rather
+          than in pixels — so they stay aligned with the rows however the grid
+          flexes. */}
       {lanes.map((lane, laneIndex) =>
         lane.map((e) => (
-          <JobBlock
-            key={e.id}
-            event={e}
-            day={col.day}
-            lane={laneIndex}
-            laneCount={lanes.length}
-          />
+          <JobBlock key={e.id} event={e} day={col.day} lane={laneIndex} laneCount={lanes.length} />
         )),
       )}
     </div>
@@ -296,15 +297,13 @@ function JobBlock({
   // rather than letting the block escape the column.
   const rawTop = (start.getHours() - DAY_START_HOUR) * 60 + start.getMinutes();
   const top = Math.max(0, rawTop);
-  const bottom = Math.min(SLOTS_PER_DAY * SLOT_MINUTES, rawTop + mins);
-  // Never thinner than a readable sliver, or a 15-minute call is unclickable.
-  const height = Math.max(((bottom - top) / SLOT_MINUTES) * SLOT_H, 22);
+  const bottom = Math.min(TOTAL_MINUTES, rawTop + mins);
+  const spanMinutes = Math.max(bottom - top, SLOT_MINUTES / 2);
 
-  // Runs on past the end of the visible day, or started before it began.
-  const continuesAfter = rawTop + mins > SLOTS_PER_DAY * SLOT_MINUTES;
+  const continuesAfter = rawTop + mins > TOTAL_MINUTES;
   const startedBefore = rawTop < 0;
-  // Multi-day jobs land in every column they touch; only the first shows the
-  // full detail, the rest read as a continuation.
+  // Multi-day jobs land in every column they touch; only the first shows full
+  // detail, the rest read as a continuation.
   const isContinuation = !isSameDay(start, day);
 
   const cat = WORK_CATEGORIES.find((c) => c.key === event.category)!;
@@ -319,10 +318,11 @@ function JobBlock({
 
   // Side-by-side when a person is double-booked: a clash is exactly the thing
   // that must not hide behind itself.
-  const width = `calc(${100 / laneCount}% - 4px)`;
-  const left = `calc(${(lane * 100) / laneCount}% + 2px)`;
-
-  const compact = height < 46;
+  const width = `calc(${100 / laneCount}% - 5px)`;
+  const left = `calc(${(lane * 100) / laneCount}% + 3px)`;
+  // A short booking gets one line; anything half an hour or more can carry the
+  // customer too.
+  const compact = spanMinutes <= SLOT_MINUTES;
 
   const body = (
     <>
@@ -335,7 +335,7 @@ function JobBlock({
         {!compact && (
           <span className="truncate text-[10px] text-[#71717a]">{durationLabel(mins)}</span>
         )}
-        {event.provisional && !compact && (
+        {event.provisional && (
           <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]">
             Prov
           </span>
@@ -359,14 +359,14 @@ function JobBlock({
     href && "hover:brightness-[0.97]",
   );
   const style = {
-    top,
-    height,
+    top: `${(top / TOTAL_MINUTES) * 100}%`,
+    height: `${(spanMinutes / TOTAL_MINUTES) * 100}%`,
     left,
     width,
     // Colour says WHAT the job is; the dashed outline says whether it's pinned
     // down — so a provisional survey still reads as a survey.
     background: event.provisional ? "#fff" : cat.bg,
-    borderColor: event.provisional ? "#a1a1aa" : cat.fg + "33",
+    borderColor: event.provisional ? "#a1a1aa" : `${cat.fg}33`,
     borderStyle: event.provisional ? "dashed" : "solid",
   } as const;
 
