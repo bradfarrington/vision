@@ -4,6 +4,7 @@ import { getDiary } from "@/lib/data/appointments";
 import { getDiaryStaff } from "@/lib/data/staff";
 import { WORK_CATEGORIES, type WorkCategory } from "@/lib/appointments";
 import {
+  addDays,
   fromDateParam,
   isDiaryView,
   shift,
@@ -13,8 +14,7 @@ import {
   type DiaryView,
 } from "@/lib/diary";
 import { Icon, TOOLBAR_H, btnSecondary } from "@/components/crm/primitives";
-import { DiaryDay } from "@/components/crm/diary-day";
-import { DiaryWeek } from "@/components/crm/diary-week";
+import { DiaryColumns } from "@/components/crm/diary-columns";
 import { DiaryMonth } from "@/components/crm/diary-month";
 import { DiaryFiltersButton } from "@/components/crm/diary-filters";
 import { ViewToggle } from "@/components/crm/view-toggle";
@@ -66,6 +66,10 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
   // stare at ten empty lanes.
   const shownStaff = staffIds.length ? staff.filter((s) => staffIds.includes(s.id)) : staff;
 
+  // The days the columns span: one for the day view, seven for the week.
+  const spannedDays: Date[] = [];
+  for (let d = new Date(from); d < to; d = addDays(d, 1)) spannedDays.push(new Date(d));
+
   const prev = toDateParam(shift(view, anchor, -1));
   const next = toDateParam(shift(view, anchor, 1));
   const keep = (d: string) => {
@@ -113,10 +117,12 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
           </div>
         </div>
 
-        {view === "day" && (
-          <DiaryDay events={events} staff={shownStaff} date={windowLabel("day", anchor)} />
+        {/* Day and week are the SAME component — staff as columns, jobs down
+            each in time order. They differ only in how many days the columns
+            span, so a week is one day's column with date dividers in it. */}
+        {view !== "month" && (
+          <DiaryColumns events={events} staff={shownStaff} days={spannedDays} />
         )}
-        {view === "week" && <DiaryWeek events={events} anchor={anchor.toISOString()} />}
         {view === "month" && <DiaryMonth events={events} anchor={anchor.toISOString()} />}
       </div>
     </>
