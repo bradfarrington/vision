@@ -216,8 +216,7 @@ function ContractSummary({ total, pipeline }: { total: number; pipeline: StageBu
   return (
     <div className="flex min-w-0 flex-wrap items-stretch gap-2.5">
       <StatTile label="Total Contracts" value={n(total)} rule="bg-[#a1a1aa]" tone="text-[#0a0a0a]" />
-      {/* "In Progress" is the DESIGN's own word for a live contract (the status
-          pill on screen 05) — it was briefly "In Flight", which is jargon that
+      {/* "Active Contracts" — it was briefly "In Flight", which is jargon that
           needed explaining, and a tile label that needs explaining is the wrong
           label. It and Order Book are the SAME population counted two ways —
           how many, and how much — so they share one colour. That colour is the
@@ -226,7 +225,7 @@ function ContractSummary({ total, pipeline }: { total: number; pipeline: StageBu
           tenant branded red would otherwise show live work in the loss colour.
           See AGENTS.md § UI build method. */}
       <StatTile
-        label="In Progress"
+        label="Active Contracts"
         value={n(openCount)}
         rule="bg-[var(--info)]"
         tone="text-[var(--info)]"

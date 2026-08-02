@@ -8,6 +8,49 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 Brad switches between machines frequently. **The git repo is the single source of truth** — every decision, plan, or discussion outcome worth keeping must be written into this repo (this file for agent rules/decisions, or `docs/`) and committed + pushed in the same session it was made. Never leave important context only in machine-level agent memory, local settings, or an uncommitted working tree.
 
+## RUNBOOK — applying a migration (read this OUT to Brad, every time)
+
+**Brad does not memorise these steps and should never be expected to.** Whenever a migration is
+written, or he asks how to apply one, or a screen is failing because the schema is behind:
+**print this whole sequence into the chat, filled in with the actual migration filename.** Don't
+link to it, don't summarise it, don't assume he remembers from last time — paste the commands.
+
+Schema is applied **BY HAND in the Supabase SQL editor**, never `supabase db push` (an early
+hook-policy migration was applied manually, so db push conflicts forever after).
+
+```
+STEP 1 — apply the SQL
+  Open  https://supabase.com/dashboard  →  the Vision project  →  SQL Editor  →  New query
+  Paste the ENTIRE contents of:  supabase/migrations/<FILENAME>.sql
+  Press Run.
+  (Claude: print the file's full SQL into the chat too, so there's nothing to go and find.)
+
+STEP 2 — reload the API schema cache
+  In the SAME SQL editor, run:
+
+    notify pgrst, 'reload schema';
+
+  Skipping this is why a brand-new column 404s from the app even though the SQL succeeded.
+
+STEP 3 — regenerate the TypeScript types  (in the project root, in a terminal)
+
+    npx supabase gen types typescript --linked > src/lib/supabase/types.ts
+
+STEP 4 — check it compiles
+
+    npx tsc --noEmit
+
+STEP 5 — commit the regenerated types in THIS session
+  The repo is the source of truth; a regen left on one machine doesn't count.
+```
+
+- **Steps 3–5 are only needed for a SCHEMA change.** A seed-only migration
+  (`insert … on conflict do nothing`) changes no columns, so it needs steps 1–2 only.
+- **Seed migrations are safe to RE-RUN** as new tenants are added, and should be. Migrations that
+  RENAME or DROP are **not** re-runnable — a second pass errors on the already-changed column.
+- After a regen, **tighten any loose `as any` casts** that were only there because the types were
+  behind. Claude should go looking for them rather than waiting to be asked.
+
 # Vision CRM — project decisions
 
 See `design_handoff_vision_crm/README.md` (architecture, theming, design system) and `design_handoff_vision_crm/TASKS.md` (phased build plan) — these are the source of truth for the build.
@@ -1716,7 +1759,9 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
 - **Inserts set `company_id` via `getCompanyId()`**, which reads `current_company_id()` (the verified
   JWT claim) — NOT `getUser().app_metadata` (that lacks the hook-stamped company_id). Never trust a
   client-supplied tenant id.
-- **Schema is applied BY HAND in the Supabase SQL editor**, in order — not `supabase db push` (an
+- **Schema is applied BY HAND in the Supabase SQL editor** — the step-by-step commands live in
+  **§ RUNBOOK — applying a migration** at the top of this file, and Claude must PRINT them to Brad
+  every time one needs applying rather than assuming he remembers. In order — not `supabase db push` (an
   early hook-policy migration was applied manually, so db push conflicts). **The full checklist for a
   new migration:** (1) add the migration file; (2) apply the SQL manually; (3) **reload the PostgREST
   schema cache** (`notify pgrst, 'reload schema';`, or Supabase dashboard → restart) so new columns
