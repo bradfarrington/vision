@@ -65,8 +65,12 @@ export function AppointmentComment({
           setDraft(value ?? "");
           setEditing(true);
         }}
+        // `w-full max-w-full` is load-bearing: a <button> SHRINK-TO-FITS its
+        // content, so `min-w-0` can't hold it — a long unbroken comment made
+        // the button wider than its table cell and printed straight over the
+        // columns to its right. Width from the cell, then clamp inside it.
         className={cn(
-          "group flex min-w-0 items-start gap-1 text-left",
+          "group flex w-full max-w-full min-w-0 items-start gap-1 text-left",
           value ? "text-[#71717a]" : "text-[#a1a1aa]",
           className,
         )}
@@ -77,7 +81,12 @@ export function AppointmentComment({
           strokeWidth={1.9}
           className="mt-[2px] shrink-0 opacity-0 transition-opacity group-hover:opacity-70"
         />
-        <span className={cn("min-w-0", value ? "line-clamp-2" : "italic")}>
+        {/* `break-words` matters as much as the clamp: a run of text with no
+            spaces (a pasted reference, a URL) cannot wrap without it, so it
+            would be clipped mid-character instead of reading as two lines. */}
+        <span
+          className={cn("min-w-0 flex-1", value ? "line-clamp-2 break-words" : "italic")}
+        >
           {value || placeholder}
         </span>
       </button>

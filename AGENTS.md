@@ -1408,8 +1408,18 @@ own idea of what colour a fit is.
     drop the second fitter the first time anyone edited a two-person job.
   - **The status PILL is the trigger** — the status stays readable at a glance and is one click from
     changing, rather than a pill sitting beside a control that does the same thing.
-- **The comment has its OWN column.** As a second line under the appointment it ran the width of the
-  table and collided with Time, Duration and Staff (which is exactly what it looked like).
+- **The comment has its OWN column, and it is the LAST one.** As a second line under the appointment
+  it ran the width of the table and printed over Time, Duration and Staff. Everything before it is a
+  fixed, predictable width so the eye runs down a column of dates, of times, of names; the one column
+  whose length varies has nothing to its right to run into.
+  - **GOTCHA — a `<button>` SHRINK-TO-FITS its content, so `min-w-0` cannot hold it.** That is why
+    the comment still overflowed after it had its own column: the editable comment IS a button, and
+    it grew to the width of an unbroken 150-character string (measured: 570px past its cell, right
+    across Time and Staff). It needs **`w-full max-w-full`** to take its width from the cell, and
+    **`break-words` alongside the line clamp** — a run of text with no spaces cannot wrap without it.
+    Applies to any click-to-edit control in a table cell.
+- **Staff WRAPS to two lines rather than truncating.** A fit is two people, and "Aaron Bl…" tells you
+  neither who is going nor that there are two of them.
 - **Access & directions sits BESIDE the table at ≥1367px** (`desktop:`, the app's own tier) and under
   it below that. The table is the wide thing; the access note is a paragraph, and a paragraph
   stretched across 1300px is unreadable while the space beside it sits empty.

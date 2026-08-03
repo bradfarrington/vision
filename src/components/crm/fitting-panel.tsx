@@ -89,12 +89,12 @@ export function FittingPanel({
           <div className="overflow-x-auto px-[18px] py-1">
             <div className={cn(GRID, HEAD)}>
               <span>Date</span>
-              <span>Appointment</span>
-              <span>Comment</span>
               <span>Time</span>
               <span>Duration</span>
+              <span>Appointment</span>
               <span>Staff</span>
               <span>Status</span>
+              <span>Comment</span>
               <span className="text-right">Actions</span>
             </div>
             {upcoming.map((a) => (
@@ -124,8 +124,12 @@ export function FittingPanel({
   );
 }
 
+// The long free-text column goes LAST and takes the slack. Everything before
+// it is a fixed, predictable width, so the eye runs down a column of dates, a
+// column of times, a column of names — and the one column that varies in
+// length has nothing to its right to run into.
 const GRID =
-  "grid min-w-[980px] grid-cols-[86px_150px_minmax(160px,1fr)_82px_92px_130px_104px_84px] gap-2";
+  "grid min-w-[1040px] grid-cols-[84px_76px_88px_150px_176px_112px_minmax(220px,1fr)_78px] gap-3";
 const HEAD =
   "border-b border-[#e7e7ea] py-2 text-[11px] font-bold uppercase tracking-[0.05em] text-[#a1a1aa]";
 
@@ -209,7 +213,7 @@ function Row({
     <div
       className={cn(
         GRID,
-        "items-center border-b border-[#f4f4f5] py-2 text-[12px] last:border-b-0",
+        "items-start border-b border-[#f4f4f5] py-2.5 text-[12px] last:border-b-0",
         pending && "opacity-60",
       )}
     >
@@ -232,25 +236,6 @@ function Row({
         />
       </span>
 
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span className="size-2 shrink-0 rounded-full" style={{ background: cat.fg }} />
-        <Combo
-          options={types.map((t) => ({ id: t.id, value: t.label, label: t.label }))}
-          value={appt.type ?? appt.title}
-          onChange={(v) => patch({ type: v || null, title: v || appt.title })}
-          variant="text"
-          align="start"
-          className="min-w-0 flex-1 [&>button]:w-full [&>button]:truncate [&>button]:text-left [&>button]:font-semibold [&>button]:text-[#0a0a0a]"
-          placeholder="Set a type…"
-        />
-      </span>
-
-      {/* Its own column: as a second line under the appointment it ran the
-          width of the table and collided with everything to its right. */}
-      <span className="min-w-0">
-        <AppointmentComment id={appt.id} value={appt.notes} className="text-[11.5px]" />
-      </span>
-
       <span className="min-w-0 tabular-nums">
         <TimePicker
           value={toTimeValue(when)}
@@ -269,6 +254,19 @@ function Row({
           align="start"
           clearable={false}
           className="[&>button]:text-left [&>button]:text-[#3f3f46]"
+        />
+      </span>
+
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="size-2 shrink-0 rounded-full" style={{ background: cat.fg }} />
+        <Combo
+          options={types.map((t) => ({ id: t.id, value: t.label, label: t.label }))}
+          value={appt.type ?? appt.title}
+          onChange={(v) => patch({ type: v || null, title: v || appt.title })}
+          variant="text"
+          align="start"
+          className="min-w-0 flex-1 [&>button]:w-full [&>button]:truncate [&>button]:text-left [&>button]:font-semibold [&>button]:text-[#0a0a0a]"
+          placeholder="Set a type…"
         />
       </span>
 
@@ -302,7 +300,16 @@ function Row({
         />
       </span>
 
-      <span className="flex items-center justify-end gap-2">
+      {/* Its own column, and the LAST one: as a second line under the
+          appointment it ran the width of the table and printed over
+          everything to its right. */}
+      <span className="min-w-0">
+        <AppointmentComment id={appt.id} value={appt.notes} className="text-[11.5px]" />
+      </span>
+
+      {/* Stacked, not side by side: two verbs in a 78px column would each
+          truncate to a word and a half. */}
+      <span className="flex flex-col items-end gap-1">
         {!done && (
           <button
             type="button"
@@ -353,7 +360,9 @@ function StaffCell({
       clearable={false}
       placeholder={shown ?? "Nobody yet"}
       searchPlaceholder="Search staff…"
-      className="[&>button]:w-full [&>button]:truncate [&>button]:text-left [&>button]:text-[#3f3f46]"
+      // Wraps to two lines rather than truncating: a fit is two people and
+      // "Aaron Bl…" tells you neither who is going nor that there are two.
+      className="[&>button]:w-full [&>button]:max-w-full [&>button]:text-left [&>button]:leading-tight [&>button]:whitespace-normal [&>button]:break-words [&>button]:text-[#3f3f46]"
     />
   );
 }
