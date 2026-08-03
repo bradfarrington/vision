@@ -195,28 +195,34 @@ export function ViewSwitcher({
           ref={triggerRef}
           type="button"
           onClick={() => setOpen((o) => !o)}
-          title={`Views — ${active.name}${dirty ? " (unsaved changes)" : ""}`}
+          title={`${active.name}${dirty ? " (unsaved changes)" : ""}`}
           aria-label={`Views — currently ${active.name}`}
           className={cn(
             TOOLBAR_H,
-            "relative flex shrink-0 items-center justify-center rounded-lg border px-2.5 transition-colors",
+            "relative flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-semibold transition-colors",
             // Loaded a view? Say so — otherwise the only signal that the diary
             // is filtered by a saved bundle is the filters themselves.
             active.id !== ALL_VIEW_ID
               ? "border-[var(--accent-blue)] bg-[var(--accent-tint)] text-[var(--accent-blue)]"
               : open
                 ? "border-[var(--accent-blue)] bg-white text-[var(--accent-blue)]"
-                : "border-[#e7e7ea] bg-white text-[#71717a] hover:bg-[#fafafa]",
+                : "border-[#e7e7ea] bg-white text-[#3f3f46] hover:bg-[#fafafa]",
           )}
         >
-          <Icon
-            name="star"
-            size={14}
-            strokeWidth={active.id !== ALL_VIEW_ID ? 0 : 1.9}
-            className={active.id !== ALL_VIEW_ID ? "fill-[var(--accent-blue)]" : ""}
-          />
+          {/* The star is drawn as an OUTLINE in every state and the COLOUR
+              carries the meaning. A filled-vs-outline pair was tried and the
+              filled one rendered as nothing at all — at 14px that distinction
+              wasn't worth a second way for the glyph to fail. */}
+          <Icon name="star" size={14} strokeWidth={1.9} />
+          {/* It needs the word. An icon-only star reads as "favourite this",
+              not "saved views" — the first person to see it asked what it was
+              for, which is the whole answer. */}
+          Views
           {dirty && (
-            <span className="absolute right-[3px] top-[3px] size-[6px] rounded-full bg-[#b86e00]" />
+            <span
+              title="Unsaved changes"
+              className="size-[6px] shrink-0 rounded-full bg-[#b86e00]"
+            />
           )}
         </button>
       ) : (
@@ -435,12 +441,8 @@ function Row({
               : "text-[#d4d4d8] hover:text-[var(--accent-blue)]",
           )}
         >
-          <Icon
-            name="star"
-            size={12}
-            strokeWidth={isDefault ? 0 : 1.8}
-            className={isDefault ? "fill-[var(--accent-blue)]" : ""}
-          />
+          {/* Outline in both states, colour carries it — see the toolbar star. */}
+          <Icon name="star" size={12} strokeWidth={isDefault ? 2.4 : 1.8} />
         </button>
       )}
       {/* Curation controls are always present, not hover-only — the only way to

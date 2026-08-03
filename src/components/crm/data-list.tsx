@@ -373,7 +373,7 @@ export function Popover({
         {icon && <Icon name={icon} size={13} />}
         {/* Capped: a trigger that states its selection ("Staff: Gary Whitmore")
             must not be able to push a toolbar onto a second row. */}
-        <span className="min-w-0 max-w-[132px] truncate">{label}</span>
+        <span className="min-w-0 max-w-[110px] truncate">{label}</span>
         {badge ? (
           <span className="flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--accent-blue)] px-1 text-[10.5px] font-bold text-white">
             {badge}

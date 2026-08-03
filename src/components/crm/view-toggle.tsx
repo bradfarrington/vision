@@ -70,7 +70,7 @@ export function ViewToggle({
             aria-label={v.label}
             className={cn(
               "inline-flex h-full items-center justify-center rounded-md transition-colors",
-              labelled ? "px-3 text-[12.5px]" : "px-2.5",
+              labelled ? "px-2.5 text-[12.5px]" : "px-2.5",
               active
                 ? labelled
                   ? "bg-white font-semibold text-[#0a0a0a] shadow-[0_1px_2px_rgba(10,10,10,0.08)]"

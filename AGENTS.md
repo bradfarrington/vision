@@ -1221,9 +1221,9 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
     screen and the row has to fit.
   - **It is ONE ROW, and that is a constraint every control is sized to** (2026-08-03 — it wrapped
     onto two the moment saved views arrived, which moves the buttons under the pointer and costs a
-    band of the grid). Measured at the app's own 1280px floor with every label at its longest: 1126px
-    of content in 1152px. The trims that bought it: the view switcher became an icon, "Find a slot"
-    became an icon, filter triggers truncate at 132px, and **the week label dropped its weekday
+    band of the grid). Measured at the app's own 1280px floor with every label at its longest: 1117px
+    of content in 1152px. The trims that bought it: "Find a slot" became icon-only, filter triggers
+    truncate at 110px, the Day/Week/Month padding tightened, and **the week label dropped its weekday
     names** ("20 – 26 Jul 2026", not "Mon 20 – Sun 26 Jul 2026" — a week always runs Mon–Sun, so they
     said nothing the grid below doesn't label, and they cost 60px). **Anything added here has to buy
     its width from something else.**
@@ -1241,10 +1241,20 @@ screen where a view can be made your STARTING point.
 - **System views:** Everything · Installations · Surveys · Service calls · Fitting week. Staff-specific
   views ("just my jobs") can only ever be PERSONAL saved ones — a staff id is per tenant, so it can't
   be written into code shipped to every tenant.
-- **The switcher is the ICON variant here, in the toolbar with the two filters** — not the named pill
-  beside the title the lists use. On a list the view IS the subject of the screen; the diary's subject
-  is a date, so a second named box next to the period picker read as a rival filter (Brad, on sight).
-  It lights in the accent while a view is loaded and carries the same amber unsaved-changes dot.
+- **The switcher is the `icon` variant here — a star + the word "Views", in the toolbar with the two
+  filters** — not the named pill beside the title the lists use. On a list the view IS the subject of
+  the screen; the diary's subject is a date, so a second named box next to the period picker read as
+  a rival filter (Brad, on sight). It lights in the accent while a view is loaded and carries the
+  same amber unsaved-changes dot.
+  - **It keeps the WORD.** Tried icon-only to save width and the first person to see it asked what
+    it was for — a bare star reads as "favourite this", not "saved views". Width was bought back
+    from the segmented control's padding and the filter truncation instead.
+  - **The star is an OUTLINE in every state; COLOUR carries the meaning.** A filled-vs-outline pair
+    was tried (`strokeWidth={0}` + a `fill-[…]` class) and the filled one rendered as **nothing at
+    all** — an empty button. The rule was generated and the same markup filled correctly in an
+    isolated browser test, so the cause was never pinned down; at 14px the distinction wasn't worth
+    a second way for a glyph to vanish. **Don't reintroduce a zero-stroke filled icon** — if an icon
+    needs a filled state, keep a stroke on it so a fill that doesn't paint can't make it invisible.
 - **The default is PER USER and lives in `user_ui_layouts`** (`views_default_<entity>`), NOT as a
   column on `saved_views`. That split is the whole point: a view is a named record that may be
   SHARED with the tenant, while which one you land on is one person's preference about it. A column
