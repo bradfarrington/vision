@@ -1371,6 +1371,11 @@ own idea of what colour a fit is.
   row made you hunt for "a slightly darker green"; a matrix lets the eye find a hue by column and a
   weight by row. Every value sits in the 600–800 range because these colours are used as TEXT on
   their own 14% tint, where a pastel is unreadable.
+  - **It is FLEX-WRAP with fixed 24px swatches, NOT a grid template**, and deliberately so: the first
+    cut used `grid-cols-8` + `aspect-square`, and when that one utility didn't make it into the
+    stylesheet the swatches became a single column of full-width blocks the size of the popover.
+    Fixed-size items in a wrapping row degrade to "a wrapped row of small squares" instead. **Prefer
+    a layout whose failure mode is survivable** wherever one class carries the whole shape.
 - **Clicking the swatch beside the hex field opens a DRAG-TO-CHOOSE picker** (`colour-picker.tsx`) —
   a saturation/brightness square over a hue slider. **Hand-built, like `DatePicker` and `TimePicker`
   before it**: `<input type="color">` opens the OPERATING SYSTEM's colour panel, which is a different

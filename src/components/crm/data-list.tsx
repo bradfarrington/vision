@@ -67,6 +67,9 @@ export type ListColumn<V> = {
   cardHeader?: boolean;
   /** Render the value with no field label (a headline/badge, not a labelled row). */
   cardBare?: boolean;
+  /** Join the PRECEDING field's line instead of starting one of its own —
+   *  "C-1892 · Margaret Ellison" on a card too small to spend a line on each. */
+  cardInline?: boolean;
 };
 
 export type FilterDef = {

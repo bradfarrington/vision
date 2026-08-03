@@ -41,7 +41,11 @@ export const APPOINTMENT_FIELDS: ListColumn<DiaryEvent>[] = [
     group: "Job",
     w: 0,
     cardBare: true,
-    cardCell: (e) => line(e.customerName, "block truncate text-[11px] font-semibold"),
+    // Shares the reference's line: on a block two rows tall, "C-1892" and the
+    // name are one fact — who the job is for — and spending two of the three
+    // available lines saying it left no room for anything else.
+    cardInline: true,
+    cardCell: (e) => line(e.customerName, "truncate text-[11px] font-semibold"),
   },
   {
     key: "type",

@@ -119,7 +119,12 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
             {category.label}
           </p>
 
-          <div className="grid grid-cols-8 gap-1">
+          {/* FLEX-WRAP with fixed 24px swatches, not a grid template: eight
+              fit the popover's width exactly, and if a utility class ever
+              fails to make it into the stylesheet these degrade to a wrapped
+              row of small squares rather than one column of huge blocks —
+              which is what a missing `grid-cols-8` turned them into. */}
+          <div className="flex flex-wrap gap-1">
             {PALETTE.flat().map((p) => (
               <button
                 key={p}
@@ -132,7 +137,7 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
                 aria-label={p}
                 title={p}
                 className={cn(
-                  "aspect-square rounded-[5px] border transition-transform hover:scale-110",
+                  "size-6 shrink-0 rounded-[5px] border transition-transform hover:scale-110",
                   p.toLowerCase() === category.fg.toLowerCase()
                     ? "border-[#0a0a0a]"
                     : "border-black/10",

@@ -174,6 +174,23 @@ function renderValue(
   return String(raw);
 }
 
+type Rendered = { col: ListColumn<never>; node: React.ReactNode };
+
+/**
+ * Fold `cardInline` fields into the line before them.
+ *
+ * A field marked inline with nothing before it simply starts its own line, so
+ * the user reordering the picker can never produce an orphan.
+ */
+function groupInline(items: Rendered[]): { key: string; items: Rendered[] }[] {
+  const rows: { key: string; items: Rendered[] }[] = [];
+  for (const item of items) {
+    if (item.col.cardInline && rows.length) rows[rows.length - 1].items.push(item);
+    else rows.push({ key: item.col.key, items: [item] });
+  }
+  return rows;
+}
+
 export function CardFieldsBody<V>({ row }: { row: V }) {
   const { visible, fieldMap, record } = useCardFields();
   const r = row as unknown as never;
@@ -204,15 +221,26 @@ export function CardFieldsBody<V>({ row }: { row: V }) {
           ))}
         </div>
       )}
-      {body.map(({ col, node }) =>
-        col.cardBare ? (
-          <div key={col.key} className="min-w-0 truncate">
-            {node}
+      {groupInline(body).map((row) =>
+        row.items.length > 1 ? (
+          // An inline row: the fields share a line, separated by a dot, each
+          // free to truncate. For cards too small to spend a line per field.
+          <div key={row.key} className="flex min-w-0 items-baseline gap-1">
+            {row.items.map(({ col, node }, i) => (
+              <span key={col.key} className="flex min-w-0 items-baseline gap-1">
+                {i > 0 && <span className="shrink-0 text-[#a1a1aa]">·</span>}
+                <span className="min-w-0 truncate">{node}</span>
+              </span>
+            ))}
+          </div>
+        ) : row.items[0].col.cardBare ? (
+          <div key={row.key} className="min-w-0 truncate">
+            {row.items[0].node}
           </div>
         ) : (
-          <div key={col.key} className="flex items-baseline justify-between gap-2 text-[11px]">
-            <span className="shrink-0 text-[#a1a1aa]">{col.label}</span>
-            <span className="min-w-0 truncate text-right text-[#3f3f46]">{node}</span>
+          <div key={row.key} className="flex items-baseline justify-between gap-2 text-[11px]">
+            <span className="shrink-0 text-[#a1a1aa]">{row.items[0].col.label}</span>
+            <span className="min-w-0 truncate text-right text-[#3f3f46]">{row.items[0].node}</span>
           </div>
         ),
       )}
