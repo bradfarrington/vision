@@ -114,11 +114,16 @@ export const APPOINTMENT_FIELDS: ListColumn<DiaryEvent>[] = [
     group: "Job",
     w: 0,
     cardBare: true,
-    // Clamped to two lines: comments are free text and a card must not grow
-    // with the data (AGENTS.md § the overview is BOUNDED BY DESIGN).
+    // WRAPS, then clamps to two lines: comments are free text, so they need to
+    // wrap to be readable at all — but a card must not grow with the data
+    // (AGENTS.md § the overview is BOUNDED BY DESIGN). `break-words` because a
+    // long unbroken run (a URL, a reference) can't wrap without it.
+    cardWrap: true,
     cardCell: (e) =>
       e.notes ? (
-        <span className="line-clamp-2 text-[10px] leading-tight text-[#52525b]">{e.notes}</span>
+        <span className="line-clamp-2 break-words text-[10px] leading-tight text-[#52525b]">
+          {e.notes}
+        </span>
       ) : null,
   },
   {

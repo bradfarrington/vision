@@ -70,6 +70,10 @@ export type ListColumn<V> = {
   /** Join the PRECEDING field's line instead of starting one of its own —
    *  "C-1892 · Margaret Ellison" on a card too small to spend a line on each. */
   cardInline?: boolean;
+  /** Let this bare field WRAP instead of truncating to one line. For free text
+   *  (an appointment comment) whose own renderer clamps the line count — the
+   *  default `truncate` sets white-space:nowrap, which defeats a line-clamp. */
+  cardWrap?: boolean;
 };
 
 export type FilterDef = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -27,6 +27,7 @@ import {
 } from "@/lib/diary";
 import { durationLabel, suitsCategory } from "@/lib/appointments";
 import { CardFieldsBody, CardFieldsButton } from "@/components/crm/card-fields";
+import { Icon } from "@/components/crm/icon";
 import { CategoryColourButton, useCategory, useWorkCategories } from "@/components/crm/diary-colours";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
@@ -49,9 +50,27 @@ import { cn } from "@/lib/utils";
 // A multi-day fit occupies EVERY block it runs through (via workingSpan, the
 // same helper the slot finder uses), because a row is a half day: showing a
 // 3-day installation only on Monday morning would read as free time that isn't.
+//
+// But it occupies them as ONE CARD, SPANNING the blocks — not a copy of the card
+// in each. A job running 09:00 → 15:00 drew two identical cards in AM and PM and
+// read as two separate bookings. So each staff column is a 2-row grid per day
+// and a card is placed across the rows it fills. A card that spans, STRETCHES to
+// fill them, or it doesn't look like it spans anything.
+//   Spanning stops at the DAY boundary: a 3-day fit is one card per day (marked
+// "cont."), because a card drawn through the day's rule and past the date in the
+// gutter reads as broken rather than as continuous.
+//   When a spanning job shares a day with a shorter one, they take a LANE each —
+// they'd otherwise be drawn on top of each other, and a clash is the one thing
+// that must not hide behind itself (the same rule the day grid follows).
+//
+// A ROW NEVER GROWS WITH ITS CONTENT. Every row is the same height whether it
+// holds nothing or four jobs, because a matrix you read across is only readable
+// if the rows line up and stay where they were — one busy morning must not
+// become the height of the screen. Cards are clipped and the row's AM/PM label
+// grows a chevron that expands it to fit; see MIN_BLOCK_H and `need`/`shown`.
 // ---------------------------------------------------------------------------
 
-/** Smallest a half-day block may get before the grid scrolls instead. */
+/** The height of EVERY half-day block, full or empty, until one is expanded. */
 const MIN_BLOCK_H = 56;
 /** The date rail down the left. */
 const GUTTER = 82;
@@ -75,16 +94,18 @@ export type WeekColumn = {
   muted?: boolean;
 };
 
-/** One person's job in one half-day, already resolved by the view. */
+/** One person's job on one DAY, already resolved by the view. */
 export type WeekCell = {
   event: DiaryEvent;
-  /** The instant this block's stretch of the job starts. */
+  /** The instant this day's stretch of the job starts. */
   start: Date;
-  /** Minutes worked in THIS block (a longer job is split across blocks). */
+  /** Minutes worked on THIS day (a longer job is split across days). */
   minutes: number;
-  /** Ran in an earlier block too. */
+  /** Which halves of the day it fills — one card spans all of them. */
+  blocks: DayBlock[];
+  /** Ran on an earlier day too. */
   continuedFrom: boolean;
-  /** Runs on into a later block. */
+  /** Runs on into a later day. */
   continuesInto: boolean;
 };
 
@@ -98,7 +119,7 @@ export function DiaryWeekGrid({
 }: {
   columns: WeekColumn[];
   days: Date[];
-  /** `${dayKey}|${block}|${columnKey}` → that person's jobs in that half-day. */
+  /** `${dayKey}|${columnKey}` → that person's jobs on that day. */
   cells: Map<string, WeekCell[]>;
   onPick?: (columnKey: string, day: Date, block: DayBlock) => void;
   /** Dropped a job in a cell: that person, that half-day. */
@@ -130,6 +151,66 @@ export function DiaryWeekGrid({
     }
     return null;
   };
+
+  // --- Row heights ---------------------------------------------------------
+  // `need` is the tallest content in each half-day row (measured, because a card
+  // is whatever the user's chosen fields make it), `shown` the height that row is
+  // actually drawn at. A row whose content doesn't fit offers the chevron; only
+  // an EXPANDED row is sized to its content. Everything else stays uniform.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [need, setNeed] = useState<Map<string, number>>(new Map());
+  const [shown, setShown] = useState<Map<string, number>>(new Map());
+
+  // Per row, per reporter — one cell's stack, so the row's requirement is the
+  // tallest of them. Held in a ref and folded into state on the next frame:
+  // ~90 cells report on first paint and on every resize.
+  const naturals = useRef(new Map<string, Map<string, number>>());
+  const frame = useRef<number | null>(null);
+  const reportNatural = useCallback((row: string, cell: string, h: number) => {
+    let per = naturals.current.get(row);
+    if (!per) naturals.current.set(row, (per = new Map()));
+    if (per.get(cell) === h) return;
+    per.set(cell, h);
+    if (frame.current != null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      const next = new Map<string, number>();
+      for (const [key, reported] of naturals.current) {
+        next.set(key, Math.max(0, ...reported.values()));
+      }
+      setNeed(next);
+    });
+  }, []);
+  useEffect(() => () => {
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+  }, []);
+
+  const reportShown = useCallback((row: string, h: number) => {
+    setShown((prev) => (prev.get(row) === h ? prev : new Map(prev).set(row, h)));
+  }, []);
+
+  const toggleRow = (row: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(row)) next.add(row);
+      return next;
+    });
+
+  /** The height to PIN a row at, or null to leave it sharing the day evenly. */
+  const rowHeight = (row: string) =>
+    expanded.has(row) ? Math.max(MIN_BLOCK_H, need.get(row) ?? MIN_BLOCK_H) : null;
+
+  // Every day's two tracks, resolved up front: the day row's flex-basis is their
+  // sum, and the whole body's basis is the sum of those — which is what lets the
+  // grid SCROLL when it doesn't fit and FILL the panel when it does, without a
+  // card's height ever reaching the calculation.
+  const tracks = days.map((day) => {
+    const key = toDateParam(day);
+    const am = rowHeight(`${key}|am`);
+    const pm = rowHeight(`${key}|pm`);
+    return { key, am, pm, basis: (am ?? MIN_BLOCK_H) + (pm ?? MIN_BLOCK_H) };
+  });
+  const bodyBasis = tracks.reduce((n, t) => n + t.basis, 0);
 
   /** Can't take this job — closed for the drag, and shown as closed. */
   const blocked = (col: WeekColumn) => !!dragJob && !suitsCategory(col.role, dragJob.category);
@@ -257,13 +338,16 @@ export function DiaryWeekGrid({
             })}
           </div>
 
-          {/* --- Body: one row per day, two blocks per row ------------------- */}
+          {/* --- Body: one row per day, two blocks per row -------------------
+              Basis, not min-height: the body has to declare its own height for
+              the scroller to scroll to it, and `flex-grow` then fills a panel
+              taller than that. No content anywhere in here can add to it. */}
           <div
-            className="flex min-h-0 flex-1 flex-col"
-            style={{ minHeight: days.length * 2 * MIN_BLOCK_H }}
+            className="flex flex-col"
+            style={{ flex: `1 0 ${bodyBasis}px`, minHeight: bodyBasis }}
           >
-            {days.map((day) => {
-              const key = toDateParam(day);
+            {days.map((day, dayIndex) => {
+              const { key, am, pm, basis } = tracks[dayIndex];
               const lit = hover?.row?.startsWith(`${key}|`) ?? false;
               const today = isSameDay(day, new Date());
               const weekend = isWeekend(day);
@@ -271,7 +355,12 @@ export function DiaryWeekGrid({
               return (
                 <div
                   key={key}
-                  className="flex min-h-0 flex-1 border-b border-[#e7e7ea]"
+                  className="flex border-b border-[#e7e7ea]"
+                  // minHeight explicitly, NOT `min-h-0`: a flex item's automatic
+                  // minimum is its CONTENT's height, which is exactly how a busy
+                  // morning used to stretch the row it was in. Stating the number
+                  // leaves nothing for the cards to raise.
+                  style={{ flex: `1 0 ${basis}px`, minHeight: basis }}
                   onMouseLeave={() => setHover(null)}
                 >
                   {/* The date spans BOTH its blocks — a day is still one thing,
@@ -311,67 +400,63 @@ export function DiaryWeekGrid({
                     </span>
                   </Link>
 
-                  {/* The day's two halves. */}
-                  <div className="flex min-w-0 flex-1 flex-col">
+                  {/* The AM/PM rail. It sits OUTSIDE the day's cells now that a
+                      card can span both of them, and each label owns its row's
+                      height — so the rail and every column agree on where the
+                      halves divide. It is also where a clipped row is expanded. */}
+                  <div
+                    className="sticky z-10 flex shrink-0 flex-col border-r border-[#e7e7ea]"
+                    style={{ left: GUTTER, width: BLOCK_W }}
+                  >
                     {BLOCKS.map(({ key: block, label }, i) => {
                       const rowKey = `${key}|${block}`;
-                      const rowLit = hover?.row === rowKey;
+                      const h = block === "am" ? am : pm;
                       return (
-                        <div
+                        <RailCell
                           key={block}
-                          className={cn(
-                            "flex min-h-0 flex-1",
-                            // Hairline between AM and PM; the day's own border
-                            // is the heavier one, so the halves read as halves
-                            // rather than as fourteen separate rows.
-                            i > 0 && "border-t border-[#f4f4f5]",
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              "sticky z-10 flex shrink-0 items-start justify-center border-r border-[#e7e7ea] pt-1.5 transition-colors",
-                              rowLit
-                                ? "bg-[var(--accent-tint)]"
-                                : weekend
-                                  ? "bg-[#fafafa]"
-                                  : "bg-white",
-                            )}
-                            style={{ left: GUTTER, width: BLOCK_W }}
-                          >
-                            <span
-                              className={cn(
-                                "text-[10px] font-bold uppercase tracking-[0.06em] transition-colors",
-                                rowLit ? "text-[var(--accent-active)]" : "text-[#a1a1aa]",
-                              )}
-                            >
-                              {label}
-                            </span>
-                          </div>
-
-                          {columns.map((col) => (
-                            <Cell
-                              key={col.key}
-                              id={`${rowKey}|${col.key}`}
-                              // Highlighted only in the column being dropped
-                              // on: the same job in someone else's row would be
-                              // a different booking.
-                              inPreview={preview.has(rowKey) && dropCol === col.key}
-                              blocked={blocked(col)}
-                              day={day}
-                              weekend={weekend}
-                              muted={col.muted}
-                              lit={hover?.col === col.key && hover.row === rowKey}
-                              jobs={cells.get(`${rowKey}|${col.key}`) ?? []}
-                              label={`${day.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} ${label} — ${col.label}`}
-                              onEnter={() => setHover({ col: col.key, row: rowKey })}
-                              onPick={() => onPick?.(col.key, day, block)}
-                              onContext={onContext}
-                            />
-                          ))}
-                        </div>
+                          label={label}
+                          height={h}
+                          hairline={i > 0}
+                          lit={hover?.row === rowKey}
+                          weekend={weekend}
+                          open={expanded.has(rowKey)}
+                          // Only offer it when something is actually hidden —
+                          // fourteen chevrons that mostly do nothing is worse
+                          // than none. `shown` is the row's real height, so this
+                          // stays honest on a tall panel where a row that fits
+                          // is bigger than MIN_BLOCK_H.
+                          clipped={(need.get(rowKey) ?? 0) > (shown.get(rowKey) ?? MIN_BLOCK_H) + 1}
+                          onToggle={() => toggleRow(rowKey)}
+                          onShown={(px) => reportShown(rowKey, px)}
+                        />
                       );
                     })}
                   </div>
+
+                  {/* One column per person — the WHOLE day, both halves, so a
+                      card can be placed across them. */}
+                  {columns.map((col) => (
+                    <DayColumn
+                      key={col.key}
+                      dayKey={key}
+                      day={day}
+                      col={col}
+                      am={am}
+                      pm={pm}
+                      weekend={weekend}
+                      blocked={blocked(col)}
+                      // Highlighted only in the column being dropped on: the
+                      // same job in someone else's row would be a different
+                      // booking.
+                      previewBlocks={dropCol === col.key ? preview : null}
+                      hoverRow={hover?.col === col.key ? (hover.row ?? null) : null}
+                      jobs={cells.get(`${key}|${col.key}`) ?? []}
+                      onEnter={(block) => setHover({ col: col.key, row: `${key}|${block}` })}
+                      onPick={(block) => onPick?.(col.key, day, block)}
+                      onContext={onContext}
+                      onNatural={reportNatural}
+                    />
+                  ))}
                 </div>
               );
             })}
@@ -385,33 +470,241 @@ export function DiaryWeekGrid({
   );
 }
 
-function Cell({
-  id,
-  inPreview,
-  blocked,
-  day,
-  weekend,
-  muted,
-  lit,
-  jobs,
+/**
+ * Report an element's own height whenever it changes.
+ *
+ * Two jobs: a card stack reports the height it WANTS (so a row knows whether it
+ * is hiding anything, and what to grow to), and a rail label reports the height
+ * it GOT (which is the row's real height). `clear` sends a 0 on unmount so a
+ * stack that goes away doesn't leave a phantom chevron behind it; a rail label
+ * never unmounts while the grid lives, and must not report a 0 it would then be
+ * measured against.
+ */
+function useReportHeight(report: (h: number) => void, clear = false) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // The reporter is a fresh closure every render; the observer must not be torn
+  // down and rebuilt for it (the same pattern the map's tile-error callback uses).
+  const latest = useRef(report);
+  useEffect(() => {
+    latest.current = report;
+  });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // scrollHeight, not offsetHeight: a spanning stack is pinned to its grid
+    // area (`h-full`) so its card fills it, so its own box says nothing about
+    // how tall the card actually wants to be — its overflow does.
+    const measure = () => latest.current(Math.max(el.scrollHeight, el.offsetHeight));
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => {
+      ro.disconnect();
+      if (clear) latest.current(0);
+    };
+  }, [clear]);
+
+  return ref;
+}
+
+function RailCell({
   label,
+  height,
+  hairline,
+  lit,
+  weekend,
+  open,
+  clipped,
+  onToggle,
+  onShown,
+}: {
+  label: string;
+  /** Pinned height, or null while the row just shares the day evenly. */
+  height: number | null;
+  hairline: boolean;
+  lit: boolean;
+  weekend: boolean;
+  open: boolean;
+  clipped: boolean;
+  onToggle: () => void;
+  onShown: (h: number) => void;
+}) {
+  const ref = useReportHeight(onShown);
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "flex flex-col items-center gap-0.5 overflow-hidden pt-1.5 transition-colors",
+        // Hairline between AM and PM; the day's own border is the heavier one,
+        // so the halves read as halves rather than as fourteen separate rows.
+        hairline && "border-t border-[#f4f4f5]",
+        lit ? "bg-[var(--accent-tint)]" : weekend ? "bg-[#fafafa]" : "bg-white",
+      )}
+      style={height ? { height, flex: "0 0 auto" } : { flex: "1 0 0%" }}
+    >
+      <span
+        className={cn(
+          "text-[10px] font-bold uppercase tracking-[0.06em] transition-colors",
+          lit ? "text-[var(--accent-active)]" : "text-[#a1a1aa]",
+        )}
+      >
+        {label}
+      </span>
+      {(clipped || open) && (
+        <button
+          type="button"
+          onClick={onToggle}
+          title={open ? `Collapse ${label}` : `Show everything in ${label}`}
+          aria-label={open ? `Collapse ${label}` : `Show everything in ${label}`}
+          aria-expanded={open}
+          className="rounded text-[#a1a1aa] transition-colors hover:bg-[#f4f4f5] hover:text-[var(--accent-active)]"
+        >
+          <Icon name="chevron-down" size={13} className={open ? "rotate-180" : undefined} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One person's whole DAY — both halves, as a 2-row grid.
+ *
+ * The grid is what lets a card span the halves: a job is placed on the rows it
+ * fills (`gridRow`), not stacked inside one of them. The half-day backdrops sit
+ * under it as the droppables and the booking targets.
+ */
+function DayColumn({
+  dayKey,
+  day,
+  col,
+  am,
+  pm,
+  weekend,
+  blocked,
+  previewBlocks,
+  hoverRow,
+  jobs,
   onEnter,
   onPick,
   onContext,
+  onNatural,
 }: {
-  id: string;
-  inPreview: boolean;
+  dayKey: string;
+  day: Date;
+  col: WeekColumn;
+  am: number | null;
+  pm: number | null;
+  weekend: boolean;
   /** This person can't take the job being dragged. */
   blocked: boolean;
-  day: Date;
+  /** Rows the dragged job would land in, or null if it's not over this column. */
+  previewBlocks: Set<string> | null;
+  hoverRow: string | null;
+  jobs: WeekCell[];
+  onEnter: (block: DayBlock) => void;
+  onPick: (block: DayBlock) => void;
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
+  onNatural: (row: string, cell: string, h: number) => void;
+}) {
+  // A job that fills only one half stacks with the others in that half; a job
+  // that SPANS both can't share that stack, so it takes a lane of its own.
+  const spanning = jobs.filter((j) => j.blocks.length > 1);
+  const halves: Record<DayBlock, WeekCell[]> = {
+    am: jobs.filter((j) => j.blocks.length === 1 && j.blocks[0] === "am"),
+    pm: jobs.filter((j) => j.blocks.length === 1 && j.blocks[0] === "pm"),
+  };
+  const twoLanes = spanning.length > 0 && (halves.am.length > 0 || halves.pm.length > 0);
+
+  const track = (h: number | null) => (h ? `${h}px` : "minmax(0, 1fr)");
+
+  return (
+    <div
+      className="grid min-w-0 flex-1 border-r border-[#e7e7ea]"
+      style={{
+        minWidth: MIN_COL,
+        gridTemplateColumns: twoLanes ? "1fr 1fr" : "1fr",
+        gridTemplateRows: `${track(am)} ${track(pm)}`,
+      }}
+    >
+      {BLOCKS.map(({ key: block, label }, i) => (
+        <Backdrop
+          key={block}
+          id={`${dayKey}|${block}|${col.key}`}
+          row={i + 1}
+          hairline={i > 0}
+          blocked={blocked}
+          inPreview={!!previewBlocks?.has(`${dayKey}|${block}`)}
+          lit={hoverRow === `${dayKey}|${block}`}
+          weekend={weekend}
+          muted={col.muted}
+          label={`${day.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} ${label} — ${col.label}`}
+          onEnter={() => onEnter(block)}
+          onPick={() => onPick(block)}
+        />
+      ))}
+
+      {BLOCKS.map(({ key: block }, i) =>
+        halves[block].length === 0 ? null : (
+          <Stack
+            key={block}
+            row={`${i + 1}`}
+            lane={twoLanes ? "1" : "1 / -1"}
+            jobs={halves[block]}
+            day={day}
+            onEnter={() => onEnter(block)}
+            onContext={onContext}
+            onNatural={(h) => onNatural(`${dayKey}|${block}`, col.key, h)}
+          />
+        ),
+      )}
+
+      {spanning.length > 0 && (
+        <Stack
+          row="1 / 3"
+          lane={twoLanes ? "2" : "1 / -1"}
+          jobs={spanning}
+          day={day}
+          stretch
+          onContext={onContext}
+          // It occupies both rows, so it needs half of its height from each —
+          // otherwise expanding AM alone would still clip it.
+          onNatural={(h) => {
+            const half = Math.ceil(h / 2);
+            onNatural(`${dayKey}|am`, `${col.key}#span`, half);
+            onNatural(`${dayKey}|pm`, `${col.key}#span`, half);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Backdrop({
+  id,
+  row,
+  hairline,
+  blocked,
+  inPreview,
+  lit,
+  weekend,
+  muted,
+  label,
+  onEnter,
+  onPick,
+}: {
+  id: string;
+  row: number;
+  hairline: boolean;
+  blocked: boolean;
+  inPreview: boolean;
+  lit: boolean;
   weekend: boolean;
   muted?: boolean;
-  lit: boolean;
-  jobs: WeekCell[];
   label: string;
   onEnter: () => void;
   onPick: () => void;
-  onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
   // Disabled, so a blocked column can't even become the drop target — there is
   // nothing to land on, and no landing preview to mislead with.
@@ -421,7 +714,8 @@ function Cell({
     <div
       ref={setNodeRef}
       className={cn(
-        "relative flex min-w-0 flex-1 flex-col border-r border-[#e7e7ea] transition-colors",
+        "relative transition-colors",
+        hairline && "border-t border-[#f4f4f5]",
         blocked
           ? "bg-[#fdecec]/60"
           : inPreview
@@ -433,12 +727,13 @@ function Cell({
                 : "bg-white",
       )}
       style={{
-        minWidth: MIN_COL,
+        gridRow: row,
+        gridColumn: "1 / -1",
         ...(blocked ? { outline: "2px dashed #e9a3a3", outlineOffset: "-2px" } : null),
       }}
       onMouseEnter={onEnter}
     >
-      {/* The empty cell IS the booking target — the whole cell, so a
+      {/* The empty half-day IS the booking target — the whole of it, so a
           card-sized thing has a card-sized target (the same rule the kanban's
           columns follow). It sits UNDER the jobs so a click on a job opens the
           job rather than starting a new booking. */}
@@ -448,12 +743,57 @@ function Cell({
         className="absolute inset-0 hover:bg-[#f4f4f5]/60"
         aria-label={`Book — ${label}`}
       />
+    </div>
+  );
+}
 
-      {/* Jobs scroll inside their own cell rather than growing the row: one
-          busy person must not set the height of everybody else's Tuesday. */}
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1.5">
+/** The cards in one half-day (or, when `stretch`, the ones spanning both). */
+function Stack({
+  row,
+  lane,
+  jobs,
+  day,
+  stretch,
+  onEnter,
+  onContext,
+  onNatural,
+}: {
+  row: string;
+  lane: string;
+  jobs: WeekCell[];
+  day: Date;
+  stretch?: boolean;
+  onEnter?: () => void;
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
+  onNatural: (h: number) => void;
+}) {
+  // The INNER box is measured — it's the height the cards want, which is what
+  // the row's chevron and its expanded height are decided from. The outer box is
+  // clipped to the row: jobs never grow it.
+  const ref = useReportHeight(onNatural, true);
+
+  return (
+    <div
+      className="relative z-10 overflow-y-auto"
+      style={{
+        gridRow: row,
+        gridColumn: lane,
+        // A stack of short cards is only as tall as they are, so the space left
+        // under them still belongs to the backdrop underneath and stays
+        // clickable to book. A spanning card fills its area by definition.
+        ...(stretch ? null : { alignSelf: "start", maxHeight: "100%" }),
+      }}
+      onMouseEnter={onEnter}
+    >
+      <div ref={ref} className={cn("flex flex-col gap-1 p-1.5", stretch && "h-full")}>
         {jobs.map((j) => (
-          <JobChip key={`${j.event.id}-${+j.start}`} cell={j} day={day} onContext={onContext} />
+          <JobChip
+            key={`${j.event.id}-${+j.start}`}
+            cell={j}
+            day={day}
+            stretch={stretch}
+            onContext={onContext}
+          />
         ))}
       </div>
     </div>
@@ -463,10 +803,14 @@ function Cell({
 function JobChip({
   cell,
   day,
+  stretch,
   onContext,
 }: {
   cell: WeekCell;
   day: Date;
+  /** Spans more than one half-day, so it FILLS them — a card that stops short
+   *  of the halves it covers doesn't read as spanning anything. */
+  stretch?: boolean;
   onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
   const { event, start, minutes, continuedFrom, continuesInto } = cell;
@@ -528,6 +872,7 @@ function JobChip({
 
   const face = cn(
     "flex flex-col gap-px overflow-hidden rounded-md border px-1.5 py-1 text-left",
+    stretch && "h-full",
     href && "hover:brightness-[0.97]",
   );
   const faceStyle = {
@@ -557,11 +902,16 @@ function JobChip({
         }
       }}
       className={cn(
-        "shrink-0",
         draggable && "cursor-grab",
         isDragging && "relative z-30 cursor-grabbing opacity-90 shadow-[0_6px_16px_rgba(10,10,10,0.18)]",
       )}
-      style={{ transform: CSS.Translate.toString(transform), touchAction: "none" }}
+      style={{
+        // Grows into the halves it spans, but NEVER shrinks below its content:
+        // that overflow is what tells the row it is hiding something.
+        flex: stretch ? "1 0 auto" : "0 0 auto",
+        transform: CSS.Translate.toString(transform),
+        touchAction: "none",
+      }}
     >
       {href ? (
         <Link href={href} className={face} style={faceStyle} title={title}>
@@ -577,16 +927,20 @@ function JobChip({
 }
 
 /**
- * Spread one booking across the half-day blocks it actually occupies.
+ * Spread one booking across the DAYS it occupies, saying which halves of each
+ * day it fills.
  *
  * `workingSpan` is the slot finder's own splitter, so the week grid and the
  * availability engine agree on which days a 2.5-day fit consumes — including
  * that it stops at 17:00 and resumes the next working morning rather than
- * running through the night. Each of its stretches is then cut at midday, so a
- * full day lands in BOTH that day's blocks and an 11:00 → 13:00 survey shows in
- * the morning it starts and the afternoon it runs into.
+ * running through the night.
+ *
+ * ONE piece PER DAY, carrying the blocks it fills — NOT one piece per half-day.
+ * A job running 09:00 → 15:00 used to yield two pieces and therefore two
+ * identical cards stacked in AM and PM, which read as two separate bookings.
+ * It is one job, so it is one card, spanning both halves (see the header note).
  */
-export function spanBlocks(event: DiaryEvent): { row: string; cell: WeekCell }[] {
+export function spanBlocks(event: DiaryEvent): { day: string; cell: WeekCell }[] {
   const start = new Date(event.startsAt);
   const minutes = event.duration ?? 60;
   const stretches = workingSpan(start, minutes);
@@ -597,36 +951,28 @@ export function spanBlocks(event: DiaryEvent): { row: string; cell: WeekCell }[]
     ? stretches
     : [{ start: +start, end: +start + minutes * 60_000 }];
 
-  // Cut every stretch at midday, then walk the pieces in order so the
-  // continuation flags describe the WHOLE job, not one day of it.
-  const pieces: { row: string; start: Date; minutes: number }[] = [];
-  for (const s of spans) {
+  return spans.map((s, i) => {
     const from = new Date(s.start);
     const midday = new Date(from);
     midday.setHours(MIDDAY_HOUR, 0, 0, 0);
-    const cuts = +from < +midday && s.end > +midday ? [+midday] : [];
-    let cursor = +from;
-    for (const edge of [...cuts, s.end]) {
-      const at = new Date(cursor);
-      pieces.push({
-        row: `${toDateParam(at)}|${at.getHours() < MIDDAY_HOUR ? "am" : "pm"}`,
-        start: at,
-        minutes: Math.max(1, Math.round((edge - cursor) / 60_000)),
-      });
-      cursor = edge;
-    }
-  }
+    const blocks: DayBlock[] = [];
+    if (+from < +midday) blocks.push("am");
+    if (s.end > +midday) blocks.push("pm");
 
-  return pieces.map((p, i) => ({
-    row: p.row,
-    cell: {
-      event,
-      start: p.start,
-      minutes: p.minutes,
-      continuedFrom: i > 0,
-      continuesInto: i < pieces.length - 1,
-    },
-  }));
+    return {
+      day: toDateParam(from),
+      cell: {
+        event,
+        start: from,
+        minutes: Math.max(1, Math.round((s.end - s.start) / 60_000)),
+        // A stretch always touches at least the half it starts in.
+        blocks: blocks.length ? blocks : [from.getHours() < MIDDAY_HOUR ? "am" : "pm"],
+        // The flags describe the WHOLE job, not one day of it.
+        continuedFrom: i > 0,
+        continuesInto: i < spans.length - 1,
+      },
+    };
+  });
 }
 
 /**

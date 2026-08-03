@@ -146,9 +146,10 @@ export function DiaryWeekView({
   });
   const dates = days.map((iso) => new Date(iso));
 
-  // (half-day, person) → that person's jobs in that block. A job is spread
-  // across every AM/PM block it runs through, and one with two people on it
-  // lands in both their columns — the same rule the day view follows.
+  // (day, person) → that person's jobs on that day, each carrying which halves
+  // it fills so the grid can span ONE card across them. A multi-day job yields a
+  // piece per day, and one with two people on it lands in both their columns —
+  // the same rule the day view follows.
   const cells = new Map<string, WeekCell[]>();
   let anyUnassigned = false;
 
@@ -157,9 +158,9 @@ export function DiaryWeekView({
     const keys = ids.length ? ids : ["unassigned"];
     if (!ids.length) anyUnassigned = true;
 
-    for (const { row, cell } of spanBlocks(e)) {
+    for (const { day, cell } of spanBlocks(e)) {
       for (const id of keys) {
-        const k = `${row}|${id}`;
+        const k = `${day}|${id}`;
         if (!cells.has(k)) cells.set(k, []);
         cells.get(k)!.push(cell);
       }

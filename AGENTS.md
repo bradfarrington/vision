@@ -1171,8 +1171,49 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
   slot finder agree on which days a 2.5-day job consumes (it stops at 17:00, resumes the next working
   morning, skips weekends). A private copy in either would drift. Continuation days read "cont.",
   and a job carrying on shows "→".
-- **A week cell scrolls its own jobs** rather than growing its row: one busy person must not set the
-  height of everybody else's Tuesday. Same rule, same reason, as a kanban column.
+- **…but it occupies them as ONE CARD, SPANNING the blocks** (changed 2026-08-03, Brad on sight). A
+  job running 09:00 → 15:00 was drawn as a full card in AM and an identical one in PM, which reads as
+  two separate bookings. So `spanBlocks` yields **one piece PER DAY carrying the blocks it fills**
+  (not a piece per half-day), each staff column is a **2-row CSS grid per day**, and a card is placed
+  across the rows it covers.
+  - **A spanning card STRETCHES to fill its rows** (`flex: 1 0 auto`) — a card sitting at natural
+    height in the top of a two-row area doesn't look like it spans anything. It never SHRINKS,
+    because that overflow is what tells the row it is hiding something.
+  - **Spanning stops at the DAY boundary.** A 3-day fit is still one card per day, marked "cont." —
+    a card drawn down through the day's rule and past the date in the gutter reads as broken rather
+    than as continuous. So the day row stays the structural unit and the rail/gutter keep working.
+  - **A spanning job sharing a day with a shorter one takes a LANE each** (`1fr 1fr`), like the day
+    grid's side-by-side clashes: they would otherwise be drawn on top of each other, and a clash is
+    the one thing that must not hide behind itself. With no spanning job, a stack gets the full width.
+  - **The AM/PM rail moved OUT of the cells** into its own sticky column per day row, and each label
+    owns its row's height — so the rail and every staff column agree on where the halves divide. Don't
+    put clipping (`overflow-hidden`) on the day row or anything between the sticky date/rail and the
+    scroller: `overflow` makes an element a scroll container, and `position: sticky` then sticks to
+    THAT instead of the grid's scroller, i.e. never moves.
+- **A ROW NEVER GROWS WITH ITS CONTENT — it is the same height full or empty** (2026-08-03). It used
+  to stretch to its tallest card, so one job with an address and a comment on it made a 300px row and
+  the matrix stopped lining up. A matrix you read across is only readable if the rows stay where they
+  were.
+  - **State the number; never leave a flex item's minimum to `auto`.** A flex item's automatic minimum
+    size IS its content's height, which is how the old row stretched even with `min-h-0` further down
+    the tree. The body and every day row now carry an explicit `flex-basis` + `minHeight` summed from
+    `MIN_BLOCK_H`, so there is nothing for a card to raise; grid rows are `minmax(0, 1fr)` (min 0, so
+    no content-based minimum) or a pinned px when expanded.
+  - **`flex-basis`, NOT `min-height`, on the body** — the scroller can only scroll to a height the
+    content declares, and a `flex: 1 0 <basis>` body also grows to FILL a panel taller than the grid.
+  - **A clipped row grows a CHEVRON on its AM/PM label**, which expands that row (and only that row)
+    to fit its tallest cell. Shown ONLY when something is actually hidden: fourteen chevrons that
+    mostly do nothing is worse than none. That needs two measurements per row — `need` (the tallest
+    content, via a ResizeObserver on each stack's inner box, since a card is whatever the user's
+    chosen fields make it) and `shown` (the height the row is really drawn at, reported by the rail
+    label). Comparing `need` against `MIN_BLOCK_H` instead would cry wolf on a tall panel, where a
+    row that fits is bigger than the minimum. `useReportHeight` measures **`scrollHeight`**, because a
+    spanning stack is pinned to its grid area and its own box says nothing about what its card wants.
+  - Expanded rows are **local state, not a saved preference** — it's a momentary "let me see that",
+    and the grid remounts on any query change anyway.
+- **A stack of short cards is only as tall as they are** (`align-self: start` + `max-height: 100%`),
+  so the space under them still belongs to the backdrop and stays clickable to book. A stack stretched
+  over the whole cell swallows that click.
 - **Clicking a week cell books THAT person in THAT half-day** — both axes are answered by the click,
   so the dialog only has to ask the exact time, which its own `TimePicker` does. (The day view's
   click fixes the time instead, since a column there is a person and a row is a slot.)
@@ -1343,6 +1384,13 @@ screen where a view can be made your STARTING point.
   will want them back.
 - **Every field is a BARE line, not a labelled row.** The kanban's `Label … value` shape needs a card
   ~270px wide; a diary block is a third of that and half a row tall.
+  - **GOTCHA — `truncate` is `white-space: nowrap`, so it DEFEATS a `line-clamp`.** `CardFieldsBody`
+    wraps every bare field in `truncate` (one line is right for a time, a name, a duration), which is
+    why the appointment COMMENT never wrapped however it was clamped — the clamp was there from the
+    start and could never fire. A field that should wrap sets **`cardWrap`** on its column, which
+    swaps the wrapper for `break-words`; the field's own renderer still clamps the line count
+    (comments are `line-clamp-2`), so the card stays bounded. **`break-words` is needed alongside the
+    clamp** — a long unbroken run can't wrap without it. Same pair as the Fitting tab's comment cell.
 - **The picker lives in the LEGEND, not the toolbar** — the legend is already the "how this is drawn"
   bar, and the toolbar has no width left (§ it is ONE ROW).
 - **The site address is carried ON the event** (`siteAddress`/`siteTown`/`sitePostcode`), resolved in

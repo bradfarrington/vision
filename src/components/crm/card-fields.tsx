@@ -234,7 +234,12 @@ export function CardFieldsBody<V>({ row }: { row: V }) {
             ))}
           </div>
         ) : row.items[0].col.cardBare ? (
-          <div key={row.key} className="min-w-0 truncate">
+          // `truncate` is white-space:nowrap, so a wrapping field must not get
+          // it — its own renderer clamps the line count instead.
+          <div
+            key={row.key}
+            className={row.items[0].col.cardWrap ? "min-w-0 break-words" : "min-w-0 truncate"}
+          >
             {row.items[0].node}
           </div>
         ) : (
