@@ -1431,6 +1431,19 @@ own idea of what colour a fit is.
   column through `updateContractField`, because this is the screen you're on when you find out about
   the gate code.
 
+### The lead's Appointments card edits in place too — built 2026-08-03
+
+Same fields, same controls as the Fitting tab, **stacked rather than tabled**: the card lives in a
+~340px bento column, where eight columns would each be a word wide. Type + status on the first line,
+when + how long on the second, who on the third, the comment last. `LeadAppointments`.
+
+- **It fixed a live bug from the appointments merge.** `getLead` was still selecting and mapping
+  `date` and `time` — columns the merge DROPPED (§ One appointment table) — so `LeadAppointment.date`
+  was always null and every appointment on a lead read "No date set". It now carries `startsAt`,
+  `staffIds` and `staffNames` like every other consumer. **When a migration drops columns, grep for
+  every loader that names them**; a select of a dropped column doesn't error here, it just returns
+  nothing.
+
 ### Appointment comments — built 2026-08-03
 
 `appointments.notes` was already stored and already displayed on the lead's Appointments card and the

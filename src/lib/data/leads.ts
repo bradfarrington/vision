@@ -642,10 +642,14 @@ export type LeadAppointment = {
   id: string;
   title: string | null;
   type: string | null;
-  date: string | null;
-  time: string | null;
+  /** ISO instant. The `date` + `time text` pair went with the appointments
+   *  merge (AGENTS.md § One appointment table) — this loader was still reading
+   *  the dropped columns, so every lead appointment showed "No date set". */
+  startsAt: string | null;
   duration: number | null;
   assignedTo: string | null;
+  staffIds: string[];
+  staffNames: string[];
   status: string | null;
   notes: string | null;
 };
@@ -724,7 +728,7 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
          email, mobile, home_telephone),
        lead_notes(id, content, created_at),
        lead_checklist_items(id, action_name, status, due_date, priority, completed_at, completed_by_name),
-       appointments(id, title, type, date, time, duration, assigned_to, status, notes),
+       appointments(id, title, type, starts_at, duration, assigned_to, staff_ids, staff_names, status, notes),
        contracts(id, contract_number),
        activities(id, type, description, created_at)`,
     )
@@ -837,15 +841,16 @@ export async function getLead(id: string): Promise<LeadDetail | null> {
         id: a.id,
         title: a.title ?? null,
         type: a.type ?? null,
-        date: a.date ?? null,
-        time: a.time ?? null,
+        startsAt: a.starts_at ?? null,
         duration: a.duration ?? null,
         assignedTo: a.assigned_to ?? null,
+        staffIds: a.staff_ids ?? [],
+        staffNames: a.staff_names ?? [],
         status: a.status ?? null,
         notes: a.notes ?? null,
       }))
       // Soonest first — an upcoming appointment is what staff look for.
-      .sort((a, b) => +new Date(a.date ?? 0) - +new Date(b.date ?? 0)),
+      .sort((a, b) => +new Date(a.startsAt ?? 0) - +new Date(b.startsAt ?? 0)),
     // One contract per lead, so the embed's first row is THE contract.
     contract: l.contracts?.[0]
       ? {

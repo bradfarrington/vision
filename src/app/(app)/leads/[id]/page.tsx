@@ -18,7 +18,7 @@ import { getUserOrder } from "@/lib/data/user-layouts";
 import { ChecklistToggle, StageChanger } from "@/components/crm/lead-interactions";
 import { ConvertToContractButton } from "@/components/crm/convert-to-contract";
 import { BookAppointmentButton } from "@/components/crm/book-appointment-button";
-import { AppointmentComment } from "@/components/crm/appointment-comment";
+import { LeadAppointments } from "@/components/crm/lead-appointments";
 import { getDiaryStaff } from "@/lib/data/staff";
 import { cn } from "@/lib/utils";
 
@@ -237,53 +237,13 @@ function AppointmentsPanel({
           variant="link"
         />
       </div>
-      {lead.appointments.length === 0 ? (
-        <p className="text-[12.5px] text-[#a1a1aa]">
-          None booked yet. Use &ldquo;Book appointment&rdquo; above to add one.
-        </p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-[#f4f4f5]">
-          {lead.appointments.map((a) => {
-            const when = fmtApptWhen(a.date, a.time);
-            return (
-              <li key={a.id} className="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
-                <span aria-hidden className="mt-[3px] shrink-0 text-[#a1a1aa]">
-                  <Icon name="calendar" size={14} strokeWidth={1.75} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold text-[#0a0a0a]">
-                    {a.type || a.title || "Appointment"}
-                  </div>
-                  <div className="text-[12px] text-[#71717a]">
-                    {[when || "No date set", a.assignedTo].filter(Boolean).join(" · ")}
-                  </div>
-                  <AppointmentComment
-                    id={a.id}
-                    value={a.notes}
-                    className="mt-0.5 text-[12px]"
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <LeadAppointments
+        appointments={lead.appointments}
+        staff={diaryStaff}
+        types={opts.appointment_type ?? []}
+      />
     </Card>
   );
-}
-
-/** "Tue 5 Aug 2026, 14:30" — date, plus the loose time text if there is one. */
-function fmtApptWhen(date: string | null, time: string | null): string {
-  if (!date) return "";
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) return "";
-  const day = d.toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return time ? `${day}, ${time}` : day;
 }
 
 /** A tab that needs the owning customer (for file storage) but hasn't got one. */
