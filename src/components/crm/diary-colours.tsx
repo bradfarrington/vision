@@ -185,10 +185,6 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
           </div>
 
           {error && <p className="text-[11.5px] font-medium text-[#d64545]">{error}</p>}
-          <p className="text-[11px] text-[#a1a1aa]">
-            Everyone at your company sees this colour — a legend only works if it
-            means the same thing to all of you.
-          </p>
         </div>
       )}
     </Popover>
