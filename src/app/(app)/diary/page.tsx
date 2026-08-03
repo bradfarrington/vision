@@ -13,6 +13,11 @@ import {
   type DiaryView,
 } from "@/lib/diary";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
+import { defaultViewFor, getDefaultViewId, getSavedViews } from "@/lib/data/saved-views";
+import { urlForView } from "@/lib/views/views";
+import { ViewSwitcher } from "@/components/crm/view-switcher";
 
 import { DiaryNav } from "@/components/crm/diary-nav";
 import { Icon, TOOLBAR_H, btnSecondary } from "@/components/crm/primitives";
@@ -44,6 +49,14 @@ const DIARY_VIEWS = [
 
 export default async function DiaryPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
+
+  // A bare /diary lands on YOUR default view, expanded into the URL by a
+  // redirect so the address stays honest and shareable — the screen never
+  // filters itself behind your back. Any URL that names a view or carries a
+  // view param is someone's deliberate destination and is left alone.
+  const fallback = await defaultViewFor("diary", sp);
+  if (fallback) redirect(urlForView("/diary", sp, fallback));
+
   const view: DiaryView = isDiaryView(sp.view) ? sp.view : "day";
   const anchor = fromDateParam(sp.d);
   const { from, to } = windowFor(view, anchor);
@@ -54,7 +67,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
     .filter(Boolean)
     .filter((c): c is WorkCategory => WORK_CATEGORIES.some((w) => w.key === c));
 
-  const [events, staff, opts] = await Promise.all([
+  const [events, staff, opts, views, defaultViewId] = await Promise.all([
     getDiary({
       from: from.toISOString(),
       to: to.toISOString(),
@@ -64,6 +77,8 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
     getDiaryStaff(),
     // The tenant's own appointment types, for the booking dialog's picker.
     getTenantOptionLists(["appointment_type"]),
+    getSavedViews("diary"),
+    getDefaultViewId("diary"),
   ]);
 
   // Both working views draw a COLUMN per staff member, so a staff filter
@@ -97,8 +112,13 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
               title (Day/Week/Month, then which window you're on), and the
               ACTIONS on the right (what to show, and booking). Left is where
               you are; right is what you do. */}
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
+          {/* ONE ROW, never two. It wraps only below the app's own 1280px
+              floor, so every control is sized to fit: the view pill truncates,
+              the window label has a modest min-width, and "Find a slot" is
+              icon-only. A toolbar that reflows into two rows moves the buttons
+              under the pointer and costs a band of the grid's height. */}
+          <div className="flex flex-nowrap items-center gap-2">
+            <h1 className="shrink-0 font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
               Diary
             </h1>
 
@@ -116,17 +136,34 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
               today={keep(toDateParam(new Date()))}
             />
 
-            <div className="ml-auto flex items-center gap-2.5">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               {/* Two dropdowns that state their own answer, rather than one
                   "Filters" button with a count — the diary has exactly two
                   axes and they're the questions asked of it all day. */}
               <JobTypeFilter />
               <StaffFilter staff={staff} />
+              {/* Saved views sit WITH the two filters they bundle, not beside
+                  the title: on a list the view is the subject of the screen, but
+                  the diary's subject is a date, so a second named box next to
+                  the period picker just read as a rival filter. */}
+              <ViewSwitcher
+                entity="diary"
+                views={views}
+                activeId={sp.sv}
+                defaultId={defaultViewId}
+                variant="icon"
+              />
               {/* "When can we fit this in?" is a different question from
                   "what's on Tuesday", so it's its own screen rather than a
-                  mode of this one. */}
-              <Link href="/diary/slots" className={cn(TOOLBAR_H, btnSecondary)}>
-                <Icon name="search" size={13} strokeWidth={1.75} /> Find a slot
+                  mode of this one. Icon-only: it's the one control here that
+                  LEAVES the screen, and the row has to fit. */}
+              <Link
+                href="/diary/slots"
+                title="Find a slot"
+                aria-label="Find a slot"
+                className={cn(TOOLBAR_H, btnSecondary, "!px-2.5")}
+              >
+                <Icon name="search" size={14} strokeWidth={1.9} />
               </Link>
               <NewAppointmentButton
                 staff={staff}

@@ -144,16 +144,18 @@ export function windowLabel(view: DiaryView, anchor: Date): string {
     });
   }
   if (view === "week") {
+    // NO weekday names on a week range ("20 – 26 Jul 2026", not "Mon 20 – Sun
+    // 26 Jul 2026"): a week always runs Mon–Sun, so they say nothing the grid
+    // underneath doesn't already label — and they cost the toolbar 60px, which
+    // is the difference between one row and two.
     const from = startOfWeek(anchor);
     const to = addDays(from, 6);
     const sameMonth = from.getMonth() === to.getMonth();
     const left = from.toLocaleDateString("en-GB", {
-      weekday: "short",
       day: "numeric",
       ...(sameMonth ? {} : { month: "short" }),
     });
     const right = to.toLocaleDateString("en-GB", {
-      weekday: "short",
       day: "numeric",
       month: "short",
       year: "numeric",

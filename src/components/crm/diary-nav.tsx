@@ -39,14 +39,16 @@ export function DiaryNav({
   const { setParams } = useSetParams();
 
   return (
-    <div className={cn(TOOLBAR_H, "inline-flex items-center gap-2")}>
+    <div className={cn(TOOLBAR_H, "inline-flex shrink-0 items-center gap-1.5")}>
       <button type="button" onClick={() => router.push(prev)} className={STEP} aria-label="Previous">
         <Icon name="chevron-left" size={15} strokeWidth={2} />
       </button>
 
       {/* The window label IS the picker's trigger, and it's the loudest thing
           in the cluster — the steppers and Today are quiet boxes around it. */}
-      <span className="inline-flex min-w-[196px] justify-center">
+      {/* Enough width that stepping day to day doesn't jiggle the row, not so
+          much that it spends the toolbar's budget on air. */}
+      <span className="inline-flex min-w-[152px] justify-center">
         <DatePicker
           value={anchor}
           variant="button"

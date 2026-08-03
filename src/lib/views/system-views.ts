@@ -69,10 +69,23 @@ const CONTRACT_VIEWS: SavedView[] = [
   sys("board", "Job board", { view: "board" }),
 ];
 
+// The diary's views bundle its two filters — job type (`cat`) and staff — plus
+// which period you look at (`view`). Staff-specific views ("just my jobs") can
+// only be PERSONAL saved views: a staff id is per tenant, so it can't be
+// written into code shipped to everyone.
+const DIARY_VIEWS: SavedView[] = [
+  { ...sys("all", "Everything", {}), id: ALL_VIEW_ID },
+  sys("installs", "Installations", { cat: "installation" }),
+  sys("surveys", "Surveys", { cat: "survey" }),
+  sys("service", "Service calls", { cat: "service" }),
+  sys("fitting-week", "Fitting week", { view: "week", cat: "installation" }),
+];
+
 const BY_ENTITY: Record<ViewEntity, SavedView[]> = {
   leads: LEAD_VIEWS,
   customers: CUSTOMER_VIEWS,
   contracts: CONTRACT_VIEWS,
+  diary: DIARY_VIEWS,
 };
 
 export function systemViews(entity: ViewEntity): SavedView[] {

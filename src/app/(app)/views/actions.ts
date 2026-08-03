@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
-import type { ViewColumns, ViewEntity, ViewQuery } from "@/lib/views/views";
+import { defaultViewKey, type ViewColumns, type ViewEntity, type ViewQuery } from "@/lib/views/views";
+import { resetUserLayout, saveUserPref } from "@/app/(app)/preferences/actions";
 
 // Saved-view mutations. A user manages their OWN views; `owner_user_id` is
 // always the verified session user and `company_id` always comes from the JWT
@@ -18,6 +19,7 @@ const PATHS: Record<ViewEntity, string> = {
   leads: "/leads",
   customers: "/customers",
   contracts: "/contracts",
+  diary: "/diary",
 };
 
 type Result = { id?: string; error?: string };
@@ -116,4 +118,24 @@ export async function deleteSavedView(entity: ViewEntity, id: string): Promise<R
 
   revalidatePath(PATHS[entity]);
   return {};
+}
+
+/**
+ * "Start me on this view" — a PER-USER default, stored in `user_ui_layouts`
+ * beside the column layouts rather than as a flag on the view itself.
+ *
+ * That split matters: the view is a named record that may be SHARED with the
+ * whole tenant, while the default is one person's preference about it. A column
+ * on `saved_views` would mean one person's choice decided everybody's, and a
+ * shared view could never be your default without you owning it.
+ *
+ * Pass `null` to clear it and go back to landing on the unfiltered view.
+ */
+export async function setDefaultView(entity: ViewEntity, id: string | null): Promise<Result> {
+  const key = defaultViewKey(entity);
+  const res = id ? await saveUserPref(key, { id }) : await resetUserLayout(key);
+  if (res?.error) return { error: res.error };
+
+  revalidatePath(PATHS[entity]);
+  return { id: id ?? undefined };
 }

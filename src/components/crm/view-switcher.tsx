@@ -11,10 +11,12 @@ import {
   createSavedView,
   deleteSavedView,
   renameSavedView,
+  setDefaultView,
   updateSavedView,
 } from "@/app/(app)/views/actions";
 import {
   ALL_VIEW_ID,
+  isAllView,
   pickViewQuery,
   paramsForView,
   sameColumns,
@@ -43,11 +45,28 @@ export function ViewSwitcher({
   entity,
   views,
   activeId,
+  defaultId,
+  variant = "pill",
 }: {
   entity: ViewEntity;
   views: SavedView[];
   /** `sv` from the URL, or undefined for the implicit "all" view. */
   activeId?: string;
+  /**
+   * `pill` — the named pill beside a list's title, where the view IS the
+   * subject of the screen.
+   * `icon` — a star button in the toolbar, for the DIARY: there the subject is
+   * a date, and a second named box next to the period picker read as a rival
+   * filter rather than as the bundle of the two filters it actually is. It
+   * lights when a view is loaded and carries the same unsaved-changes dot.
+   */
+  variant?: "pill" | "icon";
+  /**
+   * This user's own starting view, when the screen honours one (it must expand
+   * the default server-side — see `defaultViewFor`). `undefined` means the
+   * screen doesn't, and the star is hidden rather than doing nothing.
+   */
+  defaultId?: string | null;
 }) {
   const { setParams, searchParams } = useSetParams();
   const layout = useListLayout();
@@ -138,6 +157,30 @@ export function ViewSwitcher({
     setNaming({ mode: "rename", view });
   }
 
+  // With nothing starred you start on the unfiltered view, so THAT is what the
+  // star shows — an empty star everywhere would leave the control lying about
+  // where you actually land.
+  const startsOn = defaultId ?? ALL_VIEW_ID;
+
+  /** Star a view to start on it; star it again to go back to the plain list. */
+  function makeDefault(view: SavedView) {
+    setError(null);
+    // Starring "everything", or un-starring the current one, both mean "no
+    // preference" — which is stored as no row rather than a pointer at the
+    // view that was already the fallback.
+    const next = isAllView(view) || view.id === startsOn ? null : view.id;
+    startSaving(async () => {
+      const res = await setDefaultView(entity, next);
+      if (res.error) setError(res.error);
+    });
+  }
+
+  // Only offered where the screen actually expands a default on arrival.
+  const starProps = (v: SavedView) =>
+    defaultId === undefined
+      ? {}
+      : { isDefault: v.id === startsOn, onMakeDefault: () => makeDefault(v) };
+
   const system = views.filter((v) => v.system);
   const mine = views.filter((v) => !v.system && !v.shared);
   const shared = views.filter((v) => !v.system && v.shared);
@@ -147,31 +190,65 @@ export function ViewSwitcher({
       {/* One accent pill, not a title-plus-links. The dirty state lives ON it
           (an amber dot) and its actions live INSIDE it, so an unsaved change
           can't spray loose text links across the header. */}
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        // Quiet by default. It sits beside the title rather than among the
-        // toolbar's verbs, so POSITION already says what it is — it doesn't need
-        // the accent to shout as well. Toning the pill down also makes the one
-        // thing that must be noticed, the unsaved-changes dot, easier to see.
-        className={cn(
-          TOOLBAR_H,
-          "flex min-w-0 items-center gap-2 rounded-lg border border-[#e7e7ea] bg-white px-3 text-[13px] font-semibold text-[#3f3f46] transition-colors",
-          open ? "border-[#d4d4d8] bg-[#fafafa]" : "hover:bg-[#fafafa]",
-        )}
-      >
-        <span className="min-w-0 truncate">{active.name}</span>
-        {dirty && (
-          <span title="Unsaved changes" className="size-[6px] shrink-0 rounded-full bg-[#b86e00]" />
-        )}
-        <Icon
-          name="chevron-down"
-          size={12}
-          strokeWidth={2.2}
-          className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")}
-        />
-      </button>
+      {variant === "icon" ? (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          title={`Views — ${active.name}${dirty ? " (unsaved changes)" : ""}`}
+          aria-label={`Views — currently ${active.name}`}
+          className={cn(
+            TOOLBAR_H,
+            "relative flex shrink-0 items-center justify-center rounded-lg border px-2.5 transition-colors",
+            // Loaded a view? Say so — otherwise the only signal that the diary
+            // is filtered by a saved bundle is the filters themselves.
+            active.id !== ALL_VIEW_ID
+              ? "border-[var(--accent-blue)] bg-[var(--accent-tint)] text-[var(--accent-blue)]"
+              : open
+                ? "border-[var(--accent-blue)] bg-white text-[var(--accent-blue)]"
+                : "border-[#e7e7ea] bg-white text-[#71717a] hover:bg-[#fafafa]",
+          )}
+        >
+          <Icon
+            name="star"
+            size={14}
+            strokeWidth={active.id !== ALL_VIEW_ID ? 0 : 1.9}
+            className={active.id !== ALL_VIEW_ID ? "fill-[var(--accent-blue)]" : ""}
+          />
+          {dirty && (
+            <span className="absolute right-[3px] top-[3px] size-[6px] rounded-full bg-[#b86e00]" />
+          )}
+        </button>
+      ) : (
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          // Quiet by default. It sits beside the title rather than among the
+          // toolbar's verbs, so POSITION already says what it is — it doesn't need
+          // the accent to shout as well. Toning the pill down also makes the one
+          // thing that must be noticed, the unsaved-changes dot, easier to see.
+          className={cn(
+            TOOLBAR_H,
+            // Capped and truncating: a long view name ("Service calls + surveys
+            // for Dave") must not push the toolbar onto a second row.
+            "flex min-w-0 max-w-[184px] items-center gap-2 rounded-lg border border-[#e7e7ea] bg-white px-3 text-[13px] font-semibold text-[#3f3f46] transition-colors",
+            open ? "border-[#d4d4d8] bg-[#fafafa]" : "hover:bg-[#fafafa]",
+          )}
+          title={active.name}
+        >
+          <span className="min-w-0 truncate">{active.name}</span>
+          {dirty && (
+            <span title="Unsaved changes" className="size-[6px] shrink-0 rounded-full bg-[#b86e00]" />
+          )}
+          <Icon
+            name="chevron-down"
+            size={12}
+            strokeWidth={2.2}
+            className={cn("shrink-0 text-[#a1a1aa] transition-transform", open && "rotate-180")}
+          />
+        </button>
+      )}
 
       {naming && (
         <NameDialog
@@ -231,11 +308,23 @@ export function ViewSwitcher({
           <div className="min-h-0 overflow-y-auto py-1.5">
             <Section label="Built in" />
             {system.map((v) => (
-              <Row key={v.id} view={v} active={v.id === active.id} onSelect={() => select(v)} />
+              <Row
+                key={v.id}
+                view={v}
+                active={v.id === active.id}
+                onSelect={() => select(v)}
+                {...starProps(v)}
+              />
             ))}
             {shared.length > 0 && <Section label="Shared with the team" />}
             {shared.map((v) => (
-              <Row key={v.id} view={v} active={v.id === active.id} onSelect={() => select(v)} />
+              <Row
+                key={v.id}
+                view={v}
+                active={v.id === active.id}
+                onSelect={() => select(v)}
+                {...starProps(v)}
+              />
             ))}
             <Section label="My views" />
             {mine.length === 0 && (
@@ -251,6 +340,7 @@ export function ViewSwitcher({
                 onSelect={() => select(v)}
                 onRename={() => rename(v)}
                 onDelete={() => remove(v)}
+                {...starProps(v)}
               />
             ))}
           </div>
@@ -299,15 +389,20 @@ function Section({ label }: { label: string }) {
 function Row({
   view,
   active,
+  isDefault,
   onSelect,
   onRename,
   onDelete,
+  onMakeDefault,
 }: {
   view: SavedView;
   active: boolean;
+  isDefault?: boolean;
   onSelect: () => void;
   onRename?: () => void;
   onDelete?: () => void;
+  /** Present only where the screen honours a default (it passed `defaultId`). */
+  onMakeDefault?: () => void;
 }) {
   return (
     <div className="group flex items-center gap-1 px-1.5">
@@ -324,6 +419,30 @@ function Row({
         </span>
         <span className="min-w-0 flex-1 truncate">{view.name}</span>
       </button>
+      {/* The star is a TOGGLE and it is always visible, like the other curation
+          controls: filled = this is where I start. Hover-only would make the
+          one thing you set once a thing you can't find. */}
+      {onMakeDefault && (
+        <button
+          type="button"
+          onClick={onMakeDefault}
+          aria-label={isDefault ? `Stop starting on ${view.name}` : `Start on ${view.name}`}
+          title={isDefault ? "Your default — click to clear" : "Make this my default"}
+          className={cn(
+            "shrink-0 rounded p-1 transition-colors",
+            isDefault
+              ? "text-[var(--accent-blue)]"
+              : "text-[#d4d4d8] hover:text-[var(--accent-blue)]",
+          )}
+        >
+          <Icon
+            name="star"
+            size={12}
+            strokeWidth={isDefault ? 0 : 1.8}
+            className={isDefault ? "fill-[var(--accent-blue)]" : ""}
+          />
+        </button>
+      )}
       {/* Curation controls are always present, not hover-only — the only way to
           manage a list must be discoverable (see AGENTS.md § Lookup dropdowns). */}
       {onRename && (

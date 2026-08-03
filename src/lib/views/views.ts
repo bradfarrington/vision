@@ -11,7 +11,7 @@
 // tell "this is the saved view" from "this is the saved view plus two changes".
 // ---------------------------------------------------------------------------
 
-export type ViewEntity = "leads" | "customers" | "contracts";
+export type ViewEntity = "leads" | "customers" | "contracts" | "diary";
 
 /** The URL params a view owns. Everything else is transient or bookkeeping. */
 export type ViewQuery = Record<string, string>;
@@ -42,7 +42,14 @@ const VIEW_PARAM_PREFIXES = ["f_"];
 // filters — see ListSpec.extraBoolFilter. A filter missing from this list is
 // neither captured when a view is saved nor cleared when views are switched,
 // so it silently leaks across views. Add here AND to the list's spec.
-const VIEW_PARAM_KEYS = ["fq", "range", "from", "to", "sort", "dir", "view", "stage", "live", "active"];
+// `cat` and `staff` are the DIARY's two filters (job type, staff), which is
+// the whole point of views there: "just my fittings" is a named bundle of both.
+// `d` is deliberately absent — a date is where you ARE, like a list's `search`,
+// and a view pinned to one would strand you in a week that made sense to
+// whoever saved it.
+const VIEW_PARAM_KEYS = [
+  "fq", "range", "from", "to", "sort", "dir", "view", "stage", "live", "active", "cat", "staff",
+];
 
 export function isViewParam(key: string): boolean {
   return VIEW_PARAM_KEYS.includes(key) || VIEW_PARAM_PREFIXES.some((p) => key.startsWith(p));
@@ -97,6 +104,32 @@ export function paramsForView(
 
 /** The unfiltered starting point every entity has. */
 export const ALL_VIEW_ID = "sys:all";
+
+/** `user_ui_layouts` key holding which view this user starts on. */
+export function defaultViewKey(entity: ViewEntity): string {
+  return `views_default_${entity}`;
+}
+
+/**
+ * The URL a bare visit should be sent to when the user has a default view —
+ * the view's own query, plus whatever non-view params were already there (the
+ * diary's date, say). Server-side, so the redirect lands on an honest,
+ * shareable URL rather than the screen quietly filtering itself.
+ */
+export function urlForView(
+  pathname: string,
+  params: Record<string, string | undefined>,
+  view: SavedView,
+): string {
+  const next = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v && !isViewParam(k) && k !== "sv") next.set(k, v);
+  }
+  for (const [k, v] of Object.entries(view.query)) next.set(k, v);
+  if (!isAllView(view)) next.set("sv", view.id);
+  const qs = next.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
 
 export function isAllView(view: SavedView): boolean {
   return view.id === ALL_VIEW_ID;

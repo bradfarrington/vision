@@ -1217,7 +1217,51 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
     navigating to a week and then booking means you meant that week. Slot-clicking stays the main
     path; this is the door for a booking that isn't on screen yet.
   - **"Find a slot" is kept although the design has no such button** — the slot finder (screen 09) is
-    real and this is its only way in.
+    real and this is its only way in. Icon-only, because it's the one control there that LEAVES the
+    screen and the row has to fit.
+  - **It is ONE ROW, and that is a constraint every control is sized to** (2026-08-03 — it wrapped
+    onto two the moment saved views arrived, which moves the buttons under the pointer and costs a
+    band of the grid). Measured at the app's own 1280px floor with every label at its longest: 1126px
+    of content in 1152px. The trims that bought it: the view switcher became an icon, "Find a slot"
+    became an icon, filter triggers truncate at 132px, and **the week label dropped its weekday
+    names** ("20 – 26 Jul 2026", not "Mon 20 – Sun 26 Jul 2026" — a week always runs Mon–Sun, so they
+    said nothing the grid below doesn't label, and they cost 60px). **Anything added here has to buy
+    its width from something else.**
+
+### Saved views on the diary, and a per-user default — built 2026-08-03
+
+The diary is the fourth consumer of the saved-views machinery (`entity: "diary"`), and the first
+screen where a view can be made your STARTING point.
+
+- **A diary view bundles `cat` + `staff` + `view`** — job type, staff, and which period you look at.
+  **Not `d`**: a date is where you ARE, the same argument that keeps `search` out of a list's view,
+  and a view pinned to one week would strand whoever opened it. `cat`/`staff` were added to
+  `VIEW_PARAM_KEYS`, so they're captured on save and cleared when switching (a filter missing from
+  that list silently leaks between views).
+- **System views:** Everything · Installations · Surveys · Service calls · Fitting week. Staff-specific
+  views ("just my jobs") can only ever be PERSONAL saved ones — a staff id is per tenant, so it can't
+  be written into code shipped to every tenant.
+- **The switcher is the ICON variant here, in the toolbar with the two filters** — not the named pill
+  beside the title the lists use. On a list the view IS the subject of the screen; the diary's subject
+  is a date, so a second named box next to the period picker read as a rival filter (Brad, on sight).
+  It lights in the accent while a view is loaded and carries the same amber unsaved-changes dot.
+- **The default is PER USER and lives in `user_ui_layouts`** (`views_default_<entity>`), NOT as a
+  column on `saved_views`. That split is the whole point: a view is a named record that may be
+  SHARED with the tenant, while which one you land on is one person's preference about it. A column
+  would mean one person's choice decided everyone's, a shared view could never be your default
+  without you owning it, and it would need a hand-applied migration.
+- **The default is expanded by a SERVER REDIRECT on a bare URL**, so the address bar tells the truth
+  and stays shareable — the screen never silently filters itself. Any URL carrying `sv` or any view
+  param is someone's deliberate destination (a shared link, the back button, the sidebar restoring
+  where you were) and is **never** overridden. A default pointing at a deleted view is ignored, not
+  an error: the view list is the truth, the preference is only a pointer.
+- **The star is a toggle on each row, always visible**, and with nothing starred it shows on
+  "Everything" — because that IS where you land, and an empty star everywhere would have the control
+  lying about it. Starring Everything, or un-starring the current one, both store *no row* rather
+  than a pointer at the fallback.
+- **Only a screen that passes `defaultId` shows the star.** The three lists don't expand a default
+  yet, so they don't offer one — a control that does nothing is worse than a missing one. Adopting it
+  there is `defaultViewFor` + a redirect, the same four lines as the diary.
 - **The grid runs flush to the panel's LEFT edge**, like the list table — height and width on a diary
   are hours and people, and a gutter spends width saying nothing. The legend follows it in.
 - **Overlapping bookings pack into side-by-side lanes.** A clash is exactly the thing that must not

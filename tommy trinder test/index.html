@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Window Frame Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Navigation Bar ── */
+        .nav {
+            background: #fff;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 100;
+            min-height: 52px;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 700;
+            font-size: 11px;
+            line-height: 1.1;
+            text-align: center;
+        }
+
+        .nav-info {
+            text-align: center;
+            flex: 1;
+        }
+
+        .nav-title {
+            font-weight: 600;
+            font-size: 15px;
+            color: #222;
+        }
+
+        .nav-subtitle {
+            font-size: 11px;
+            color: #888;
+            margin-top: 1px;
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            border: 1px solid #ddd;
+            background: #fff;
+            color: #555;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #f5f5f5;
+            border-color: #bbb;
+        }
+
+        .btn-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #555;
+            color: #fff;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .btn-close:hover { background: #333; }
+
+        /* ── Canvas Area ── */
+        .canvas-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Graph paper background */
+        .graph-paper {
+            position: absolute;
+            inset: 0;
+            background-color: #e8f0e8;
+            background-image:
+                linear-gradient(rgba(180, 200, 180, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(180, 200, 180, 0.5) 1px, transparent 1px),
+                linear-gradient(rgba(180, 200, 180, 0.25) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(180, 200, 180, 0.25) 1px, transparent 1px);
+            background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+        }
+
+        #drawingCanvas {
+            position: absolute;
+            inset: 0;
+            cursor: crosshair;
+        }
+
+        #frameCanvas {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        #splitCanvas {
+            position: absolute;
+            inset: 0;
+            cursor: crosshair;
+            display: none;
+        }
+
+        /* ── Footer Bar ── */
+        .footbar {
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 48px;
+            z-index: 100;
+        }
+
+        .footbar-left, .footbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .footbar-center {
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            color: #fff;
+        }
+
+        .icon-btn-dark {
+            background: #555;
+        }
+
+        .icon-btn-dark:hover { background: #333; }
+
+        .icon-btn-red {
+            background: #e74c3c;
+        }
+
+        .icon-btn-red:hover { background: #c0392b; }
+
+        .icon-btn-green {
+            background: #27ae60;
+        }
+
+        .icon-btn-green:hover { background: #1e8449; }
+
+        .step2-btns { display: none; }
+
+        /* ── Growl Error ── */
+        .growl {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #fff;
+            border-left: 4px solid #e74c3c;
+            border-radius: 8px;
+            padding: 14px 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+            max-width: 420px;
+        }
+
+        .growl.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+
+        .growl-icon {
+            width: 28px;
+            height: 28px;
+            background: #e74c3c;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .growl-icon svg {
+            width: 16px;
+            height: 16px;
+            fill: #fff;
+        }
+
+        .growl-text {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .growl-text strong {
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        /* ── Step Indicator ── */
+        .step-indicator {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 24px;
+            font-size: 13px;
+            z-index: 50;
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+
+        /* ── Drawing Preview (rubber-band rectangle) ── */
+        .draw-preview {
+            position: absolute;
+            border: 2px dashed rgba(41, 128, 185, 0.8);
+            background: rgba(41, 128, 185, 0.08);
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+
+        /* ── Dimension labels while drawing ── */
+        .dim-label {
+            position: absolute;
+            background: rgba(0,0,0,0.75);
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'Inter', monospace;
+            pointer-events: none;
+            z-index: 11;
+            display: none;
+            white-space: nowrap;
+        }
+
+        /* ── Split line preview ── */
+        .split-preview {
+            position: absolute;
+            background: rgba(231, 76, 60, 0.6);
+            pointer-events: none;
+            z-index: 15;
+            display: none;
+        }
+
+        /* ── Tooltip for split mode ── */
+        .split-tooltip {
+            position: absolute;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 50;
+            display: none;
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <div class="nav">
+        <div class="nav-logo">
+            <div class="nav-logo-icon">BS<br>W</div>
+        </div>
+        <div class="nav-info">
+            <div class="nav-title">Rear Door</div>
+            <div class="nav-subtitle">VEKA Rustique (Sculptured) Windows by Bradley Scott Windows</div>
+        </div>
+        <div class="nav-actions">
+            <button class="btn">Add Item +</button>
+            <button class="btn-close" onclick="resetToStep1()">&times;</button>
+        </div>
+    </div>
+
+    <!-- Canvas Area -->
+    <div class="canvas-area" id="canvasArea">
+        <div class="graph-paper" id="graphPaper"></div>
+        <div class="draw-preview" id="drawPreview"></div>
+        <div class="dim-label" id="dimWidth"></div>
+        <div class="dim-label" id="dimHeight"></div>
+        <div class="split-preview" id="splitPreview"></div>
+        <canvas id="drawingCanvas"></canvas>
+        <canvas id="frameCanvas"></canvas>
+        <canvas id="splitCanvas"></canvas>
+
+        <div class="step-indicator" id="stepIndicator">
+            ✏️ Click and drag to draw the window frame outline
+        </div>
+        <div class="split-tooltip" id="splitTooltip">
+            ✂️ Click and drag inside the frame to split into sections — drag horizontal or vertical
+        </div>
+    </div>
+
+    <!-- Error Growl -->
+    <div class="growl" id="growl">
+        <div class="growl-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        </div>
+        <div class="growl-text">
+            <strong>Frame too small</strong>
+            Initial frame design should not be too narrow or too short.<br>Please try again.
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footbar">
+        <div class="footbar-left">
+            <button class="icon-btn icon-btn-dark" title="Toggle view">
+                <span class="material-icons" style="font-size: 18px;">wb_sunny</span>
+            </button>
+            <button class="icon-btn icon-btn-dark" title="Fullscreen">
+                <span class="material-icons" style="font-size: 18px;">fullscreen</span>
+            </button>
+        </div>
+        <div class="footbar-center">
+            Item<br>1 of 1
+        </div>
+        <div class="footbar-right">
+            <span class="step2-btns" id="step2Btns">
+                <button class="icon-btn icon-btn-red" id="btnTrash" title="Reset (delete frame)">
+                    <span class="material-icons" style="font-size: 18px;">delete</span>
+                </button>
+                <button class="icon-btn icon-btn-green" id="btnTick" title="Confirm frame">
+                    <span class="material-icons" style="font-size: 18px;">check</span>
+                </button>
+            </span>
+        </div>
+    </div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════
+let currentStep = 1;
+let isDrawing = false;
+let startX, startY;
+let frameRect = null; // { x, y, w, h } in canvas coords
+let splits = [];      // [{ type: 'h'|'v', pos: number (0-1 fraction) }]
+let isSplitting = false;
+let splitStart = null;
+
+const FRAME_THICKNESS = 40;
+const MIN_FRAME_W = 80;
+const MIN_FRAME_H = 60;
+const MULLION_THICKNESS = 20;
+
+// ═══════════════════════════════════════════════════
+// Asset Preloading (Tommy Trinder style)
+// ═══════════════════════════════════════════════════
+const SHADOW_PAD = 50; // how far shadow extends beyond frame
+const assets = {};
+let assetsLoaded = false;
+
+function preloadAssets() {
+    const imageSources = {
+        shadowTop:         'assets/shadows/wsw_top_hz_400x100.png',
+        shadowBottom:      'assets/shadows/wsw_bottom_hz_400x100.png',
+        shadowLeft:        'assets/shadows/wsw_left_vt_100x400.png',
+        shadowRight:       'assets/shadows/wsw_right_vt_100x400.png',
+        shadowTopLeft:     'assets/shadows/wsw_topleft_100x100.png',
+        shadowTopRight:    'assets/shadows/wsw_topright_100x100.png',
+        shadowBottomLeft:  'assets/shadows/wsw_bottomleft_100x100.png',
+        shadowBottomRight: 'assets/shadows/wsw_bottomright_100x100.png',
+        glassTexture:      'assets/glass/dark_glass_updated_70.jpg',
+        cloudTexture:      'assets/glass/clouds.jpg',
+    };
+
+    let loaded = 0;
+    const total = Object.keys(imageSources).length;
+
+    Object.entries(imageSources).forEach(([key, src]) => {
+        const img = new Image();
+        img.onload = () => {
+            assets[key] = img;
+            loaded++;
+            if (loaded >= total) {
+                assetsLoaded = true;
+                console.log('All TT rendering assets loaded');
+                if (currentStep === 2 && frameRect) renderFrame();
+            }
+        };
+        img.onerror = () => {
+            console.warn('Failed to load asset:', src);
+            loaded++;
+            if (loaded >= total) {
+                assetsLoaded = true;
+                if (currentStep === 2 && frameRect) renderFrame();
+            }
+        };
+        img.src = src;
+    });
+}
+
+// Kick off asset loading immediately
+preloadAssets();
+
+// ═══════════════════════════════════════════════════
+// DOM refs
+// ═══════════════════════════════════════════════════
+const canvasArea = document.getElementById('canvasArea');
+const drawingCanvas = document.getElementById('drawingCanvas');
+const frameCanvas = document.getElementById('frameCanvas');
+const splitCanvas = document.getElementById('splitCanvas');
+const drawCtx = drawingCanvas.getContext('2d');
+const frameCtx = frameCanvas.getContext('2d');
+const splitCtx = splitCanvas.getContext('2d');
+const drawPreview = document.getElementById('drawPreview');
+const dimWidth = document.getElementById('dimWidth');
+const dimHeight = document.getElementById('dimHeight');
+const splitPreview = document.getElementById('splitPreview');
+const stepIndicator = document.getElementById('stepIndicator');
+const splitTooltip = document.getElementById('splitTooltip');
+const growl = document.getElementById('growl');
+const step2Btns = document.getElementById('step2Btns');
+
+// ═══════════════════════════════════════════════════
+// Resize
+// ═══════════════════════════════════════════════════
+function resize() {
+    const w = canvasArea.clientWidth;
+    const h = canvasArea.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+
+    [drawingCanvas, frameCanvas, splitCanvas].forEach(c => {
+        c.width = w * dpr;
+        c.height = h * dpr;
+        c.style.width = w + 'px';
+        c.style.height = h + 'px';
+        c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+
+    if (currentStep === 2 && frameRect) {
+        renderFrame();
+    }
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ═══════════════════════════════════════════════════
+// Step 1: Drawing a rectangle
+// ═══════════════════════════════════════════════════
+drawingCanvas.addEventListener('mousedown', (e) => {
+    if (currentStep !== 1) return;
+    isDrawing = true;
+    const rect = canvasArea.getBoundingClientRect();
+    startX = e.clientX - rect.left;
+    startY = e.clientY - rect.top;
+    drawPreview.style.display = 'block';
+});
+
+drawingCanvas.addEventListener('mousemove', (e) => {
+    if (!isDrawing || currentStep !== 1) return;
+    const rect = canvasArea.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const x = Math.min(startX, mx);
+    const y = Math.min(startY, my);
+    const w = Math.abs(mx - startX);
+    const h = Math.abs(my - startY);
+
+    drawPreview.style.left = x + 'px';
+    drawPreview.style.top = y + 'px';
+    drawPreview.style.width = w + 'px';
+    drawPreview.style.height = h + 'px';
+
+    // Show dimension labels
+    const mmW = Math.round(w * 2); // fake mm scale
+    const mmH = Math.round(h * 2);
+
+    dimWidth.style.display = 'block';
+    dimWidth.style.left = (x + w / 2 - 25) + 'px';
+    dimWidth.style.top = (y - 24) + 'px';
+    dimWidth.textContent = mmW + ' mm';
+
+    dimHeight.style.display = 'block';
+    dimHeight.style.left = (x + w + 8) + 'px';
+    dimHeight.style.top = (y + h / 2 - 10) + 'px';
+    dimHeight.textContent = mmH + ' mm';
+});
+
+drawingCanvas.addEventListener('mouseup', (e) => {
+    if (!isDrawing || currentStep !== 1) return;
+    isDrawing = false;
+    drawPreview.style.display = 'none';
+    dimWidth.style.display = 'none';
+    dimHeight.style.display = 'none';
+
+    const rect = canvasArea.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const x = Math.min(startX, mx);
+    const y = Math.min(startY, my);
+    const w = Math.abs(mx - startX);
+    const h = Math.abs(my - startY);
+
+    if (w < MIN_FRAME_W || h < MIN_FRAME_H) {
+        showGrowl();
+        return;
+    }
+
+    frameRect = { x, y, w, h };
+    splits = [];
+    goToStep2();
+});
+
+drawingCanvas.addEventListener('mouseleave', () => {
+    if (isDrawing) {
+        isDrawing = false;
+        drawPreview.style.display = 'none';
+        dimWidth.style.display = 'none';
+        dimHeight.style.display = 'none';
+    }
+});
+
+// ═══════════════════════════════════════════════════
+// Step 2: Frame rendering + splitting
+// ═══════════════════════════════════════════════════
+function goToStep2() {
+    currentStep = 2;
+    drawingCanvas.style.display = 'none';
+    splitCanvas.style.display = 'block';
+    splitCanvas.style.pointerEvents = 'auto';
+    stepIndicator.style.opacity = '0';
+    splitTooltip.style.display = 'block';
+    step2Btns.style.display = 'inline-flex';
+    step2Btns.style.gap = '8px';
+
+    renderFrame();
+}
+
+function resetToStep1() {
+    currentStep = 1;
+    frameRect = null;
+    splits = [];
+    drawingCanvas.style.display = 'block';
+    splitCanvas.style.display = 'none';
+    stepIndicator.style.opacity = '1';
+    splitTooltip.style.display = 'none';
+    step2Btns.style.display = 'none';
+    frameCtx.clearRect(0, 0, canvasArea.clientWidth, canvasArea.clientHeight);
+    splitCtx.clearRect(0, 0, canvasArea.clientWidth, canvasArea.clientHeight);
+}
+
+// ═══════════════════════════════════════════════════
+// Frame Rendering — Tommy Trinder / VEKA Rustique
+// High-fidelity 3D uPVC sculptured profile
+// ═══════════════════════════════════════════════════
+function renderFrame() {
+    const ctx = frameCtx;
+    const cw = canvasArea.clientWidth;
+    const ch = canvasArea.clientHeight;
+    ctx.clearRect(0, 0, cw, ch);
+
+    if (!frameRect) return;
+
+    const { x, y, w, h } = frameRect;
+    const T = FRAME_THICKNESS;
+    const M = MULLION_THICKNESS;
+
+    // Collect pane rects from splits
+    const panes = getPaneRects(x + T, y + T, w - 2 * T, h - 2 * T);
+
+    // ── Outer ambient shadow ──
+    drawOuterShadow(ctx, x, y, w, h);
+
+    // ── Cill (bottom shelf, drawn behind frame) ──
+    drawCill(ctx, x, y + h, w);
+
+    // ── Outer frame ──
+    drawFrameProfile(ctx, x, y, w, h, T);
+
+    // ── Glass panes ──
+    panes.forEach(pane => {
+        drawGlass(ctx, pane.x, pane.y, pane.w, pane.h);
+    });
+
+    // ── Mullions / Transoms (split bars) ──
+    splits.forEach(sp => {
+        if (sp.type === 'v') {
+            const sx = x + T + (w - 2 * T) * sp.pos - M / 2;
+            drawMullion(ctx, sx, y + T, M, h - 2 * T, 'v');
+        } else {
+            const sy = y + T + (h - 2 * T) * sp.pos - M / 2;
+            drawMullion(ctx, x + T, sy, w - 2 * T, M, 'h');
+        }
+    });
+
+    // ── Inner bevel / glazing bead ──
+    panes.forEach(pane => {
+        drawInnerBevel(ctx, pane.x, pane.y, pane.w, pane.h);
+    });
+}
+
+// ── Cill (bottom shelf extending beyond frame) ──
+function drawCill(ctx, frameX, frameBottom, frameW) {
+    ctx.save();
+
+    const cillOverhang = 12;  // how far cill extends beyond frame on each side
+    const cillH = 16;         // cill height/thickness
+    const cx = frameX - cillOverhang;
+    const cy = frameBottom - 2; // overlap frame bottom slightly
+    const cw = frameW + (cillOverhang * 2);
+
+    // Main cill body with gradient (light top, slightly darker bottom)
+    const g = ctx.createLinearGradient(cx, cy, cx, cy + cillH);
+    g.addColorStop(0.0, '#f4f4f4');
+    g.addColorStop(0.1, '#f0f0f0');
+    g.addColorStop(0.3, '#ececec');
+    g.addColorStop(0.5, '#e8e8e8');
+    g.addColorStop(0.7, '#e4e4e4');
+    g.addColorStop(0.9, '#e0e0e0');
+    g.addColorStop(1.0, '#dbdbdb');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx, cy, cw, cillH);
+
+    // Top highlight line
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 0.5);
+    ctx.lineTo(cx + cw, cy + 0.5);
+    ctx.stroke();
+
+    // Bottom shadow line
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + cillH - 0.5);
+    ctx.lineTo(cx + cw, cy + cillH - 0.5);
+    ctx.stroke();
+
+    // Left edge
+    ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+    ctx.beginPath();
+    ctx.moveTo(cx + 0.5, cy);
+    ctx.lineTo(cx + 0.5, cy + cillH);
+    ctx.stroke();
+
+    // Right edge
+    ctx.beginPath();
+    ctx.moveTo(cx + cw - 0.5, cy);
+    ctx.lineTo(cx + cw - 0.5, cy + cillH);
+    ctx.stroke();
+
+    // Outer border
+    ctx.strokeStyle = 'rgba(170,170,170,0.4)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(cx + 0.5, cy + 0.5, cw - 1, cillH - 1);
+
+    // Subtle front-face drip nose at the bottom
+    const dripH = 4;
+    const dg = ctx.createLinearGradient(cx, cy + cillH, cx, cy + cillH + dripH);
+    dg.addColorStop(0.0, '#e0e0e0');
+    dg.addColorStop(0.4, '#d8d8d8');
+    dg.addColorStop(1.0, '#d0d0d0');
+    ctx.fillStyle = dg;
+    ctx.fillRect(cx + 2, cy + cillH, cw - 4, dripH);
+
+    // Drip nose bottom shadow
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + 2, cy + cillH + dripH - 0.5);
+    ctx.lineTo(cx + cw - 2, cy + cillH + dripH - 0.5);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+// ── Outer shadow using TT's pre-rendered PNG assets ──
+function drawOuterShadow(ctx, x, y, w, h) {
+    if (!assetsLoaded) return;
+    ctx.save();
+
+    const P = SHADOW_PAD; // how far shadows extend beyond frame
+
+    // ── Edge shadows (stretched along each side) ──
+    // Top edge
+    if (assets.shadowTop) {
+        ctx.drawImage(assets.shadowTop, x, y - P, w, P);
+    }
+    // Bottom edge
+    if (assets.shadowBottom) {
+        ctx.drawImage(assets.shadowBottom, x, y + h, w, P);
+    }
+    // Left edge
+    if (assets.shadowLeft) {
+        ctx.drawImage(assets.shadowLeft, x - P, y, P, h);
+    }
+    // Right edge
+    if (assets.shadowRight) {
+        ctx.drawImage(assets.shadowRight, x + w, y, P, h);
+    }
+
+    // ── Corner shadows ──
+    if (assets.shadowTopLeft) {
+        ctx.drawImage(assets.shadowTopLeft, x - P, y - P, P, P);
+    }
+    if (assets.shadowTopRight) {
+        ctx.drawImage(assets.shadowTopRight, x + w, y - P, P, P);
+    }
+    if (assets.shadowBottomLeft) {
+        ctx.drawImage(assets.shadowBottomLeft, x - P, y + h, P, P);
+    }
+    if (assets.shadowBottomRight) {
+        ctx.drawImage(assets.shadowBottomRight, x + w, y + h, P, P);
+    }
+
+    ctx.restore();
+}
+
+// ── Main frame profile — VEKA Rustique sculptured ──
+function drawFrameProfile(ctx, x, y, w, h, T) {
+    ctx.save();
+
+    // ─────────────────────────────────────────────
+    // Each side drawn as a trapezoid with a smooth
+    // multi-stop gradient simulating the beveled
+    // surface sloping inward toward the glass.
+    // Light source: top-left (consistent with TT).
+    // ─────────────────────────────────────────────
+
+    // ── TOP side ──
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w - T, y + T);
+    ctx.lineTo(x + T, y + T);
+    ctx.closePath();
+    let g = ctx.createLinearGradient(x, y, x, y + T);
+    // Bright outer face → slopes darker toward glass
+    g.addColorStop(0.00, '#fefefe');
+    g.addColorStop(0.02, '#ffffff');
+    g.addColorStop(0.06, '#fdfdfd');
+    g.addColorStop(0.12, '#f8f8f8');
+    // Subtle sculptured zone
+    g.addColorStop(0.22, '#f4f4f4');
+    g.addColorStop(0.26, '#efeff0');
+    g.addColorStop(0.30, '#f2f2f2');
+    // Main slope
+    g.addColorStop(0.45, '#eeeeee');
+    g.addColorStop(0.60, '#eaeaea');
+    g.addColorStop(0.75, '#e5e5e5');
+    g.addColorStop(0.88, '#e0e0e0');
+    g.addColorStop(0.95, '#dbdbdb');
+    g.addColorStop(1.00, '#d5d5d5');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // ── BOTTOM side ──
+    ctx.beginPath();
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w - T, y + h - T);
+    ctx.lineTo(x + T, y + h - T);
+    ctx.closePath();
+    g = ctx.createLinearGradient(x, y + h, x, y + h - T);
+    // Bottom is in relative shadow
+    g.addColorStop(0.00, '#e8e8e8');
+    g.addColorStop(0.02, '#ebebeb');
+    g.addColorStop(0.06, '#eaeaea');
+    g.addColorStop(0.12, '#e6e6e6');
+    g.addColorStop(0.22, '#e3e3e3');
+    g.addColorStop(0.26, '#dfdfe0');
+    g.addColorStop(0.30, '#e2e2e2');
+    g.addColorStop(0.45, '#e0e0e0');
+    g.addColorStop(0.60, '#dddddd');
+    g.addColorStop(0.75, '#d9d9d9');
+    g.addColorStop(0.88, '#d5d5d5');
+    g.addColorStop(0.95, '#d2d2d2');
+    g.addColorStop(1.00, '#cecece');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // ── LEFT side ──
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + T, y + T);
+    ctx.lineTo(x + T, y + h - T);
+    ctx.lineTo(x, y + h);
+    ctx.closePath();
+    g = ctx.createLinearGradient(x, y, x + T, y);
+    g.addColorStop(0.00, '#f6f6f6');
+    g.addColorStop(0.02, '#f8f8f8');
+    g.addColorStop(0.06, '#f6f6f6');
+    g.addColorStop(0.12, '#f2f2f2');
+    g.addColorStop(0.22, '#efefef');
+    g.addColorStop(0.26, '#ebebec');
+    g.addColorStop(0.30, '#eeeeee');
+    g.addColorStop(0.45, '#eaeaea');
+    g.addColorStop(0.60, '#e6e6e6');
+    g.addColorStop(0.75, '#e1e1e1');
+    g.addColorStop(0.88, '#dbdbdb');
+    g.addColorStop(0.95, '#d7d7d7');
+    g.addColorStop(1.00, '#d2d2d2');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // ── RIGHT side ──
+    ctx.beginPath();
+    ctx.moveTo(x + w, y);
+    ctx.lineTo(x + w - T, y + T);
+    ctx.lineTo(x + w - T, y + h - T);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+    g = ctx.createLinearGradient(x + w, y, x + w - T, y);
+    // Right side receives least light
+    g.addColorStop(0.00, '#efefef');
+    g.addColorStop(0.02, '#f0f0f0');
+    g.addColorStop(0.06, '#eeeeee');
+    g.addColorStop(0.12, '#eaeaea');
+    g.addColorStop(0.22, '#e7e7e7');
+    g.addColorStop(0.26, '#e3e3e4');
+    g.addColorStop(0.30, '#e6e6e6');
+    g.addColorStop(0.45, '#e2e2e2');
+    g.addColorStop(0.60, '#dedede');
+    g.addColorStop(0.75, '#d9d9d9');
+    g.addColorStop(0.88, '#d4d4d4');
+    g.addColorStop(0.95, '#d0d0d0');
+    g.addColorStop(1.00, '#cbcbcb');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // ── Miter joint lines (45° corners) ──
+    ctx.strokeStyle = 'rgba(190,190,190,0.45)';
+    ctx.lineWidth = 1;
+    // Top-left
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + T, y + T); ctx.stroke();
+    // Top-right
+    ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(x + w - T, y + T); ctx.stroke();
+    // Bottom-left
+    ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x + T, y + h - T); ctx.stroke();
+    // Bottom-right
+    ctx.beginPath(); ctx.moveTo(x + w, y + h); ctx.lineTo(x + w - T, y + h - T); ctx.stroke();
+
+    // ── Outer edge highlight (top + left bright, bottom + right dark) ──
+    ctx.lineWidth = 1;
+    // Top highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath(); ctx.moveTo(x + 1, y + 0.5); ctx.lineTo(x + w - 1, y + 0.5); ctx.stroke();
+    // Left highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.moveTo(x + 0.5, y + 1); ctx.lineTo(x + 0.5, y + h - 1); ctx.stroke();
+    // Bottom shadow
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.beginPath(); ctx.moveTo(x + 1, y + h - 0.5); ctx.lineTo(x + w - 1, y + h - 0.5); ctx.stroke();
+    // Right shadow
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.beginPath(); ctx.moveTo(x + w - 0.5, y + 1); ctx.lineTo(x + w - 0.5, y + h - 1); ctx.stroke();
+
+    // ── Outer border ──
+    ctx.strokeStyle = 'rgba(170,170,170,0.5)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+    ctx.restore();
+}
+
+// ── Glass pane — TT texture with fallback gradient ──
+function drawGlass(ctx, x, y, w, h) {
+    ctx.save();
+
+    if (assetsLoaded && assets.glassTexture) {
+        // ── Draw the actual TT dark glass texture, scaled to fill pane ──
+        ctx.drawImage(assets.glassTexture, x, y, w, h);
+    } else {
+        // ── Fallback: gradient glass ──
+        const g = ctx.createLinearGradient(x, y, x + w * 0.4, y + h);
+        g.addColorStop(0.0, '#1f2d3d');
+        g.addColorStop(0.2, '#1c2a3a');
+        g.addColorStop(0.5, '#192636');
+        g.addColorStop(0.8, '#162232');
+        g.addColorStop(1.0, '#131e2e');
+        ctx.fillStyle = g;
+        ctx.fillRect(x, y, w, h);
+    }
+
+    // ── Very subtle cloud/environment reflection overlay ──
+    if (assetsLoaded && assets.cloudTexture) {
+        ctx.globalAlpha = 0.03;
+        ctx.drawImage(assets.cloudTexture, x, y, w, h);
+        ctx.globalAlpha = 1.0;
+    }
+
+    ctx.restore();
+}
+
+// ── Glazing bead / inner bevel around each glass pane ──
+function drawInnerBevel(ctx, x, y, w, h) {
+    ctx.save();
+
+    // The bevel is the angled surface from the frame face
+    // down into the glass — this is the most distinctive
+    // visual feature in the Tommy Trinder screenshots.
+    const B = 8; // bevel depth
+
+    // ── TOP bevel (light source from above → catches light) ──
+    let g = ctx.createLinearGradient(x, y - B, x, y + 1);
+    g.addColorStop(0.0, '#e8e8e8');
+    g.addColorStop(0.15, '#e2e2e2');
+    g.addColorStop(0.4, '#d8d8d8');
+    g.addColorStop(0.7, '#c8c8c8');
+    g.addColorStop(0.9, '#b8b8b8');
+    g.addColorStop(1.0, '#a0a0a0');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - B, y - B);
+    ctx.lineTo(x + w + B, y - B);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x, y);
+    ctx.closePath();
+    ctx.fill();
+
+    // ── BOTTOM bevel (facing away from light → shadow then light) ──
+    g = ctx.createLinearGradient(x, y + h - 1, x, y + h + B);
+    g.addColorStop(0.0, '#a0a0a0');
+    g.addColorStop(0.1, '#b0b0b0');
+    g.addColorStop(0.3, '#c0c0c0');
+    g.addColorStop(0.6, '#d0d0d0');
+    g.addColorStop(0.85, '#dddddd');
+    g.addColorStop(1.0, '#e6e6e6');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w + B, y + h + B);
+    ctx.lineTo(x - B, y + h + B);
+    ctx.closePath();
+    ctx.fill();
+
+    // ── LEFT bevel (catches side light) ──
+    g = ctx.createLinearGradient(x - B, y, x + 1, y);
+    g.addColorStop(0.0, '#e4e4e4');
+    g.addColorStop(0.15, '#dcdcdc');
+    g.addColorStop(0.4, '#d0d0d0');
+    g.addColorStop(0.7, '#c2c2c2');
+    g.addColorStop(0.9, '#b2b2b2');
+    g.addColorStop(1.0, '#a0a0a0');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - B, y - B);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x - B, y + h + B);
+    ctx.closePath();
+    ctx.fill();
+
+    // ── RIGHT bevel (away from light → darker outer, lighter inner) ──
+    g = ctx.createLinearGradient(x + w - 1, y, x + w + B, y);
+    g.addColorStop(0.0, '#a0a0a0');
+    g.addColorStop(0.1, '#ababab');
+    g.addColorStop(0.3, '#bababa');
+    g.addColorStop(0.6, '#cacaca');
+    g.addColorStop(0.85, '#d6d6d6');
+    g.addColorStop(1.0, '#e0e0e0');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x + w, y);
+    ctx.lineTo(x + w + B, y - B);
+    ctx.lineTo(x + w + B, y + h + B);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // ── Bevel miter lines at corners ──
+    ctx.strokeStyle = 'rgba(180,180,180,0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(x - B, y - B); ctx.lineTo(x, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w + B, y - B); ctx.lineTo(x + w, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - B, y + h + B); ctx.lineTo(x, y + h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w + B, y + h + B); ctx.lineTo(x + w, y + h); ctx.stroke();
+
+    // ── Bright glazing bead edge (thin bright line where bevel meets glass) ──
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, y + 0.5);
+    ctx.lineTo(x + w - 0.5, y + 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, y + 0.5);
+    ctx.lineTo(x + 0.5, y + h - 0.5);
+    ctx.stroke();
+
+    // ── Dark edge (shadow side of glazing bead) ──
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x + w - 0.5, y + 0.5);
+    ctx.lineTo(x + w - 0.5, y + h - 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, y + h - 0.5);
+    ctx.lineTo(x + w - 0.5, y + h - 0.5);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+// ── Mullion / Transom — matching beveled profile ──
+function drawMullion(ctx, x, y, w, h, type) {
+    ctx.save();
+
+    if (type === 'v') {
+        // ── Vertical mullion ──
+        // Main body gradient (light centre, darker edges)
+        let g = ctx.createLinearGradient(x, y, x + w, y);
+        g.addColorStop(0.00, '#d8d8d8');
+        g.addColorStop(0.05, '#e0e0e0');
+        g.addColorStop(0.12, '#e8e8e8');
+        g.addColorStop(0.25, '#f0f0f0');
+        g.addColorStop(0.40, '#f5f5f5');
+        g.addColorStop(0.50, '#f8f8f8');
+        g.addColorStop(0.60, '#f5f5f5');
+        g.addColorStop(0.75, '#eeeeee');
+        g.addColorStop(0.88, '#e4e4e4');
+        g.addColorStop(0.95, '#dcdcdc');
+        g.addColorStop(1.00, '#d5d5d5');
+        ctx.fillStyle = g;
+        ctx.fillRect(x, y, w, h);
+
+        // Left edge shadow
+        ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, y);
+        ctx.lineTo(x + 0.5, y + h);
+        ctx.stroke();
+
+        // Right edge shadow
+        ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+        ctx.beginPath();
+        ctx.moveTo(x + w - 0.5, y);
+        ctx.lineTo(x + w - 0.5, y + h);
+        ctx.stroke();
+
+        // Centre highlight
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + w * 0.5, y);
+        ctx.lineTo(x + w * 0.5, y + h);
+        ctx.stroke();
+
+        // Fine sculptured groove lines (matching frame profile)
+        const groovePos = w * 0.28;
+        ctx.lineWidth = 0.5;
+        // Left groove
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.beginPath();
+        ctx.moveTo(x + groovePos, y);
+        ctx.lineTo(x + groovePos, y + h);
+        ctx.stroke();
+        // Right groove
+        ctx.beginPath();
+        ctx.moveTo(x + w - groovePos, y);
+        ctx.lineTo(x + w - groovePos, y + h);
+        ctx.stroke();
+
+    } else {
+        // ── Horizontal transom ──
+        let g = ctx.createLinearGradient(x, y, x, y + h);
+        g.addColorStop(0.00, '#dcdcdc');
+        g.addColorStop(0.05, '#e2e2e2');
+        g.addColorStop(0.12, '#eaeaea');
+        g.addColorStop(0.25, '#f2f2f2');
+        g.addColorStop(0.40, '#f6f6f6');
+        g.addColorStop(0.50, '#f9f9f9');
+        g.addColorStop(0.60, '#f6f6f6');
+        g.addColorStop(0.75, '#eeeeee');
+        g.addColorStop(0.88, '#e5e5e5');
+        g.addColorStop(0.95, '#dcdcdc');
+        g.addColorStop(1.00, '#d6d6d6');
+        ctx.fillStyle = g;
+        ctx.fillRect(x, y, w, h);
+
+        // Top edge shadow
+        ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, y + 0.5);
+        ctx.lineTo(x + w, y + 0.5);
+        ctx.stroke();
+
+        // Bottom edge shadow
+        ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+        ctx.beginPath();
+        ctx.moveTo(x, y + h - 0.5);
+        ctx.lineTo(x + w, y + h - 0.5);
+        ctx.stroke();
+
+        // Centre highlight
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y + h * 0.5);
+        ctx.lineTo(x + w, y + h * 0.5);
+        ctx.stroke();
+
+        // Fine sculptured groove lines
+        const groovePos = h * 0.28;
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.beginPath();
+        ctx.moveTo(x, y + groovePos);
+        ctx.lineTo(x + w, y + groovePos);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y + h - groovePos);
+        ctx.lineTo(x + w, y + h - groovePos);
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+// Pane calculation from splits
+// ═══════════════════════════════════════════════════
+function getPaneRects(innerX, innerY, innerW, innerH) {
+    if (splits.length === 0) {
+        return [{ x: innerX, y: innerY, w: innerW, h: innerH }];
+    }
+
+    // Sort splits
+    const vSplits = splits.filter(s => s.type === 'v').map(s => s.pos).sort((a, b) => a - b);
+    const hSplits = splits.filter(s => s.type === 'h').map(s => s.pos).sort((a, b) => a - b);
+
+    const M = MULLION_THICKNESS;
+
+    // Build columns from vSplits
+    const xEdges = [0, ...vSplits, 1];
+    const yEdges = [0, ...hSplits, 1];
+
+    const panes = [];
+
+    for (let i = 0; i < xEdges.length - 1; i++) {
+        for (let j = 0; j < yEdges.length - 1; j++) {
+            const x0frac = xEdges[i];
+            const x1frac = xEdges[i + 1];
+            const y0frac = yEdges[j];
+            const y1frac = yEdges[j + 1];
+
+            let px = innerX + x0frac * innerW;
+            let py = innerY + y0frac * innerH;
+            let pw = (x1frac - x0frac) * innerW;
+            let ph = (y1frac - y0frac) * innerH;
+
+            // Adjust for mullion thickness
+            if (i > 0) { px += M / 2; pw -= M / 2; }
+            if (i < xEdges.length - 2) { pw -= M / 2; }
+            if (j > 0) { py += M / 2; ph -= M / 2; }
+            if (j < yEdges.length - 2) { ph -= M / 2; }
+
+            panes.push({ x: px, y: py, w: pw, h: ph });
+        }
+    }
+
+    return panes;
+}
+
+// ═══════════════════════════════════════════════════
+// Step 2: Splitting interactions
+// ═══════════════════════════════════════════════════
+splitCanvas.addEventListener('mousedown', (e) => {
+    if (currentStep !== 2 || !frameRect) return;
+    const rect = canvasArea.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const { x, y, w, h } = frameRect;
+    const T = FRAME_THICKNESS;
+
+    // Only allow splitting inside the frame
+    if (mx > x + T && mx < x + w - T && my > y + T && my < y + h - T) {
+        isSplitting = true;
+        splitStart = { x: mx, y: my };
+        splitPreview.style.display = 'block';
+    }
+});
+
+splitCanvas.addEventListener('mousemove', (e) => {
+    if (!isSplitting || currentStep !== 2) return;
+    const rect = canvasArea.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const dx = Math.abs(mx - splitStart.x);
+    const dy = Math.abs(my - splitStart.y);
+
+    const { x, y, w, h } = frameRect;
+    const T = FRAME_THICKNESS;
+    const M = MULLION_THICKNESS;
+
+    if (dx > dy) {
+        // Horizontal drag → vertical split
+        const splitX = mx;
+        splitPreview.style.left = (splitX - M / 2) + 'px';
+        splitPreview.style.top = (y + T) + 'px';
+        splitPreview.style.width = M + 'px';
+        splitPreview.style.height = (h - 2 * T) + 'px';
+    } else {
+        // Vertical drag → horizontal split
+        const splitY = my;
+        splitPreview.style.left = (x + T) + 'px';
+        splitPreview.style.top = (splitY - M / 2) + 'px';
+        splitPreview.style.width = (w - 2 * T) + 'px';
+        splitPreview.style.height = M + 'px';
+    }
+});
+
+splitCanvas.addEventListener('mouseup', (e) => {
+    if (!isSplitting || currentStep !== 2) return;
+    isSplitting = false;
+    splitPreview.style.display = 'none';
+
+    const rect = canvasArea.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const dx = Math.abs(mx - splitStart.x);
+    const dy = Math.abs(my - splitStart.y);
+
+    if (dx < 5 && dy < 5) return; // Too small a drag — ignore
+
+    const { x, y, w, h } = frameRect;
+    const T = FRAME_THICKNESS;
+
+    if (dx > dy) {
+        // Vertical split (mullion)
+        const pos = (mx - (x + T)) / (w - 2 * T);
+        if (pos > 0.05 && pos < 0.95) {
+            splits.push({ type: 'v', pos });
+        }
+    } else {
+        // Horizontal split (transom)
+        const pos = (my - (y + T)) / (h - 2 * T);
+        if (pos > 0.05 && pos < 0.95) {
+            splits.push({ type: 'h', pos });
+        }
+    }
+
+    renderFrame();
+});
+
+// ═══════════════════════════════════════════════════
+// Buttons
+// ═══════════════════════════════════════════════════
+document.getElementById('btnTrash').addEventListener('click', resetToStep1);
+document.getElementById('btnTick').addEventListener('click', () => {
+    splitTooltip.style.display = 'none';
+    alert('Frame confirmed! 🎉\n\nPanes: ' + getPaneRects(
+        frameRect.x + FRAME_THICKNESS,
+        frameRect.y + FRAME_THICKNESS,
+        frameRect.w - 2 * FRAME_THICKNESS,
+        frameRect.h - 2 * FRAME_THICKNESS
+    ).length);
+});
+
+// ═══════════════════════════════════════════════════
+// Growl
+// ═══════════════════════════════════════════════════
+function showGrowl() {
+    growl.classList.add('show');
+    setTimeout(() => { growl.classList.remove('show'); }, 3000);
+}
+</script>
+
+</body>
+</html>
