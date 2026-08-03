@@ -47,6 +47,42 @@ export function workCategory(
 }
 
 // ---------------------------------------------------------------------------
+// Who can do what
+//
+// Dragging a job onto someone's column asks "is this their kind of work?". We
+// have no table saying which staff do which appointment types, and adding one
+// would be a settings screen nobody has asked for yet — so the answer is
+// derived from the two things we DO have: the job's colour band (already
+// derived from the type words) and the staff member's `role`.
+//
+// It WARNS, it does not block — the same call as the clash check. A firm where
+// the surveyor also fits conservatories must not be stopped from booking one,
+// and the day someone is stopped by a rule the app invented, the diary becomes
+// the thing to work around. An unrecognised role matches everything: never
+// object on the strength of data we don't understand.
+
+/** Role words that normally do each kind of work. Empty = anyone. */
+const ROLES_FOR: Record<WorkCategory, string[]> = {
+  installation: ["install", "fit"],
+  survey: ["survey", "measure", "sales", "estimat", "design"],
+  service: ["install", "fit", "service", "engineer", "remedial"],
+  other: [],
+};
+
+/**
+ * Is this person's trade a normal fit for this kind of job? Loose, lowercase
+ * substring matching, because `staff_members.role` is free text the tenant
+ * types ("Installer", "Lead Fitter", "Surveyor / Sales").
+ */
+export function suitsCategory(role: string | null | undefined, category: WorkCategory): boolean {
+  const wanted = ROLES_FOR[category];
+  if (!wanted.length) return true;
+  const r = (role ?? "").toLowerCase().trim();
+  if (!r) return true;
+  return wanted.some((w) => r.includes(w));
+}
+
+// ---------------------------------------------------------------------------
 // Status
 
 export type AppointmentStatus = "provisional" | "confirmed" | "done" | "cancelled";

@@ -90,6 +90,8 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
   const spannedDays: Date[] = [];
   for (let d = new Date(from); d < to; d = addDays(d, 1)) spannedDays.push(new Date(d));
 
+  const gridKey = `${view}|${sp.d ?? ""}|${sp.staff ?? ""}|${sp.cat ?? ""}`;
+
   const prev = toDateParam(shift(view, anchor, -1));
   const next = toDateParam(shift(view, anchor, 1));
   const keep = (d: string) => {
@@ -178,8 +180,13 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
             in the same place whichever period you're on. The day puts half-hour
             slots down the left (working the clock); the week puts DAYS down the
             left (who is on what, and where the gaps are). */}
+        {/* Keyed on the RAW params (never on resolved dates — those come from
+            the clock and would remount every render): the views hold their
+            events in state for optimistic drags, so a new day or filter must
+            start from the server's list rather than the previous one's. */}
         {view === "day" && (
           <DiaryDayView
+            key={gridKey}
             events={events}
             staff={shownStaff}
             day={anchor.toISOString()}
@@ -188,6 +195,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
         )}
         {view === "week" && (
           <DiaryWeekView
+            key={gridKey}
             events={events}
             days={spannedDays.map((d) => d.toISOString())}
             staff={shownStaff}

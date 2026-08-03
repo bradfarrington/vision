@@ -1,7 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 import {
   DAY_START_HOUR,
@@ -59,10 +70,16 @@ export type GridColumn = {
 export function DiaryGrid({
   columns,
   onPick,
+  onMove,
+  onContext,
 }: {
   columns: GridColumn[];
   /** Called when an empty slot is chosen — booking arrives with the dialog. */
   onPick?: (columnKey: string, start: Date) => void;
+  /** Dropped a job on a cell: that person, that time. */
+  onMove?: (id: string, start: Date, columnKey: string) => void;
+  /** Right-clicked a job. */
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
   // The crosshair: which cell the pointer is over. Both the time in the gutter
   // AND the column header light up, so you can read off exactly which slot and
@@ -71,6 +88,23 @@ export function DiaryGrid({
   const [picked, setPicked] = useState<{ col: string; slot: number } | null>(null);
 
   const slots = Array.from({ length: SLOTS_PER_DAY }, (_, i) => i);
+
+  // A drag must clear 6px before it counts, or clicking a job to open its
+  // record would be swallowed as a micro-drag (the same threshold the kanban
+  // uses). `pointerWithin` because a cell is small and the pointer says which
+  // one you mean far better than rect overlap does.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function onDragEnd(e: DragEndEvent) {
+    if (!e.over || !onMove) return;
+    const [colKey, slot] = String(e.over.id).split("|");
+    const col = columns.find((c) => c.key === colKey);
+    if (!col) return;
+    const start = new Date(col.day);
+    start.setHours(0, 0, 0, 0);
+    start.setMinutes(DAY_START_HOUR * 60 + Number(slot) * SLOT_MINUTES);
+    onMove(String(e.active.id), start, colKey);
+  }
 
   if (!columns.length) {
     return (
@@ -81,6 +115,9 @@ export function DiaryGrid({
   }
 
   return (
+    // Stable DndContext id — dnd-kit builds aria ids from a global counter
+    // otherwise, and SSR and hydration disagree (AGENTS.md § Rearrangeable cards).
+    <DndContext id="diary-day" sensors={sensors} collisionDetection={pointerWithin} onDragEnd={onDragEnd}>
     <div className="flex min-h-0 flex-1 flex-col">
       {/* One scroller for BOTH axes, so the gutter and headers stay pinned to
           their own edges while the grid moves under them. */}
@@ -196,6 +233,7 @@ export function DiaryGrid({
                 hover={hover}
                 picked={picked}
                 setHover={setHover}
+                onContext={onContext}
                 onPickSlot={(slot, start) => {
                   setPicked({ col: col.key, slot });
                   onPick?.(col.key, start);
@@ -208,6 +246,7 @@ export function DiaryGrid({
 
       <Legend />
     </div>
+    </DndContext>
   );
 }
 
@@ -218,6 +257,7 @@ function Column({
   picked,
   setHover,
   onPickSlot,
+  onContext,
 }: {
   col: GridColumn;
   slots: number[];
@@ -225,6 +265,7 @@ function Column({
   picked: { col: string; slot: number } | null;
   setHover: (v: { col: string; slot: number } | null) => void;
   onPickSlot: (slot: number, start: Date) => void;
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
   const lanes = packIntoLanes(col.events);
 
@@ -240,44 +281,81 @@ function Column({
       {/* Empty slot cells — the gridlines, the hover target, and what you click
           to book. They flex to share the column's height, so a taller window
           gives roomier rows rather than leaving dead space at the bottom. */}
-      {slots.map((i) => {
-        const isHover = hover?.col === col.key && hover.slot === i;
-        const isPicked = picked?.col === col.key && picked.slot === i;
-        const onTheHour = i % 2 === 0;
-        return (
-          <button
-            key={i}
-            type="button"
-            onMouseEnter={() => setHover({ col: col.key, slot: i })}
-            onClick={() => {
-              const start = new Date(col.day);
-              start.setHours(0, 0, 0, 0);
-              start.setMinutes(DAY_START_HOUR * 60 + i * SLOT_MINUTES);
-              onPickSlot(i, start);
-            }}
-            className={cn(
-              "flex-1 transition-colors",
-              onTheHour ? "border-t border-[#e7e7ea]" : "border-t border-[#f4f4f5]",
-              isPicked
-                ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
-                : isHover
-                  ? "bg-[var(--accent-tint)]"
-                  : "hover:bg-[#f4f4f5]",
-            )}
-            aria-label={`${slotLabel(i)} — ${col.label}`}
-          />
-        );
-      })}
+      {slots.map((i) => (
+        <Slot
+          key={i}
+          col={col}
+          index={i}
+          isHover={hover?.col === col.key && hover.slot === i}
+          isPicked={picked?.col === col.key && picked.slot === i}
+          onEnter={() => setHover({ col: col.key, slot: i })}
+          onPick={() => {
+            const start = new Date(col.day);
+            start.setHours(0, 0, 0, 0);
+            start.setMinutes(DAY_START_HOUR * 60 + i * SLOT_MINUTES);
+            onPickSlot(i, start);
+          }}
+        />
+      ))}
 
       {/* Job blocks, positioned as a PERCENTAGE of the column height rather
           than in pixels — so they stay aligned with the rows however the grid
           flexes. */}
       {lanes.map((lane, laneIndex) =>
         lane.map((e) => (
-          <JobBlock key={e.id} event={e} day={col.day} lane={laneIndex} laneCount={lanes.length} />
+          <JobBlock
+            key={e.id}
+            event={e}
+            day={col.day}
+            lane={laneIndex}
+            laneCount={lanes.length}
+            onContext={onContext}
+          />
         )),
       )}
     </div>
+  );
+}
+
+/** One half-hour cell: the gridline, the hover target, the booking click, and
+ *  the drop target for a dragged job. */
+function Slot({
+  col,
+  index,
+  isHover,
+  isPicked,
+  onEnter,
+  onPick,
+}: {
+  col: GridColumn;
+  index: number;
+  isHover: boolean;
+  isPicked: boolean;
+  onEnter: () => void;
+  onPick: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `${col.key}|${index}` });
+  const onTheHour = index % 2 === 0;
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onMouseEnter={onEnter}
+      onClick={onPick}
+      className={cn(
+        "flex-1 transition-colors",
+        onTheHour ? "border-t border-[#e7e7ea]" : "border-t border-[#f4f4f5]",
+        isOver
+          ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
+          : isPicked
+            ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
+            : isHover
+              ? "bg-[var(--accent-tint)]"
+              : "hover:bg-[#f4f4f5]",
+      )}
+      aria-label={`${slotLabel(index)} — ${col.label}`}
+    />
   );
 }
 
@@ -286,12 +364,33 @@ function JobBlock({
   day,
   lane,
   laneCount,
+  onContext,
 }: {
   event: DiaryEvent;
   day: Date;
   lane: number;
   laneCount: number;
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: event.id,
+  });
+  // A block is BOTH a drag handle and a link. The sensor's 6px threshold
+  // decides which, but the click still fires after a drop — so without this
+  // guard every move would also navigate away from the diary. Same pattern,
+  // same reason, as the kanban card.
+  const justDragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) {
+      justDragged.current = true;
+      return;
+    }
+    if (!justDragged.current) return;
+    const t = setTimeout(() => {
+      justDragged.current = false;
+    }, 0);
+    return () => clearTimeout(t);
+  }, [isDragging]);
   const start = new Date(event.startsAt);
   const mins = event.duration ?? 60;
 
@@ -357,15 +456,11 @@ function JobBlock({
     </>
   );
 
-  const className = cn(
-    "absolute z-10 flex flex-col gap-px overflow-hidden rounded-md border px-1.5 py-0.5 text-left",
+  const face = cn(
+    "flex h-full w-full flex-col gap-px overflow-hidden rounded-md border px-1.5 py-0.5 text-left",
     href && "hover:brightness-[0.97]",
   );
-  const style = {
-    top: `${(top / TOTAL_MINUTES) * 100}%`,
-    height: `${(spanMinutes / TOTAL_MINUTES) * 100}%`,
-    left,
-    width,
+  const faceStyle = {
     // Colour says WHAT the job is; the dashed outline says whether it's pinned
     // down — so a provisional survey still reads as a survey.
     background: event.provisional ? "#fff" : cat.bg,
@@ -375,11 +470,47 @@ function JobBlock({
 
   const title = `${start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · ${durationLabel(mins)} — ${event.title}${event.customerName ? ` (${event.customerName})` : ""}`;
 
-  if (!href) return <div className={className} style={style} title={title}>{body}</div>;
   return (
-    <Link href={href} className={className} style={style} title={title}>
-      {body}
-    </Link>
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      // Right-click is the shortcut menu; left-click opens the record; a real
+      // drag does neither.
+      onContextMenu={(ev) => {
+        if (!onContext) return;
+        ev.preventDefault();
+        onContext(event, ev.clientX, ev.clientY);
+      }}
+      onClickCapture={(ev) => {
+        if (justDragged.current) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      }}
+      className={cn(
+        "absolute z-10 cursor-grab",
+        isDragging && "z-30 cursor-grabbing opacity-90 shadow-[0_6px_16px_rgba(10,10,10,0.18)]",
+      )}
+      style={{
+        top: `${(top / TOTAL_MINUTES) * 100}%`,
+        height: `${(spanMinutes / TOTAL_MINUTES) * 100}%`,
+        left,
+        width,
+        transform: CSS.Translate.toString(transform),
+        touchAction: "none",
+      }}
+    >
+      {href ? (
+        <Link href={href} className={face} style={faceStyle} title={title}>
+          {body}
+        </Link>
+      ) : (
+        <div className={face} style={faceStyle} title={title}>
+          {body}
+        </div>
+      )}
+    </div>
   );
 }
 

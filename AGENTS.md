@@ -1282,6 +1282,55 @@ screen where a view can be made your STARTING point.
 - **Month stays a calendar grid** (density overview, capped rows + "+N more" per day, click a day to
   drop into it) — a genuinely different question from "who is doing what at 2pm".
 
+### Working a job from the diary — right-click and drag — built 2026-08-03
+
+- **Right-click a job for its menu** (`appointment-menu.tsx`): open what it's FOR (contract, lead or
+  customer, best link first), **Edit appointment…** (the shared `BookingDialog`, seeded with the
+  appointment), **Mark as done**, **Cancel appointment**. Left-click still opens the record — the
+  menu is a shortcut, never the only route to anything.
+  - Positioned by the new **`useMenuAtPoint`** in `floating-menu.ts` — `fixed`, clamped, flipped, and
+    rebased onto a transformed ancestor exactly like `useFloatingMenu`, because a context menu has a
+    POINT rather than a trigger to measure from. **Don't hand-roll a positioned menu.**
+- **Drag a job onto someone.** The day grid's cell is (person, time), so a drop answers both; the
+  week grid's is (person, half-day), where **the time of day is KEPT when you drop into the same
+  half and snapped to the start of the other half when you cross over** — an 09:00 survey dragged to
+  Thursday afternoon becomes 12:00 rather than staying at 09:00 in a cell labelled PM.
+  - **Only the FIRST block of a multi-block job is draggable** in the week: dragging "the afternoon
+    of a two-day fit" has no meaning the diary could act on.
+  - Moves are **OPTIMISTIC and revert on failure** with the error shown, over `moveBooking` (which
+    already returned its error rather than throwing, for exactly this). Shared in
+    **`diary-dnd.ts`** — the two layouts own their own droppables, but everything after the drop is
+    one copy.
+  - **6px drag threshold + the `justDragged` click guard**, lifted from the kanban card rather than
+    reinvented: a block is both a drag handle and a link, and without the guard every drop also
+    navigates away. `pointerWithin` collision, because a half-hour cell is small and the pointer says
+    which one you mean far better than rect overlap.
+  - **The grids are keyed on the RAW query params** (`view|d|staff|cat`) so the locally-held
+    optimistic list can't outlive the query it came from — changing day with stale state would show
+    yesterday's jobs.
+- **Suitability WARNS, it does not block** (`suitsCategory` in `lib/appointments.ts`). There's no
+  table of who does what, so it's derived from the two things we have: the job's colour band and the
+  staff member's free-text `role`, matched loosely. A mismatch raises a `warning` confirm naming it
+  ("Gary is a surveyor and this is an installation job") with **Assign anyway** — the same call as
+  the clash check, and for the same reason: the firm where the surveyor also fits conservatories must
+  not be stopped, and a rule the app invented is a rule people learn to work around. **An
+  unrecognised role matches everything** — never object on the strength of data we don't understand.
+
+## Right-click belongs to the app — decided 2026-08-03
+
+**The browser's context menu is suppressed across the CRM** (`SuppressNativeMenu`, mounted once in
+`(app)/layout.tsx`). Right-click is now an app gesture, and "Back / Save As / View Page Source" is
+both the wrong menu and in the way. Same call, same reasoning, as hiding the scrollbars: this is an
+app, not a web page.
+
+- **TWO deliberate exceptions, and they are not negotiable without a replacement:** **text fields**
+  (right-click → Paste is how a phone number gets out of an email and into a lead, and spell-check
+  lives there) and **selected text** (right-click → Copy on a highlighted postcode or reference is
+  muscle memory). Both are detected on the event target, so the native menu still appears exactly
+  where someone is working with text.
+- It listens in the **bubble** phase, so any element with its own menu has already called
+  `preventDefault` and this only decides what happens everywhere else.
+
 ## Booking — one dialog — built 2026-08-02
 
 `booking-dialog.tsx` is behind **every** way of making an appointment: a diary slot click, "Book

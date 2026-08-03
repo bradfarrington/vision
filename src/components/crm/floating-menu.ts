@@ -123,6 +123,57 @@ export function useDismissOnOutside({
   }, [open, onDismiss]);
 }
 
+/**
+ * Position a menu at a POINT rather than against a trigger — a right-click
+ * menu. Same rules as `useFloatingMenu`: `fixed` so no ancestor can clip it,
+ * rebased onto a transformed ancestor if one has hijacked the containing block,
+ * and clamped so it never opens off-screen.
+ *
+ * `hostRef` is any element still in the tree, used only to find that ancestor:
+ * a context menu has no trigger element of its own to measure from.
+ */
+export function useMenuAtPoint({
+  point,
+  hostRef,
+  width,
+  height = 220,
+}: {
+  point: { x: number; y: number } | null;
+  hostRef: RefObject<HTMLElement | null>;
+  width: number;
+  /** Roughly how tall the menu is, for the flip decision. */
+  height?: number;
+}): CSSProperties | null {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+  // Depend on the NUMBERS, not the point object: the caller builds it inline
+  // from state, so a fresh object every render would re-run this every render.
+  const x = point?.x ?? null;
+  const y = point?.y ?? null;
+
+  useLayoutEffect(() => {
+    if (x === null || y === null) return;
+    const place = () => {
+      const el = hostRef.current;
+      const cb = el ? containingBlock(el) : null;
+      const left = Math.min(x, window.innerWidth - width - VIEWPORT_MARGIN);
+      const flip = y + height + VIEWPORT_MARGIN > window.innerHeight;
+      setStyle({
+        position: "fixed",
+        left: Math.max(VIEWPORT_MARGIN, left) - (cb?.left ?? 0),
+        width,
+        ...(flip
+          ? { bottom: (cb?.bottom ?? window.innerHeight) - y + MENU_GAP }
+          : { top: y - (cb?.top ?? 0) }),
+      });
+    };
+    place();
+  }, [x, y, hostRef, width, height]);
+
+  // A closed menu keeps its last style — it isn't rendered, and recomputing on
+  // close would be a state write for nothing.
+  return point ? style : null;
+}
+
 export function useFloatingMenu({
   open,
   triggerRef,

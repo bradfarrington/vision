@@ -1,7 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 import {
   DAY_START_HOUR,
@@ -78,17 +89,35 @@ export function DiaryWeekGrid({
   days,
   cells,
   onPick,
+  onMove,
+  onContext,
 }: {
   columns: WeekColumn[];
   days: Date[];
   /** `${dayKey}|${block}|${columnKey}` → that person's jobs in that half-day. */
   cells: Map<string, WeekCell[]>;
   onPick?: (columnKey: string, day: Date, block: DayBlock) => void;
+  /** Dropped a job in a cell: that person, that half-day. */
+  onMove?: (id: string, day: Date, block: DayBlock, columnKey: string) => void;
+  /** Right-clicked a job. */
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
   // The crosshair, as on the day grid: hovering a cell lights BOTH the half-day
   // down the left and the person across the top, so you can read off whose
   // Thursday morning you are looking at without tracing row and column by eye.
   const [hover, setHover] = useState<{ col: string; row: string } | null>(null);
+
+  // Same 6px threshold and pointer collision as the day grid — a click on a
+  // job must still open its record.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function onDragEnd(e: DragEndEvent) {
+    if (!e.over || !onMove) return;
+    const [dayKey, block, colKey] = String(e.over.id).split("|");
+    const day = days.find((d) => toDateParam(d) === dayKey);
+    if (!day || (block !== "am" && block !== "pm")) return;
+    onMove(String(e.active.id), day, block, colKey);
+  }
 
   if (!columns.length) {
     return (
@@ -99,6 +128,8 @@ export function DiaryWeekGrid({
   }
 
   return (
+    // Stable id — see the day grid.
+    <DndContext id="diary-week" sensors={sensors} collisionDetection={pointerWithin} onDragEnd={onDragEnd}>
     <div className="flex min-h-0 flex-1 flex-col">
       {/* One scroller for BOTH axes, so the day gutter and the staff headers
           stay pinned to their own edges while the grid moves under them. No
@@ -243,6 +274,7 @@ export function DiaryWeekGrid({
                           {columns.map((col) => (
                             <Cell
                               key={col.key}
+                              id={`${rowKey}|${col.key}`}
                               day={day}
                               weekend={weekend}
                               muted={col.muted}
@@ -251,6 +283,7 @@ export function DiaryWeekGrid({
                               label={`${day.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} ${label} — ${col.label}`}
                               onEnter={() => setHover({ col: col.key, row: rowKey })}
                               onPick={() => onPick?.(col.key, day, block)}
+                              onContext={onContext}
                             />
                           ))}
                         </div>
@@ -266,10 +299,12 @@ export function DiaryWeekGrid({
 
       <Legend />
     </div>
+    </DndContext>
   );
 }
 
 function Cell({
+  id,
   day,
   weekend,
   muted,
@@ -278,7 +313,9 @@ function Cell({
   label,
   onEnter,
   onPick,
+  onContext,
 }: {
+  id: string;
   day: Date;
   weekend: boolean;
   muted?: boolean;
@@ -287,12 +324,22 @@ function Cell({
   label: string;
   onEnter: () => void;
   onPick: () => void;
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         "relative flex min-w-0 flex-1 flex-col border-r border-[#e7e7ea] transition-colors",
-        lit ? "bg-[var(--accent-tint)]" : weekend || muted ? "bg-[#fafafa]" : "bg-white",
+        isOver
+          ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
+          : lit
+            ? "bg-[var(--accent-tint)]"
+            : weekend || muted
+              ? "bg-[#fafafa]"
+              : "bg-white",
       )}
       style={{ minWidth: MIN_COL }}
       onMouseEnter={onEnter}
@@ -312,15 +359,44 @@ function Cell({
           busy person must not set the height of everybody else's Tuesday. */}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1.5">
         {jobs.map((j) => (
-          <JobChip key={`${j.event.id}-${+j.start}`} cell={j} day={day} />
+          <JobChip key={`${j.event.id}-${+j.start}`} cell={j} day={day} onContext={onContext} />
         ))}
       </div>
     </div>
   );
 }
 
-function JobChip({ cell, day }: { cell: WeekCell; day: Date }) {
+function JobChip({
+  cell,
+  day,
+  onContext,
+}: {
+  cell: WeekCell;
+  day: Date;
+  onContext?: (event: DiaryEvent, x: number, y: number) => void;
+}) {
   const { event, start, minutes, continuedFrom, continuesInto } = cell;
+  // Only the FIRST piece of a multi-block job is draggable: dragging "the
+  // afternoon of a two-day fit" has no meaning the diary could act on.
+  const draggable = !continuedFrom;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: event.id,
+    disabled: !draggable,
+  });
+  // A chip is BOTH a drag handle and a link; the 6px threshold decides which,
+  // and this suppresses the click that follows a drop. Same as the kanban card.
+  const justDragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) {
+      justDragged.current = true;
+      return;
+    }
+    if (!justDragged.current) return;
+    const t = setTimeout(() => {
+      justDragged.current = false;
+    }, 0);
+    return () => clearTimeout(t);
+  }, [isDragging]);
   const cat = WORK_CATEGORIES.find((c) => c.key === event.category)!;
   const ref = event.contractRef ?? event.leadRef;
   const href = event.contractId
@@ -356,11 +432,11 @@ function JobChip({ cell, day }: { cell: WeekCell; day: Date }) {
     </>
   );
 
-  const className = cn(
-    "flex shrink-0 flex-col gap-px overflow-hidden rounded-md border px-1.5 py-1 text-left",
+  const face = cn(
+    "flex flex-col gap-px overflow-hidden rounded-md border px-1.5 py-1 text-left",
     href && "hover:brightness-[0.97]",
   );
-  const style = {
+  const faceStyle = {
     // Colour says WHAT the job is; the dashed outline says whether it's pinned
     // down — so a provisional survey still reads as a survey.
     background: event.provisional ? "#fff" : cat.bg,
@@ -370,16 +446,39 @@ function JobChip({ cell, day }: { cell: WeekCell; day: Date }) {
 
   const title = `${isSameDay(start, day) ? time : "continues"} · ${durationLabel(minutes)} — ${event.title}${event.customerName ? ` (${event.customerName})` : ""}`;
 
-  if (!href)
-    return (
-      <div className={className} style={style} title={title}>
-        {body}
-      </div>
-    );
   return (
-    <Link href={href} className={className} style={style} title={title}>
-      {body}
-    </Link>
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onContextMenu={(ev) => {
+        if (!onContext) return;
+        ev.preventDefault();
+        onContext(event, ev.clientX, ev.clientY);
+      }}
+      onClickCapture={(ev) => {
+        if (justDragged.current) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      }}
+      className={cn(
+        "shrink-0",
+        draggable && "cursor-grab",
+        isDragging && "relative z-30 cursor-grabbing opacity-90 shadow-[0_6px_16px_rgba(10,10,10,0.18)]",
+      )}
+      style={{ transform: CSS.Translate.toString(transform), touchAction: "none" }}
+    >
+      {href ? (
+        <Link href={href} className={face} style={faceStyle} title={title}>
+          {body}
+        </Link>
+      ) : (
+        <div className={face} style={faceStyle} title={title}>
+          {body}
+        </div>
+      )}
+    </div>
   );
 }
 

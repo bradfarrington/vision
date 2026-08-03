@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
 
 import { DiaryGrid, type GridColumn } from "@/components/crm/diary-grid";
+import { AppointmentMenu } from "@/components/crm/appointment-menu";
+import { useDiaryMoves } from "@/components/crm/diary-dnd";
+import { MIDDAY_HOUR, DAY_START_HOUR } from "@/lib/diary";
 import {
   DiaryWeekGrid,
   cellStart,
@@ -10,7 +12,7 @@ import {
   type WeekCell,
   type WeekColumn,
 } from "@/components/crm/diary-week-grid";
-import { BookingDialog, type BookingSeed } from "@/components/crm/booking-dialog";
+import { BookingDialog } from "@/components/crm/booking-dialog";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import type { DiaryStaff } from "@/lib/data/staff";
 import type { TenantOption } from "@/lib/data/customer-record";
@@ -44,7 +46,7 @@ function staffFor(e: DiaryEvent, staff: DiaryStaff[]): string[] {
 }
 
 export function DiaryDayView({
-  events,
+  events: allEvents,
   staff,
   day,
   types,
@@ -55,7 +57,10 @@ export function DiaryDayView({
   types: TenantOption[];
 }) {
   const date = new Date(day);
-  const [seed, setSeed] = useState<BookingSeed | null>(null);
+  const { events, move, menu, setMenu, seed, setSeed, edit, error } = useDiaryMoves({
+    initial: allEvents,
+    staff,
+  });
 
   const byStaff = new Map<string, DiaryEvent[]>();
   for (const s of staff) byStaff.set(s.id, []);
@@ -92,8 +97,14 @@ export function DiaryDayView({
 
   return (
     <>
+      {error && <MoveError message={error} />}
       <DiaryGrid
         columns={columns}
+        // A day cell is (person, time), so a drop answers both at once.
+        onMove={(id, start, columnKey) =>
+          move(id, start, columnKey === "unassigned" ? null : columnKey)
+        }
+        onContext={(e, x, y) => setMenu({ event: e, x, y })}
         onPick={(columnKey, start) =>
           // On the day view a column IS a person, so clicking their slot books
           // it against them — no need to pick the staff member again.
@@ -103,6 +114,7 @@ export function DiaryDayView({
           })
         }
       />
+      <AppointmentMenu target={menu} onClose={() => setMenu(null)} onEdit={edit} />
       <BookingDialog
         open={!!seed}
         onOpenChange={(o) => !o && setSeed(null)}
@@ -116,7 +128,7 @@ export function DiaryDayView({
 }
 
 export function DiaryWeekView({
-  events,
+  events: allEvents,
   days,
   staff,
   types,
@@ -126,7 +138,10 @@ export function DiaryWeekView({
   staff: DiaryStaff[];
   types: TenantOption[];
 }) {
-  const [seed, setSeed] = useState<BookingSeed | null>(null);
+  const { events, move, menu, setMenu, seed, setSeed, edit, error } = useDiaryMoves({
+    initial: allEvents,
+    staff,
+  });
   const dates = days.map((iso) => new Date(iso));
 
   // (half-day, person) → that person's jobs in that block. A job is spread
@@ -171,10 +186,31 @@ export function DiaryWeekView({
 
   return (
     <>
+      {error && <MoveError message={error} />}
       <DiaryWeekGrid
         columns={columns}
         days={dates}
         cells={cells}
+        // A week cell is (person, half-day). The time of day is KEPT when you
+        // drop into the same half it was already in, and snapped to the start
+        // of the other half when you cross over — so an 09:00 survey dragged to
+        // Thursday afternoon becomes 12:00 rather than staying at 09:00 in a
+        // cell that says PM.
+        onMove={(id, day, block, columnKey) => {
+          const job = events.find((e) => e.id === id);
+          const at = new Date(day);
+          const was = job ? new Date(job.startsAt) : null;
+          const keepsTime =
+            was && (was.getHours() < MIDDAY_HOUR) === (block === "am");
+          at.setHours(
+            keepsTime ? was!.getHours() : block === "am" ? DAY_START_HOUR : MIDDAY_HOUR,
+            keepsTime ? was!.getMinutes() : 0,
+            0,
+            0,
+          );
+          move(id, at, columnKey === "unassigned" ? null : columnKey);
+        }}
+        onContext={(e, x, y) => setMenu({ event: e, x, y })}
         // A cell is a PERSON in a HALF-DAY, so a click fixes both and seeds the
         // start at the top of that half (07:00 or 12:00) — the dialog's own
         // TimePicker moves it within the block.
@@ -185,6 +221,7 @@ export function DiaryWeekView({
           })
         }
       />
+      <AppointmentMenu target={menu} onClose={() => setMenu(null)} onEdit={edit} />
       <BookingDialog
         open={!!seed}
         onOpenChange={(o) => !o && setSeed(null)}
@@ -194,6 +231,16 @@ export function DiaryWeekView({
         context={seed?.startsAt ? whenLabel(seed.startsAt) : null}
       />
     </>
+  );
+}
+
+/** A failed move puts the job back; this says why, rather than it just
+ *  springing back with no explanation. */
+function MoveError({ message }: { message: string }) {
+  return (
+    <p className="mx-[26px] rounded-lg border border-[#f3c2c2] bg-[#fdecec] px-3 py-2 text-[12px] font-medium text-[#d64545]">
+      Couldn&rsquo;t move that appointment — {message}
+    </p>
   );
 }
 

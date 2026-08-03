@@ -11,6 +11,7 @@ import {
 } from "@/lib/company";
 import { tenantThemeVars } from "@/lib/theme";
 import { DialogsProvider } from "@/components/crm/dialogs";
+import { SuppressNativeMenu } from "@/components/app-shell/suppress-native-menu";
 import { ScreenTooSmall } from "@/components/app-shell/screen-too-small";
 
 // Authenticated app shell: grey canvas, ~62px topbar, 76px icon rail and a
@@ -40,6 +41,9 @@ export default async function AppLayout({
           correct on the server, with no flash and no viewport JS. */}
       <ScreenTooSmall />
       <DialogsProvider>
+        {/* Right-click is the app's now — see the component for the two
+            exceptions it deliberately keeps (text fields, selected text). */}
+        <SuppressNativeMenu />
         <div className="hidden h-full min-h-0 flex-1 flex-col overflow-hidden xl:flex">
           <Topbar
             companyName={company?.name ?? "Vision"}
