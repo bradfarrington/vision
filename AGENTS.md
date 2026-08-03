@@ -1899,6 +1899,14 @@ That is the whole reason for the dependency; don't undo it to save 350KB.
   pipeline's exit code is the pager's (0), so a failing `next build` looks like it passed and a broken
   commit can get pushed (this happened once on `main`). Capture the exit code directly
   (`next build > log 2>&1; echo $?`) or check `git`/CI separately.
+- **NEVER run `next build` while Brad's `next dev` is running** — they share `.next`, so the build
+  overwrites what the dev server is serving and the browser ends up holding one commit's client
+  bundle against another commit's server render. That surfaces as a **hydration error naming a
+  component nobody just touched** ("client `width:92` / server `width:120px`"), plus the change
+  simply not appearing — 2026-08-03, verifying the diary's AM/PM split. It looks like a bug in the
+  new code and isn't. **Check first** (`ps aux | grep "next dev"`): if a dev server is up, verify
+  with `npx tsc --noEmit` + `npx eslint <files>` and leave the build alone. The recovery is his:
+  stop dev, `rm -rf .next`, `npm run dev`.
 - **A loader must never let a pending migration blank a record.** Schema here is applied by hand,
   so a select that names a not-yet-existing column has its WHOLE query rejected by PostgREST and
   the screen renders as if the customer had no notes/documents (this happened with
