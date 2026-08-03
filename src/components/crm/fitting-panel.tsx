@@ -354,6 +354,7 @@ function StaffCell({
       // No single "value": the trigger shows everyone assigned, and picking a
       // name toggles that person rather than replacing the lot.
       value={null}
+      selectedValues={appt.staffIds}
       onChange={(v) => v && onToggle(v)}
       variant="text"
       align="start"

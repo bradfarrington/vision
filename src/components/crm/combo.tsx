@@ -33,6 +33,7 @@ export function Combo({
   onSearch,
   loading,
   emptyLabel,
+  selectedValues,
 }: {
   options: ComboOption[];
   value: string | null;
@@ -65,6 +66,14 @@ export function Combo({
   loading?: boolean;
   /** What "no matches" says — defaults to the add-new hint's absence. */
   emptyLabel?: string;
+  /**
+   * MULTI-SELECT: every value in here shows as chosen, and picking a row
+   * toggles it without closing the menu — you're usually adding two people,
+   * not one. The consumer owns the list and does the toggling; `value` stays
+   * null, and the trigger shows whatever `placeholder` it wants (the joined
+   * names, normally).
+   */
+  selectedValues?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -107,8 +116,13 @@ export function Combo({
   const exact = options.some((o) => o.label.toLowerCase() === q);
   const selected = options.find((o) => o.value.toLowerCase() === (value ?? "").toLowerCase());
 
+  const multi = Array.isArray(selectedValues);
+
   function choose(v: string) {
     onChange(v);
+    // A multi-select stays open: closing after each name would mean reopening
+    // the menu for the second fitter, which is most of the time.
+    if (multi) return;
     setOpen(false);
     setQuery("");
   }
@@ -191,14 +205,19 @@ export function Combo({
             {filtered.map((o) => {
               // Same case-insensitive comparison the trigger uses, so the tick
               // can't disagree with the value on show.
-              const isSelected = o.value.toLowerCase() === (value ?? "").toLowerCase();
-              const clears = isSelected && clearable;
+              const isSelected = multi
+                ? selectedValues!.includes(o.value)
+                : o.value.toLowerCase() === (value ?? "").toLowerCase();
+              // In a multi-select the tick means "assigned" and clicking it
+              // again removes them — the same ✕-on-hover affordance, and here
+              // it's the only way to unassign someone.
+              const clears = isSelected && (multi || clearable);
               return (
                 <div key={o.value} className="group flex items-center rounded-md hover:bg-[var(--accent-tint)]">
                   <button
                     type="button"
                     title={clears ? `Clear “${o.label}”` : undefined}
-                    onClick={() => choose(clears ? "" : o.value)}
+                    onClick={() => choose(!multi && clears ? "" : o.value)}
                     className={cn(
                       "flex min-w-0 flex-1 items-center gap-1.5 px-2.5 py-1.5 text-left text-[12.5px]",
                       isSelected ? "font-semibold text-[var(--accent-active)]" : "text-[#3f3f46]",

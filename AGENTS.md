@@ -1405,7 +1405,11 @@ own idea of what colour a fit is.
   - **`status: "done"` is routed through `completeBooking`, NOT the generic patch**, so the
     completion stamp can't be skipped by writing the status directly.
   - **Staff is MULTI-select** (clicking a name toggles that person). A single-select would silently
-    drop the second fitter the first time anyone edited a two-person job.
+    drop the second fitter the first time anyone edited a two-person job. `Combo` gained
+    **`selectedValues`** for it: every value in the list shows its tick, and picking a row toggles
+    that one **without closing the menu** — you're usually adding two people, not one. Without the
+    ticks the menu was silent about who was already on the job, which is the only state that matters
+    when you open it. **Reuse `selectedValues` for the next multi-select; don't hand-roll one.**
   - **The status PILL is the trigger** — the status stays readable at a glance and is one click from
     changing, rather than a pill sitting beside a control that does the same thing.
 - **The comment has its OWN column, and it is the LAST one.** As a second line under the appointment
