@@ -7,6 +7,7 @@ import { saveBooking, type BookingResult } from "@/app/(app)/diary/actions";
 import { APPOINTMENT_STATUSES, durationLabel } from "@/lib/appointments";
 import { SLOT_MINUTES } from "@/lib/diary";
 import { Combo } from "./combo";
+import { JobPicker, type JobLink } from "./job-picker";
 import { DatePicker } from "./date-picker";
 import { TimePicker } from "./time-picker";
 import { inputClass } from "./wizard";
@@ -129,6 +130,22 @@ function BookingForm({
   const [notes, setNotes] = useState(seed.notes ?? "");
   const [staffIds, setStaffIds] = useState<string[]>(seed.staffIds ?? []);
   const [status, setStatus] = useState(seed.status ?? "confirmed");
+  const [job, setJob] = useState<JobLink | null>(null);
+
+  // The picker only appears when the seed DOESN'T already carry a job. Opened
+  // from a lead or a contract's Fitting tab, the appointment is about that
+  // record by definition — the same rule the notes panel's `fixedLink` follows,
+  // and it means the two can't disagree about what the booking is for.
+  const linkKnown = !!(seed.leadId || seed.contractId);
+  const leadId = linkKnown ? (seed.leadId ?? null) : job?.kind === "lead" ? job.id : null;
+  const contractId = linkKnown
+    ? (seed.contractId ?? null)
+    : job?.kind === "contract"
+      ? job.id
+      : null;
+  // Stamping the customer is what puts the appointment on their record and
+  // names them on the diary block.
+  const customerId = linkKnown ? (seed.customerId ?? null) : (job?.customerId ?? null);
 
   const canSave = !!date && !!time;
 
@@ -150,9 +167,9 @@ function BookingForm({
         staffIds,
         staffNames: staff.filter((s) => staffIds.includes(s.id)).map((s) => s.name),
         status,
-        leadId: seed.leadId ?? null,
-        contractId: seed.contractId ?? null,
-        customerId: seed.customerId ?? null,
+        leadId,
+        contractId,
+        customerId,
         force,
       });
       if (res.clashes?.length) {
@@ -193,6 +210,14 @@ function BookingForm({
               placeholder="Sales call, survey, fitting…"
             />
           </Field>
+
+          {/* Which job — hidden when the seed already knows (booked from a lead
+              or a contract's Fitting tab). */}
+          {!linkKnown && (
+            <Field label="Job">
+              <JobPicker value={job} onChange={setJob} />
+            </Field>
+          )}
 
           <Field label="How long">
             {/* Slot multiples only — see the note at the top of this file. */}

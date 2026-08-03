@@ -268,6 +268,15 @@ inherited the same bug.
   `fixed` children, so the hook walks up, finds that ancestor and rebases the coordinates onto it.
   That case is real, not theoretical: the shadcn `DialogContent` is translate-centred, and the
   relationship-type picker opens inside it.
+- **`translate` / `rotate` / `scale` are SEPARATE PROPERTIES from `transform`, and must be tested
+  separately** (fixed 2026-08-03). An element using them reports **`transform: none`** while still
+  creating the containing block, and **Tailwind v4 compiles `-translate-x-1/2` to the `translate`
+  property** — so `DialogContent` went undetected and every menu opened inside a dialog was rebased
+  against nothing, landing at the dialog's PRE-transform origin: half a viewport out to the right,
+  outside the modal entirely. It surfaced on the booking dialog's time picker but applied to every
+  `Combo`/`DatePicker`/`TimePicker` in every dialog. `containingBlock()` now tests all four transform
+  properties plus `contain: paint|layout|strict|content` (`paint` alone was too narrow). **Never
+  reduce that check back to `transform`.**
 - **Position is recomputed while open** on `resize` and on `scroll` **in the capture phase** (so
   scrolling any ancestor, not just the window, moves the menu with its trigger). A `fixed` menu that
   is placed once detaches the moment the list behind it scrolls.
@@ -1237,6 +1246,25 @@ Fitting tab. They differ only in what arrives pre-filled.
 - **The dialog REMOUNTS per seed** (keyed on `seedKey`) rather than re-seeding through an effect:
   clicking a second slot must not reopen it holding the first one's time, and a key does that
   without the setState-in-effect cascade the lint rule is about.
+- **An appointment is booked AGAINST A JOB — a contract or a lead** (`JobPicker`, added 2026-08-03).
+  Without the link a booking is an island: it can't reach the contract's Fitting tab, can't name the
+  customer on the diary block, and can't be found from the record it belongs to. Both kinds are
+  searched, because both get visited — a lead is surveyed before it is a contract.
+  - **The picker SEARCHES THE SERVER as you type** (`searchJobs` in `lib/data/jobs.ts` →
+    `findJobs`), debounced 250ms, newest first. **Not a preloaded option list**: the 500-name
+    customer picker was deleted for being silently wrong past its cap (§ Capture first, match
+    second) and a firm's contract book only grows. Out-of-order responses are dropped by sequence
+    number, and it FAILS SOFT — the appointment can be booked unlinked and joined up afterwards.
+  - **Scope defaults to OPEN jobs** (contracts still in flight, leads not won/lost), with an "All
+    jobs" toggle. A booking is nearly always for work still to do; "All" exists for the finished job
+    that needs a remedial visit, which is the only reason to wade through completed contracts.
+  - **Picking a job stamps `customer_id` too**, which is what puts the appointment on the customer's
+    record and names them on the diary block.
+  - **The picker is HIDDEN when the seed already carries a job** (booked from a lead, or a
+    contract's Fitting tab) — there the appointment is about that record by definition. Same rule as
+    the notes panel's `fixedLink`, and it stops the two disagreeing about what the booking is for.
+  - `Combo` gained **`onSearch`/`loading`/`emptyLabel`** for this — server-supplied options instead
+    of client-side filtering. **Don't fork the Combo** for the next long list; use `onSearch`.
 - **Cancelling is a soft cancel** (`status`), not a delete — the visit leaves the diary and frees the
   person but stays on the record as history, and the confirm says so.
 

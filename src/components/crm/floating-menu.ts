@@ -26,16 +26,35 @@ const MAX_MENU_HEIGHT = 320;
  * block for `fixed` descendants, so our viewport coordinates would land in the
  * wrong place — the shadcn dialog (translate-centred) is exactly that case.
  * Find that ancestor, if any, so the caller can rebase onto it.
+ *
+ * `translate` / `rotate` / `scale` MUST be tested SEPARATELY from `transform`.
+ * They are independent CSS properties, and an element using them reports
+ * `transform: none` — while still creating the containing block just the same.
+ * That is not a corner case here: **Tailwind v4 compiles `-translate-x-1/2` to
+ * the `translate` property**, so `DialogContent` (`-translate-x-1/2
+ * -translate-y-1/2`) went undetected and EVERY menu opened inside a dialog was
+ * offset by the dialog's pre-transform origin — i.e. thrown out to the middle
+ * of the window, roughly half a viewport to the right (2026-08-03: the booking
+ * dialog's time picker). Test the properties, never just `transform`.
  */
 function containingBlock(el: HTMLElement): DOMRect | null {
   for (let p = el.parentElement; p; p = p.parentElement) {
-    const cs = getComputedStyle(p);
+    const cs = getComputedStyle(p) as CSSStyleDeclaration & {
+      translate?: string;
+      rotate?: string;
+      scale?: string;
+    };
     if (
       cs.transform !== "none" ||
+      (cs.translate && cs.translate !== "none") ||
+      (cs.rotate && cs.rotate !== "none") ||
+      (cs.scale && cs.scale !== "none") ||
       cs.filter !== "none" ||
       cs.perspective !== "none" ||
       cs.willChange.includes("transform") ||
-      cs.contain.includes("paint")
+      // Any of paint/layout/strict/content makes it a containing block for
+      // fixed descendants — `paint` alone was too narrow.
+      /paint|layout|strict|content/.test(cs.contain)
     ) {
       return p.getBoundingClientRect();
     }

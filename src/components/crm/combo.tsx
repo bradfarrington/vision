@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -30,6 +30,9 @@ export function Combo({
   align,
   clearable = true,
   mono,
+  onSearch,
+  loading,
+  emptyLabel,
 }: {
   options: ComboOption[];
   value: string | null;
@@ -50,6 +53,18 @@ export function Combo({
    *  list has its own "none" entry, or where a value is required. */
   clearable?: boolean;
   mono?: boolean;
+  /**
+   * SERVER-SIDE search: called with the query as it's typed, and `options` are
+   * then taken as the answer rather than filtered again here. For a list too
+   * long to preload — every contract in the book — where a capped client list
+   * would be silently wrong past the cap (AGENTS.md § Capture first, match
+   * second). Debounce it in the consumer.
+   */
+  onSearch?: (query: string) => void;
+  /** Shown in place of the rows while a search is in flight. */
+  loading?: boolean;
+  /** What "no matches" says — defaults to the add-new hint's absence. */
+  emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -73,8 +88,22 @@ export function Combo({
   const dismiss = useCallback(() => setOpen(false), []);
   useDismissOnOutside({ open, onDismiss: dismiss, refs: [ref, triggerRef] });
 
+  // Server-side search, when the consumer asked for it: fire on open (for the
+  // starting list) and on every keystroke. Latest-ref so the consumer doesn't
+  // have to memoise the callback to avoid a loop.
+  const searchRef = useRef(onSearch);
+  useEffect(() => {
+    searchRef.current = onSearch;
+  });
+  useEffect(() => {
+    if (open) searchRef.current?.(query);
+  }, [open, query]);
+
   const q = query.trim().toLowerCase();
-  const filtered = options.filter((o) => o.label.toLowerCase().includes(q));
+  // With server-side search the options ARE the answer — filtering them again
+  // here would hide rows the server matched on something the label doesn't
+  // show (a customer's postcode, say).
+  const filtered = onSearch ? options : options.filter((o) => o.label.toLowerCase().includes(q));
   const exact = options.some((o) => o.label.toLowerCase() === q);
   const selected = options.find((o) => o.value.toLowerCase() === (value ?? "").toLowerCase());
 
@@ -234,8 +263,14 @@ export function Combo({
               </button>
             )}
 
-            {filtered.length === 0 && (!onAddNew || !q) && (
-              <div className="px-2.5 py-2 text-[12.5px] text-[#a1a1aa]">No matches</div>
+            {loading && filtered.length === 0 && (
+              <div className="px-2.5 py-2 text-[12.5px] text-[#a1a1aa]">Searching…</div>
+            )}
+
+            {!loading && filtered.length === 0 && (!onAddNew || !q) && (
+              <div className="px-2.5 py-2 text-[12.5px] text-[#a1a1aa]">
+                {emptyLabel ?? "No matches"}
+              </div>
             )}
           </div>
           {error && (

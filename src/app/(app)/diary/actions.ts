@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
 import { overlaps } from "@/lib/appointments";
+import { searchJobs, type JobOption } from "@/lib/data/jobs";
 import type { Database } from "@/lib/supabase/types";
 
 // Every write against the ONE appointment table. Bookings made from the diary,
@@ -187,6 +188,21 @@ export async function completeBooking(id: string): Promise<{ error?: string }> {
   if (error) return { error: error.message };
   revalidatePath("/diary");
   return {};
+}
+
+/**
+ * The booking dialog's job picker — "which contract or lead is this for?".
+ *
+ * A thin pass-through to `searchJobs` so the dialog (a client component, shared
+ * by the diary, the lead and the contract's Fitting tab) can query as you type
+ * rather than being handed a preloaded, capped list. RLS scopes it to the
+ * tenant; the caller passes no ids, only a query.
+ */
+export async function findJobs(input: {
+  query?: string;
+  scope?: "open" | "all";
+}): Promise<JobOption[]> {
+  return searchJobs({ query: input.query, scope: input.scope });
 }
 
 function revalidateOwners(input: BookingInput) {
