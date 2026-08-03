@@ -39,9 +39,11 @@ import { cn } from "@/lib/utils";
 
 /** Smallest a half-day block may get before the grid scrolls instead. */
 const MIN_BLOCK_H = 56;
+/** The date rail down the left. */
 const GUTTER = 82;
 /** The AM/PM label rail, sitting between the date and the staff cells. */
 const BLOCK_W = 38;
+/** A staff column never gets narrower than its card content needs. */
 const MIN_COL = 190;
 
 const BLOCKS: { key: DayBlock; label: string }[] = [
