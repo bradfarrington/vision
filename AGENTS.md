@@ -1392,6 +1392,31 @@ own idea of what colour a fit is.
 - Reaches every block, chip and month cell through `DiaryColoursProvider` + `useCategory()`. **Don't
   import `WORK_CATEGORIES` directly for rendering any more** — that bypasses the tenant's choice.
 
+### The contract's Fitting tab EDITS IN PLACE — built 2026-08-03
+
+- **Every column is an inline editor**: date (`DatePicker`), appointment type (`Combo` over the
+  tenant's `appointment_type` list), comment, time (`TimePicker`), duration (slot multiples, matching
+  the booking dialog), staff and status. This is the screen the office works a job from, and
+  reopening a booking dialog to move a fit half an hour is the friction that ends with the diary
+  being wrong.
+  - Writes go through **`updateAppointmentField`**, a strict column ALLOWLIST like every other
+    per-field action (`updateCustomerField`, `updateLeadField`) — the column name never comes from
+    the client.
+  - **`status: "done"` is routed through `completeBooking`, NOT the generic patch**, so the
+    completion stamp can't be skipped by writing the status directly.
+  - **Staff is MULTI-select** (clicking a name toggles that person). A single-select would silently
+    drop the second fitter the first time anyone edited a two-person job.
+  - **The status PILL is the trigger** — the status stays readable at a glance and is one click from
+    changing, rather than a pill sitting beside a control that does the same thing.
+- **The comment has its OWN column.** As a second line under the appointment it ran the width of the
+  table and collided with Time, Duration and Staff (which is exactly what it looked like).
+- **Access & directions sits BESIDE the table at ≥1367px** (`desktop:`, the app's own tier) and under
+  it below that. The table is the wide thing; the access note is a paragraph, and a paragraph
+  stretched across 1300px is unreadable while the space beside it sits empty.
+- **Access notes are editable HERE as well as on the Overview tab** — same `fitting_directions`
+  column through `updateContractField`, because this is the screen you're on when you find out about
+  the gate code.
+
 ### Appointment comments — built 2026-08-03
 
 `appointments.notes` was already stored and already displayed on the lead's Appointments card and the

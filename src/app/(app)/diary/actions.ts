@@ -206,6 +206,49 @@ export async function findJobs(input: {
 }
 
 /**
+ * Patch ONE field of an appointment — the Fitting tab's inline edits.
+ *
+ * A strict column ALLOWLIST, like every other per-field action in the CRM
+ * (`updateCustomerField`, `updateLeadField`): the column name is never taken
+ * from the client, only matched against this list.
+ *
+ * `status: "done"` deliberately goes through `completeBooking` instead, so the
+ * completion stamp can't be skipped by writing the status directly.
+ */
+const APPOINTMENT_FIELDS = [
+  "starts_at",
+  "duration",
+  "type",
+  "title",
+  "status",
+  "notes",
+  "staff_ids",
+  "staff_names",
+] as const;
+
+export async function updateAppointmentField(
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<{ error?: string }> {
+  const entries = Object.entries(patch).filter(([k]) =>
+    (APPOINTMENT_FIELDS as readonly string[]).includes(k),
+  );
+  if (!entries.length) return { error: "Nothing to update." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update(
+      Object.fromEntries(entries) as Database["public"]["Tables"]["appointments"]["Update"],
+    )
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/diary");
+  revalidatePath("/dashboard");
+  return {};
+}
+
+/**
  * The comment on an appointment — set from the lead's Appointments card, the
  * contract's Fitting tab, or the booking dialog. One column (`notes`), so the
  * three can't disagree about what the comment is.
