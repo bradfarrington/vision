@@ -23,11 +23,7 @@ const EMPTY: TenantSettings = { diaryColours: {} };
 export async function getTenantSettings(): Promise<TenantSettings> {
   try {
     const supabase = await createClient();
-    // Loose client: `tenant_settings` isn't in the generated types until the
-    // migration is applied by hand and `supabase gen types` is re-run. TIGHTEN
-    // THIS after the regen — AGENTS.md § keep types in sync.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("tenant_settings")
       .select("settings")
       .maybeSingle();

@@ -289,19 +289,16 @@ export async function setDiaryColour(
   const companyId = await getCompanyId();
   if (!companyId) return { error: "No tenant" };
 
-  // Loose client until the migration is applied and the types regenerated.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
-  const { data } = await db.from("tenant_settings").select("settings").maybeSingle();
+  const { data } = await supabase.from("tenant_settings").select("settings").maybeSingle();
   const settings = ((data?.settings ?? {}) as Record<string, unknown>) ?? {};
   const diaryColours = { ...((settings.diaryColours ?? {}) as Record<string, string>), [category]: hex };
 
-  const { error } = await db.from("tenant_settings").upsert(
+  const { error } = await supabase.from("tenant_settings").upsert(
     {
       company_id: companyId,
       settings: { ...settings, diaryColours },
       updated_at: new Date().toISOString(),
-    },
+    } satisfies Database["public"]["Tables"]["tenant_settings"]["Insert"],
     { onConflict: "company_id" },
   );
   if (error) return { error: error.message };

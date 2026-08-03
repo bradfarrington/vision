@@ -1362,8 +1362,9 @@ own idea of what colour a fit is.
 - **Tenant-wide, not per user.** A legend is a shared language ("the blue ones are fits"); two people
   seeing different colours for the same job makes it useless. Contrast the CARD FIELDS above, which
   are per user precisely because they're a way of reading, not a shared meaning.
-- **Stored in `public.tenant_settings`** (`20260803090000`, **apply BY HAND**) — a new one-row-per-
-  tenant table with ordinary tenant-isolation RLS. **NOT on `companies`**: its only write policy is
+- **Stored in `public.tenant_settings`** (`20260803090000` — **APPLIED 2026-08-03**, schema cache
+  reloaded, `types.ts` regenerated and committed, and the two loose casts it had forced tightened in
+  the same session) — a one-row-per-tenant table with ordinary tenant-isolation RLS. **NOT on `companies`**: its only write policy is
   platform-admin, deliberately, and widening that so staff can recolour a legend would hand them the
   plan and seat-limit columns too. That table is also the obvious home for the **per-company working
   hours** `lib/diary.ts` is waiting for.
