@@ -319,13 +319,19 @@ function renderCell(
 export function Popover({
   label,
   icon,
+  caret,
   badge,
   active,
   width = 272,
   children,
 }: {
   label: string;
-  icon: IconName;
+  /** Leading glyph. Omitted by a trigger whose LABEL carries the state
+   *  ("Job type: All"), where an icon would just be decoration. */
+  icon?: IconName;
+  /** Trailing chevron, for a trigger that reads as a select rather than a
+   *  verb — the diary's Job type / Staff pickers (design screen 07). */
+  caret?: boolean;
   /** Numeric badge — also lights the trigger as active. */
   badge?: number;
   /** Light the trigger as active without a badge (e.g. a named selection). */
@@ -364,12 +370,20 @@ export function Popover({
         )}
         aria-label={badge ? `${label} — ${badge} applied` : label}
       >
-        <Icon name={icon} size={13} /> {label}
+        {icon && <Icon name={icon} size={13} />} {label}
         {badge ? (
           <span className="flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--accent-blue)] px-1 text-[10.5px] font-bold text-white">
             {badge}
           </span>
         ) : null}
+        {caret && (
+          <Icon
+            name="chevron-down"
+            size={12}
+            strokeWidth={2}
+            className={badge || active ? "" : "text-[#a1a1aa]"}
+          />
+        )}
       </button>
       {open && menuStyle && (
         <div

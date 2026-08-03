@@ -23,6 +23,7 @@ export function DatePicker({
   placeholder = "—",
   className,
   triggerLabel,
+  triggerClassName,
 }: {
   value: string | null;
   onChange: (value: string | null) => void;
@@ -35,6 +36,9 @@ export function DatePicker({
    * 26 Jul") rather than the anchor date the picker actually emits.
    */
   triggerLabel?: React.ReactNode;
+  /** Type scale for the `button` variant's face — the diary's window heading
+   *  is the loudest thing in its nav cluster, where a field label is not. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"day" | "month" | "year">("day");
@@ -101,7 +105,10 @@ export function DatePicker({
           ref={triggerRef}
           type="button"
           onClick={toggle}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-semibold text-[#0a0a0a] transition-colors hover:bg-[#f4f4f5]"
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-semibold text-[#0a0a0a] transition-colors hover:bg-[#f4f4f5]",
+            triggerClassName,
+          )}
         >
           {triggerLabel ?? shown ?? placeholder}
           <Icon name="chevron-down" size={12} strokeWidth={2} className="text-[#a1a1aa]" />

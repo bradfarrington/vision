@@ -19,7 +19,8 @@ import { Icon, TOOLBAR_H, btnSecondary } from "@/components/crm/primitives";
 import { cn } from "@/lib/utils";
 import { DiaryDayView, DiaryWeekView } from "@/components/crm/diary-views";
 import { DiaryMonth } from "@/components/crm/diary-month";
-import { DiaryFiltersButton } from "@/components/crm/diary-filters";
+import { JobTypeFilter, StaffFilter } from "@/components/crm/diary-filters";
+import { NewAppointmentButton } from "@/components/crm/new-appointment-button";
 import { ViewToggle } from "@/components/crm/view-toggle";
 import { ViewStateSaver } from "@/components/crm/view-state";
 
@@ -92,10 +93,18 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
           same as the list table. The gutter lives on the toolbar block. */}
       <div className="flex flex-1 flex-col gap-[14px] overflow-hidden pt-[22px]">
         <div className="flex flex-col gap-[14px] px-[26px]">
+          {/* The toolbar is design screen 07's: the PERIOD on the left with the
+              title (Day/Week/Month, then which window you're on), and the
+              ACTIONS on the right (what to show, and booking). Left is where
+              you are; right is what you do. */}
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-[family-name:var(--font-inter-tight)] text-[23px] font-extrabold tracking-[-0.01em] text-[#0a0a0a]">
               Diary
             </h1>
+
+            {/* Labelled, not icon-only: a period has no glyph that says "Week"
+                the way rows-vs-columns says "board" on the leads list. */}
+            <ViewToggle views={DIARY_VIEWS} variant="label" />
 
             {/* Period navigation — the label doubles as a date picker, so
                 jumping to a week months out doesn't mean twenty arrow clicks. */}
@@ -108,14 +117,22 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
             />
 
             <div className="ml-auto flex items-center gap-2.5">
-              <DiaryFiltersButton staff={staff} />
-              <ViewToggle views={DIARY_VIEWS} />
+              {/* Two dropdowns that state their own answer, rather than one
+                  "Filters" button with a count — the diary has exactly two
+                  axes and they're the questions asked of it all day. */}
+              <JobTypeFilter />
+              <StaffFilter staff={staff} />
               {/* "When can we fit this in?" is a different question from
                   "what's on Tuesday", so it's its own screen rather than a
                   mode of this one. */}
               <Link href="/diary/slots" className={cn(TOOLBAR_H, btnSecondary)}>
                 <Icon name="search" size={13} strokeWidth={1.75} /> Find a slot
               </Link>
+              <NewAppointmentButton
+                staff={staff}
+                types={opts.appointment_type ?? []}
+                anchor={toDateParam(anchor)}
+              />
             </div>
           </div>
         </div>

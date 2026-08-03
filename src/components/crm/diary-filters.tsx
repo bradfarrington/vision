@@ -1,83 +1,114 @@
 "use client";
 
-import { Popover, SectionLabel } from "@/components/crm/data-list";
+import { Popover } from "@/components/crm/data-list";
 import { useSetParams } from "@/components/crm/list-controls";
 import { WORK_CATEGORIES } from "@/lib/appointments";
 import type { DiaryStaff } from "@/lib/data/staff";
 import { Icon } from "./icon";
 import { cn } from "@/lib/utils";
 
-// The diary's Staff + Category filters, in the SHARED toolbar popover — the
-// diary isn't a ListSpec (it's a time canvas, not a table), but its controls
-// must read identically to the lists', so it uses the same Popover rather than
-// a fourth hand-rolled one. See AGENTS.md § Popover menus.
+// The diary's Job type + Staff filters — TWO labelled dropdowns, per design
+// screen 07, not one "Filters" popover.
+//
+// They're separate because the trigger states the current selection ("Staff:
+// Dave Nolan") rather than a count on a generic button. On a list screen a
+// popover hides a dozen filters behind one control and a badge is the only
+// summary that fits; the diary has exactly two axes and they are the two
+// questions you ask it all day, so each gets to say its own answer out loud.
+//
+// Both use the SHARED Popover — the diary isn't a ListSpec (it's a time canvas,
+// not a table), but its controls must read identically to the lists', so it
+// uses the same one rather than a fourth hand-rolled menu. See AGENTS.md
+// § Popover menus.
 //
 // Both are multi-select and ride in comma-separated URL params, so the state is
 // shareable and rides in the session view state like every other list control.
 
-export function DiaryFiltersButton({ staff }: { staff: DiaryStaff[] }) {
+/** "All" · the one thing chosen · "N types" — the trigger IS the summary. */
+function summarise(selected: string[], nameOf: (v: string) => string, plural: string): string {
+  if (!selected.length) return "All";
+  if (selected.length === 1) return nameOf(selected[0]);
+  return `${selected.length} ${plural}`;
+}
+
+function useToggleParam(param: string) {
   const { setParams, searchParams } = useSetParams();
-
-  const selectedStaff = (searchParams.get("staff") ?? "").split(",").filter(Boolean);
-  const selectedCats = (searchParams.get("cat") ?? "").split(",").filter(Boolean);
-  const activeCount = selectedStaff.length + selectedCats.length;
-
-  const toggle = (param: string, current: string[], value: string) => {
-    const next = current.includes(value)
-      ? current.filter((v) => v !== value)
-      : [...current, value];
+  const selected = (searchParams.get(param) ?? "").split(",").filter(Boolean);
+  const toggle = (value: string) => {
+    const next = selected.includes(value)
+      ? selected.filter((v) => v !== value)
+      : [...selected, value];
     setParams({ [param]: next.length ? next.join(",") : null });
   };
+  const clear = () => setParams({ [param]: null });
+  return { selected, toggle, clear };
+}
+
+export function JobTypeFilter() {
+  const { selected, toggle, clear } = useToggleParam("cat");
+  const label = summarise(
+    selected,
+    (v) => WORK_CATEGORIES.find((c) => c.key === v)?.label ?? v,
+    "types",
+  );
 
   return (
-    <Popover label="Filters" icon="filters" badge={activeCount || undefined} width={280}>
+    <Popover label={`Job type: ${label}`} caret active={selected.length > 0} width={220}>
       {() => (
-        <div className="flex flex-col gap-3 p-3">
-          <div>
-            <SectionLabel>Job type</SectionLabel>
-            <div className="mt-1 flex flex-col">
-              {WORK_CATEGORIES.map((c) => (
-                <Row
-                  key={c.key}
-                  label={c.label}
-                  checked={selectedCats.includes(c.key)}
-                  onToggle={() => toggle("cat", selectedCats, c.key)}
-                  swatch={c.bg}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <SectionLabel>Staff</SectionLabel>
-            <div className="mt-1 flex flex-col">
-              {staff.length === 0 && (
-                <p className="px-1 py-2 text-[12px] text-[#a1a1aa]">No active staff.</p>
-              )}
-              {staff.map((s) => (
-                <Row
-                  key={s.id}
-                  label={s.name}
-                  hint={s.role}
-                  checked={selectedStaff.includes(s.id)}
-                  onToggle={() => toggle("staff", selectedStaff, s.id)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {activeCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setParams({ staff: null, cat: null })}
-              className="self-start text-[12px] font-semibold text-[var(--accent-blue)]"
-            >
-              Clear all
-            </button>
-          )}
+        <div className="flex flex-col p-2">
+          {WORK_CATEGORIES.map((c) => (
+            <Row
+              key={c.key}
+              label={c.label}
+              checked={selected.includes(c.key)}
+              onToggle={() => toggle(c.key)}
+              swatch={c.bg}
+            />
+          ))}
+          <ClearAll show={selected.length > 0} onClear={clear} />
         </div>
       )}
     </Popover>
+  );
+}
+
+export function StaffFilter({ staff }: { staff: DiaryStaff[] }) {
+  const { selected, toggle, clear } = useToggleParam("staff");
+  const label = summarise(selected, (v) => staff.find((s) => s.id === v)?.name ?? v, "people");
+
+  return (
+    <Popover label={`Staff: ${label}`} caret active={selected.length > 0} width={250}>
+      {() => (
+        <div className="flex flex-col p-2">
+          {staff.length === 0 && (
+            <p className="px-1 py-2 text-[12px] text-[#a1a1aa]">No active staff.</p>
+          )}
+          {staff.map((s) => (
+            <Row
+              key={s.id}
+              label={s.name}
+              hint={s.role}
+              checked={selected.includes(s.id)}
+              onToggle={() => toggle(s.id)}
+            />
+          ))}
+          <ClearAll show={selected.length > 0} onClear={clear} />
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+function ClearAll({ show, onClear }: { show: boolean; onClear: () => void }) {
+  if (!show) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClear}
+      className="mt-1 self-start px-1 py-1 text-[12px] font-semibold text-[var(--accent-blue)]"
+    >
+      Show all
+    </button>
   );
 }
 

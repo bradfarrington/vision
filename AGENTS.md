@@ -1188,7 +1188,27 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
   the row and column by eye.
 - **The window label IS a date picker.** Stepping a week at a time is fine for "next week" and
   useless for "the week of 14 March" — twenty clicks. `DatePicker` gained a `button` variant with a
-  `triggerLabel`, because the diary shows its WINDOW there rather than the anchor date it emits.
+  `triggerLabel`, because the diary shows its WINDOW there rather than the anchor date it emits
+  (plus `triggerClassName`, since the window heading is the loudest thing in its cluster).
+- **The toolbar is design screen 07's, restored 2026-08-03**: `Diary · [Day|Week|Month] · ‹ window › ·
+  Today` on the LEFT, and `Job type · Staff · Find a slot · + New appointment` on the RIGHT. Left is
+  WHERE YOU ARE, right is WHAT YOU DO — which is why the view switch sits by the title rather than in
+  the button cluster where the lists put theirs.
+  - **Day/Week/Month is LABELLED**, via a new `variant="label"` on the shared `ViewToggle` (**don't
+    fork it** — the leads/contracts list⇄board switch keeps `icon`). A period has no glyph that says
+    "Week" the way rows-vs-columns says "board"; and by the title it has the room for words.
+  - **Job type and Staff are TWO dropdowns that state their own answer** ("Staff: Dave Nolan",
+    "Job type: 2 types"), NOT the lists' single "Filters" button with a count badge. A list hides a
+    dozen filters behind one control because a badge is the only summary that fits; the diary has
+    exactly two axes and they're the questions asked of it all day, so each says its answer out loud.
+    Both still use the SHARED `Popover`, which gained an optional `icon` and a `caret` for a trigger
+    that reads as a select rather than a verb.
+  - **"+ New appointment" opens the SAME shared `BookingDialog`** as a slot click, a lead and the
+    contract's Fitting tab (`NewAppointmentButton`). It seeds the day you're LOOKING at, not today —
+    navigating to a week and then booking means you meant that week. Slot-clicking stays the main
+    path; this is the door for a booking that isn't on screen yet.
+  - **"Find a slot" is kept although the design has no such button** — the slot finder (screen 09) is
+    real and this is its only way in.
 - **The grid runs flush to the panel's LEFT edge**, like the list table — height and width on a diary
   are hours and people, and a gutter spends width saying nothing. The legend follows it in.
 - **Overlapping bookings pack into side-by-side lanes.** A clash is exactly the thing that must not

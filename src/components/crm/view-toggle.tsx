@@ -23,19 +23,31 @@ export const LIST_BOARD_VIEWS: ViewOption[] = [
 export function ViewToggle({
   views = LIST_BOARD_VIEWS,
   param = "view",
+  variant = "icon",
 }: {
   views?: ViewOption[];
   param?: string;
+  /**
+   * `icon` — two glyphs, for a LIST's list⇄board switch: the pair reads as one
+   * compact control next to the toolbar's other buttons.
+   * `label` — the words, for the DIARY's Day/Week/Month (design screen 07). A
+   * period isn't a shape, so there's no glyph that says "Week" the way rows-vs-
+   * columns says "board"; and it sits by the page title rather than in the
+   * button cluster, where it has the room.
+   */
+  variant?: "icon" | "label";
 }) {
   const { setParams, searchParams } = useSetParams();
   // The first option is the default, so it stays out of the URL entirely.
   const current = searchParams.get(param) ?? views[0].value;
+  const labelled = variant === "label";
 
   return (
     <div
       className={cn(
         TOOLBAR_H,
-        "inline-flex items-center rounded-lg border border-[#e7e7ea] bg-[#fafafa] p-0.5",
+        "inline-flex items-center rounded-lg p-0.5",
+        labelled ? "bg-[#f4f4f5]" : "border border-[#e7e7ea] bg-[#fafafa]",
       )}
       role="group"
       aria-label="View"
@@ -52,20 +64,23 @@ export function ViewToggle({
               // date range carry across, so you see the SAME set both ways.
               setParams({ [param]: v.value === views[0].value ? null : v.value })
             }
-            // Icon only — the two glyphs (rows vs columns) say what the views
-            // are more directly than the words do, and the pair reads as one
-            // compact control rather than a second set of buttons. The label
-            // stays as the accessible name and the tooltip.
+            // The label stays as the accessible name and the tooltip even when
+            // it's on screen, so the icon variant loses nothing.
             title={v.label}
             aria-label={v.label}
             className={cn(
-              "inline-flex h-full items-center justify-center rounded-md px-2.5 transition-colors",
+              "inline-flex h-full items-center justify-center rounded-md transition-colors",
+              labelled ? "px-[14px] text-[12.5px]" : "px-2.5",
               active
-                ? "bg-white text-[var(--accent-blue)] shadow-[0_1px_2px_rgba(10,10,10,0.08)]"
-                : "text-[#a1a1aa] hover:text-[#3f3f46]",
+                ? labelled
+                  ? "bg-white font-semibold text-[#0a0a0a] shadow-[0_1px_2px_rgba(10,10,10,0.08)]"
+                  : "bg-white text-[var(--accent-blue)] shadow-[0_1px_2px_rgba(10,10,10,0.08)]"
+                : labelled
+                  ? "font-medium text-[#71717a] hover:text-[#3f3f46]"
+                  : "text-[#a1a1aa] hover:text-[#3f3f46]",
             )}
           >
-            <Icon name={v.icon} size={16} strokeWidth={2.2} />
+            {labelled ? v.label : <Icon name={v.icon} size={16} strokeWidth={2.2} />}
           </button>
         );
       })}
