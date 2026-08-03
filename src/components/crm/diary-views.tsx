@@ -6,7 +6,7 @@ import { DiaryGrid, type GridColumn } from "@/components/crm/diary-grid";
 import {
   DiaryWeekGrid,
   cellStart,
-  spanDays,
+  spanBlocks,
   type WeekCell,
   type WeekColumn,
 } from "@/components/crm/diary-week-grid";
@@ -19,8 +19,9 @@ import type { TenantOption } from "@/lib/data/customer-record";
 //
 //   Day  → a TIME grid: half-hour slots down the left, one column per staff
 //          member. The surface for working the clock.
-//   Week → a MATRIX: staff across the top, days down the left. The surface for
-//          seeing who is on what, and where the team has a gap.
+//   Week → a MATRIX: staff across the top, days down the left, each day split
+//          AM/PM. The surface for seeing who is on what, and where the team has
+//          a gap — half a day being the unit a job is actually booked in.
 //
 // STAFF are the columns in BOTH, which is the point of the week's shape: the
 // same person sits in the same place whichever period you're looking at. The
@@ -128,8 +129,8 @@ export function DiaryWeekView({
   const [seed, setSeed] = useState<BookingSeed | null>(null);
   const dates = days.map((iso) => new Date(iso));
 
-  // (day, person) → that person's jobs on that day. A multi-day fit is spread
-  // across every day cell it runs through, and a job with two people on it
+  // (half-day, person) → that person's jobs in that block. A job is spread
+  // across every AM/PM block it runs through, and one with two people on it
   // lands in both their columns — the same rule the day view follows.
   const cells = new Map<string, WeekCell[]>();
   let anyUnassigned = false;
@@ -139,9 +140,9 @@ export function DiaryWeekView({
     const keys = ids.length ? ids : ["unassigned"];
     if (!ids.length) anyUnassigned = true;
 
-    for (const { day, cell } of spanDays(e)) {
+    for (const { row, cell } of spanBlocks(e)) {
       for (const id of keys) {
-        const k = `${day}|${id}`;
+        const k = `${row}|${id}`;
         if (!cells.has(k)) cells.set(k, []);
         cells.get(k)!.push(cell);
       }
@@ -174,11 +175,12 @@ export function DiaryWeekView({
         columns={columns}
         days={dates}
         cells={cells}
-        // A cell is a PERSON on a DAY, so a click fixes both — the dialog only
-        // has to ask what time, which its own TimePicker does.
-        onPick={(columnKey, day) =>
+        // A cell is a PERSON in a HALF-DAY, so a click fixes both and seeds the
+        // start at the top of that half (07:00 or 12:00) — the dialog's own
+        // TimePicker moves it within the block.
+        onPick={(columnKey, day, block) =>
           setSeed({
-            startsAt: cellStart(day),
+            startsAt: cellStart(day, block),
             staffIds: columnKey === "unassigned" ? [] : [columnKey],
           })
         }

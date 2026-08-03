@@ -5,11 +5,13 @@ import Link from "next/link";
 
 import {
   DAY_START_HOUR,
+  MIDDAY_HOUR,
   isSameDay,
   isWeekend,
   startOfDay,
   toDateParam,
   workingSpan,
+  type DayBlock,
 } from "@/lib/diary";
 import { WORK_CATEGORIES, durationLabel } from "@/lib/appointments";
 import type { DiaryEvent } from "@/lib/data/appointments";
@@ -17,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // The diary's WEEK view — a matrix of STAFF (columns, across the top) against
-// DAYS (rows, down the left).
+// DAYS (rows, down the left), each day split into an AM and a PM block.
 //
 // It deliberately does NOT share the day view's time grid. The week answers a
 // different question — "who is on what this week, and where are the gaps in the
@@ -25,19 +27,27 @@ import { cn } from "@/lib/utils";
 // means seven separate grids or one column per day with everybody's jobs piled
 // together, which is what it was, and which never told you WHOSE they were.
 //
-// So time stops being an axis here and becomes what a card says. A cell is one
-// person on one day; the jobs in it are stacked in time order, each carrying its
-// start and duration. The day view remains the surface for working the clock.
+// So time stops being an axis here and becomes what a card says — but NOT
+// entirely: a day is split in half, because half a day is the real unit of
+// work (a survey in the morning, a service call after lunch). One cell per day
+// could show three jobs and still not say which half was free.
 //
-// A multi-day fit occupies EVERY day cell it runs through (via workingSpan, the
-// same helper the slot finder uses), because a row is a day: showing a 3-day
-// installation only on Monday would read as two free days that aren't.
+// A multi-day fit occupies EVERY block it runs through (via workingSpan, the
+// same helper the slot finder uses), because a row is a half day: showing a
+// 3-day installation only on Monday morning would read as free time that isn't.
 // ---------------------------------------------------------------------------
 
-/** Smallest a day row may get before the grid scrolls instead of squashing. */
-const MIN_ROW_H = 104;
-const GUTTER = 92;
+/** Smallest a half-day block may get before the grid scrolls instead. */
+const MIN_BLOCK_H = 56;
+const GUTTER = 82;
+/** The AM/PM label rail, sitting between the date and the staff cells. */
+const BLOCK_W = 38;
 const MIN_COL = 190;
+
+const BLOCKS: { key: DayBlock; label: string }[] = [
+  { key: "am", label: "AM" },
+  { key: "pm", label: "PM" },
+];
 
 export type WeekColumn = {
   key: string;
@@ -48,16 +58,16 @@ export type WeekColumn = {
   muted?: boolean;
 };
 
-/** One person's jobs on one day, already resolved by the view. */
+/** One person's job in one half-day, already resolved by the view. */
 export type WeekCell = {
   event: DiaryEvent;
-  /** The instant this day's stretch of the job starts. */
+  /** The instant this block's stretch of the job starts. */
   start: Date;
-  /** Minutes worked on THIS day (a multi-day job is split by workingSpan). */
+  /** Minutes worked in THIS block (a longer job is split across blocks). */
   minutes: number;
-  /** Ran on an earlier day too. */
+  /** Ran in an earlier block too. */
   continuedFrom: boolean;
-  /** Runs on into a later day. */
+  /** Runs on into a later block. */
   continuesInto: boolean;
 };
 
@@ -69,14 +79,14 @@ export function DiaryWeekGrid({
 }: {
   columns: WeekColumn[];
   days: Date[];
-  /** `${dayKey}|${columnKey}` → that person's jobs on that day. */
+  /** `${dayKey}|${block}|${columnKey}` → that person's jobs in that half-day. */
   cells: Map<string, WeekCell[]>;
-  onPick?: (columnKey: string, day: Date) => void;
+  onPick?: (columnKey: string, day: Date, block: DayBlock) => void;
 }) {
-  // The crosshair, as on the day grid: hovering a cell lights BOTH the day down
-  // the left and the person across the top, so you can read off whose Thursday
-  // you are looking at without tracing the row and column by eye.
-  const [hover, setHover] = useState<{ col: string; day: string } | null>(null);
+  // The crosshair, as on the day grid: hovering a cell lights BOTH the half-day
+  // down the left and the person across the top, so you can read off whose
+  // Thursday morning you are looking at without tracing row and column by eye.
+  const [hover, setHover] = useState<{ col: string; row: string } | null>(null);
 
   if (!columns.length) {
     return (
@@ -99,7 +109,7 @@ export function DiaryWeekGrid({
             {/* The corner is sticky on BOTH axes or it slides away from one. */}
             <div
               className="sticky left-0 z-10 shrink-0 border-b border-r border-[#e7e7ea] bg-white"
-              style={{ width: GUTTER }}
+              style={{ width: GUTTER + BLOCK_W }}
             />
             {columns.map((col) => {
               const active = hover?.col === col.key;
@@ -137,14 +147,14 @@ export function DiaryWeekGrid({
             })}
           </div>
 
-          {/* --- Body: one row per day -------------------------------------- */}
+          {/* --- Body: one row per day, two blocks per row ------------------- */}
           <div
             className="flex min-h-0 flex-1 flex-col"
-            style={{ minHeight: days.length * MIN_ROW_H }}
+            style={{ minHeight: days.length * 2 * MIN_BLOCK_H }}
           >
             {days.map((day) => {
               const key = toDateParam(day);
-              const lit = hover?.day === key;
+              const lit = hover?.row?.startsWith(`${key}|`) ?? false;
               const today = isSameDay(day, new Date());
               const weekend = isWeekend(day);
 
@@ -154,9 +164,10 @@ export function DiaryWeekGrid({
                   className="flex min-h-0 flex-1 border-b border-[#e7e7ea]"
                   onMouseLeave={() => setHover(null)}
                 >
-                  {/* Day gutter. Sticky left so the date stays readable however
-                      far the grid is scrolled sideways, and a link into that
-                      day — the natural next move from "Thursday looks heavy". */}
+                  {/* The date spans BOTH its blocks — a day is still one thing,
+                      it just has two halves. Sticky left so it stays readable
+                      however far the grid is scrolled sideways, and a link into
+                      that day — the natural next move from "Thursday's heavy". */}
                   <Link
                     href={`/diary?view=day&d=${key}`}
                     className={cn(
@@ -179,7 +190,7 @@ export function DiaryWeekGrid({
                     </span>
                     <span
                       className={cn(
-                        "text-[15px] font-extrabold tabular-nums leading-none",
+                        "text-[15px] font-extrabold leading-none tabular-nums",
                         today ? "text-[var(--accent-active)]" : "text-[#0a0a0a]",
                       )}
                     >
@@ -190,19 +201,60 @@ export function DiaryWeekGrid({
                     </span>
                   </Link>
 
-                  {columns.map((col) => (
-                    <Cell
-                      key={col.key}
-                      day={day}
-                      weekend={weekend}
-                      muted={col.muted}
-                      lit={hover?.col === col.key && hover.day === key}
-                      jobs={cells.get(`${key}|${col.key}`) ?? []}
-                      label={`${day.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} — ${col.label}`}
-                      onEnter={() => setHover({ col: col.key, day: key })}
-                      onPick={() => onPick?.(col.key, day)}
-                    />
-                  ))}
+                  {/* The day's two halves. */}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    {BLOCKS.map(({ key: block, label }, i) => {
+                      const rowKey = `${key}|${block}`;
+                      const rowLit = hover?.row === rowKey;
+                      return (
+                        <div
+                          key={block}
+                          className={cn(
+                            "flex min-h-0 flex-1",
+                            // Hairline between AM and PM; the day's own border
+                            // is the heavier one, so the halves read as halves
+                            // rather than as fourteen separate rows.
+                            i > 0 && "border-t border-[#f4f4f5]",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "sticky z-10 flex shrink-0 items-start justify-center border-r border-[#e7e7ea] pt-1.5 transition-colors",
+                              rowLit
+                                ? "bg-[var(--accent-tint)]"
+                                : weekend
+                                  ? "bg-[#fafafa]"
+                                  : "bg-white",
+                            )}
+                            style={{ left: GUTTER, width: BLOCK_W }}
+                          >
+                            <span
+                              className={cn(
+                                "text-[10px] font-bold uppercase tracking-[0.06em] transition-colors",
+                                rowLit ? "text-[var(--accent-active)]" : "text-[#a1a1aa]",
+                              )}
+                            >
+                              {label}
+                            </span>
+                          </div>
+
+                          {columns.map((col) => (
+                            <Cell
+                              key={col.key}
+                              day={day}
+                              weekend={weekend}
+                              muted={col.muted}
+                              lit={hover?.col === col.key && hover.row === rowKey}
+                              jobs={cells.get(`${rowKey}|${col.key}`) ?? []}
+                              label={`${day.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} ${label} — ${col.label}`}
+                              onEnter={() => setHover({ col: col.key, row: rowKey })}
+                              onPick={() => onPick?.(col.key, day, block)}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
@@ -238,11 +290,7 @@ function Cell({
     <div
       className={cn(
         "relative flex min-w-0 flex-1 flex-col border-r border-[#e7e7ea] transition-colors",
-        lit
-          ? "bg-[var(--accent-tint)]"
-          : weekend || muted
-            ? "bg-[#fafafa]"
-            : "bg-white",
+        lit ? "bg-[var(--accent-tint)]" : weekend || muted ? "bg-[#fafafa]" : "bg-white",
       )}
       style={{ minWidth: MIN_COL }}
       onMouseEnter={onEnter}
@@ -250,7 +298,7 @@ function Cell({
       {/* The empty cell IS the booking target — the whole cell, so a
           card-sized thing has a card-sized target (the same rule the kanban's
           columns follow). It sits UNDER the jobs so a click on a job opens the
-          job rather than a new booking. */}
+          job rather than starting a new booking. */}
       <button
         type="button"
         onClick={onPick}
@@ -302,7 +350,7 @@ function JobChip({ cell, day }: { cell: WeekCell; day: Date }) {
         {ref && <span className="font-mono">{ref} · </span>}
         {event.customerName ?? event.title}
       </span>
-      <span className="block truncate text-[10px] text-[#52525b]">{event.title}</span>
+      <span className="block truncate text-[10px] leading-tight text-[#52525b]">{event.title}</span>
     </>
   );
 
@@ -320,7 +368,12 @@ function JobChip({ cell, day }: { cell: WeekCell; day: Date }) {
 
   const title = `${isSameDay(start, day) ? time : "continues"} · ${durationLabel(minutes)} — ${event.title}${event.customerName ? ` (${event.customerName})` : ""}`;
 
-  if (!href) return <div className={className} style={style} title={title}>{body}</div>;
+  if (!href)
+    return (
+      <div className={className} style={style} title={title}>
+        {body}
+      </div>
+    );
   return (
     <Link href={href} className={className} style={style} title={title}>
       {body}
@@ -329,44 +382,62 @@ function JobChip({ cell, day }: { cell: WeekCell; day: Date }) {
 }
 
 /**
- * Spread one booking across the day cells it actually occupies.
+ * Spread one booking across the half-day blocks it actually occupies.
  *
  * `workingSpan` is the slot finder's own splitter, so the week grid and the
  * availability engine agree on which days a 2.5-day fit consumes — including
  * that it stops at 17:00 and resumes the next working morning rather than
- * running through the night.
+ * running through the night. Each of its stretches is then cut at midday, so a
+ * full day lands in BOTH that day's blocks and an 11:00 → 13:00 survey shows in
+ * the morning it starts and the afternoon it runs into.
  */
-export function spanDays(event: DiaryEvent): { day: string; cell: WeekCell }[] {
+export function spanBlocks(event: DiaryEvent): { row: string; cell: WeekCell }[] {
   const start = new Date(event.startsAt);
   const minutes = event.duration ?? 60;
   const stretches = workingSpan(start, minutes);
-  // A booking outside working hours yields no stretch; show it on its own day
-  // rather than dropping it off the diary entirely.
-  if (!stretches.length) {
-    return [
-      {
-        day: toDateParam(start),
-        cell: { event, start, minutes, continuedFrom: false, continuesInto: false },
-      },
-    ];
+
+  // A booking outside working hours yields no stretch; show it in its own
+  // half-day rather than dropping it off the diary entirely.
+  const spans = stretches.length
+    ? stretches
+    : [{ start: +start, end: +start + minutes * 60_000 }];
+
+  // Cut every stretch at midday, then walk the pieces in order so the
+  // continuation flags describe the WHOLE job, not one day of it.
+  const pieces: { row: string; start: Date; minutes: number }[] = [];
+  for (const s of spans) {
+    const from = new Date(s.start);
+    const midday = new Date(from);
+    midday.setHours(MIDDAY_HOUR, 0, 0, 0);
+    const cuts = +from < +midday && s.end > +midday ? [+midday] : [];
+    let cursor = +from;
+    for (const edge of [...cuts, s.end]) {
+      const at = new Date(cursor);
+      pieces.push({
+        row: `${toDateParam(at)}|${at.getHours() < MIDDAY_HOUR ? "am" : "pm"}`,
+        start: at,
+        minutes: Math.max(1, Math.round((edge - cursor) / 60_000)),
+      });
+      cursor = edge;
+    }
   }
 
-  return stretches.map((s, i) => ({
-    day: toDateParam(new Date(s.start)),
+  return pieces.map((p, i) => ({
+    row: p.row,
     cell: {
       event,
-      start: new Date(s.start),
-      minutes: Math.round((s.end - s.start) / 60_000),
+      start: p.start,
+      minutes: p.minutes,
       continuedFrom: i > 0,
-      continuesInto: i < stretches.length - 1,
+      continuesInto: i < pieces.length - 1,
     },
   }));
 }
 
 /** The instant a booking made from an empty cell should start. */
-export function cellStart(day: Date): Date {
+export function cellStart(day: Date, block: DayBlock): Date {
   const out = startOfDay(day);
-  out.setHours(DAY_START_HOUR, 0, 0, 0);
+  out.setHours(block === "am" ? DAY_START_HOUR : MIDDAY_HOUR, 0, 0, 0);
   return out;
 }
 
@@ -387,7 +458,7 @@ function Legend() {
         Provisional
       </span>
       <span className="ml-auto text-[11px] text-[#a1a1aa]">
-        Click a cell to book that person on that day
+        Click a cell to book that person that morning or afternoon
       </span>
     </div>
   );

@@ -25,6 +25,24 @@ export const DAY_START_HOUR = 7;
 export const DAY_END_HOUR = 17;
 export const SLOT_MINUTES = 30;
 
+/**
+ * Where the morning ends. The week view splits each day into an AM and a PM
+ * block, because "Tuesday" is not a unit of work — half a day is (a survey in
+ * the morning, a service call after lunch), and a day cell showing three jobs
+ * can't say which half is actually free.
+ *
+ * A CONSTANT for now for the same reason the working hours are, and it will
+ * move to the same per-company setting.
+ */
+export const MIDDAY_HOUR = 12;
+
+/** Which half of the working day an instant falls in. */
+export type DayBlock = "am" | "pm";
+
+export function blockFor(when: Date): DayBlock {
+  return when.getHours() < MIDDAY_HOUR ? "am" : "pm";
+}
+
 /** Bookable blocks in a working day — 07:00→17:00 at 30 min = 20. */
 export const SLOTS_PER_DAY = ((DAY_END_HOUR - DAY_START_HOUR) * 60) / SLOT_MINUTES;
 

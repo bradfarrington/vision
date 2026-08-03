@@ -1141,25 +1141,38 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
   only what runs down the LEFT changes:
   - **Day = a TIME grid** (`diary-grid.tsx`) — half-hour slots down the left, a job occupying as many
     blocks as it lasts. The surface for working the clock.
-  - **Week = a MATRIX** (`diary-week-grid.tsx`) — days down the left, a cell being one person on one
-    day, holding their jobs in time order. The surface for "who is on what, and where is the gap".
+  - **Week = a MATRIX** (`diary-week-grid.tsx`) — days down the left, each split **AM / PM**, a cell
+    being one person in one half-day. The surface for "who is on what, and where is the gap".
+- **A day row is split in half because HALF A DAY is the unit work is booked in** — a survey in the
+  morning, a service call after lunch. One cell per day could show three jobs and still not answer
+  "is Dave free Tuesday afternoon?", which is the question. The boundary is **`MIDDAY_HOUR`** in
+  `lib/diary.ts`, sitting with `DAY_START_HOUR`/`DAY_END_HOUR` and destined for the same per-company
+  setting. A job is cut at midday as well as at the day end, so an 11:00–13:00 survey appears in both
+  halves and a full day fills both; **clicking a cell seeds the booking at the top of that half**
+  (07:00 or 12:00) and the dialog's `TimePicker` moves it within the block.
 - **The week gave up its time axis on purpose, and that is the whole change.** A week of half-hour
   rows can only be drawn by making a COLUMN a day, which pours the entire team's jobs into one lane —
   so the old week could never say whose a job was without opening it, which is the first thing anyone
   asks of a week. Time didn't disappear, it moved onto the card (each chip carries its start and
   duration). **Don't "restore" the shared grid** — the two views answer different questions and one
   shape cannot carry both.
-- **A multi-day fit occupies EVERY day cell it runs through**, because a row is a day — showing a
-  3-day installation only on Monday reads as two free days that aren't. The splitter is
+- **A multi-day fit occupies EVERY block it runs through**, because a row is a half-day — showing a
+  3-day installation only on Monday morning reads as free time that isn't. The splitter is
   **`workingSpan`, moved out of the availability engine into `lib/diary.ts`** so the week grid and the
   slot finder agree on which days a 2.5-day job consumes (it stops at 17:00, resumes the next working
   morning, skips weekends). A private copy in either would drift. Continuation days read "cont.",
   and a job carrying on shows "→".
 - **A week cell scrolls its own jobs** rather than growing its row: one busy person must not set the
   height of everybody else's Tuesday. Same rule, same reason, as a kanban column.
-- **Clicking a week cell books THAT person on THAT day** — both axes are answered by the click, so
-  the dialog only has to ask the time, which its own `TimePicker` does. (The day view's click fixes
-  the time instead, since a column there is a person and a row is a slot.)
+- **Clicking a week cell books THAT person in THAT half-day** — both axes are answered by the click,
+  so the dialog only has to ask the exact time, which its own `TimePicker` does. (The day view's
+  click fixes the time instead, since a column there is a person and a row is a slot.)
+- **Demo staff for the diary's columns live in `supabase/seeds/vision_staff.sql`** — the four trades
+  from screen 07 (Dave Nolan · Ryan Cope installers, Gary Whitmore · Aaron Blake surveyors), inserted
+  for the Vision tenant only. A SEED, not a migration (it is one tenant's demo data, not schema), and
+  safe to re-run: fixed ids + `on conflict (id) do nothing`, insert-only, so staff added through the
+  app are untouched. They carry `role` installer/surveyor, so they show as diary columns but stay OUT
+  of the Sales manager / Salesperson pickers, which filter to the sales role.
 - **The day view DEPARTS from design screens 07/08a**, which laid the day out as staff ROWS against an hour
   ruler. Brad asked for the column form and it is better here: a row against a ruler spends most of
   its width on empty time, where a column shows only what's booked (ten staff fit where four did).
