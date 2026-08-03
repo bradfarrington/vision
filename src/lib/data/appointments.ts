@@ -38,6 +38,13 @@ export type DiaryEvent = {
   leadRef: string | null;
   contractId: string | null;
   contractRef: string | null;
+  /** WHERE THE WORK IS — the lead's or contract's site address, falling back to
+   *  the customer's when the job is "same as customer". A fitter needs this,
+   *  not the billing address, which is why it's carried on the event rather
+   *  than left to whoever opens the record. */
+  siteAddress: string | null;
+  siteTown: string | null;
+  sitePostcode: string | null;
 };
 
 export type DiaryFilters = {
@@ -57,8 +64,10 @@ const SELECT = `id, title, type, work_type, description, starts_at, duration, tr
   customer_id, lead_id, contract_id,
   customers(id, first_name, last_name, company_name, customer_type,
     house_name, house_number, street, town, postcode),
-  leads(id, lead_number),
-  contracts(id, contract_number)`;
+  leads(id, lead_number, site_same_as_customer, site_house_name, site_house_number,
+    site_street, site_town, site_postcode),
+  contracts(id, contract_number, site_same_as_customer, site_house_name, site_house_number,
+    site_street, site_town, site_postcode)`;
 
 /**
  * Every booking in a window. RLS scopes it to the tenant.
@@ -112,6 +121,19 @@ function toDiaryEvent(a: any): DiaryEvent {
         .join(", ") || null
     : null;
 
+  // The job's own site address wins; "same as customer" (or no lead/contract at
+  // all) falls back to where the customer lives.
+  const site = a.contracts ?? a.leads ?? null;
+  const useSite = site && site.site_same_as_customer === false;
+  const siteAddress = useSite
+    ? [site.site_house_name, site.site_house_number, site.site_street]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || null
+    : c
+      ? [c.house_name, c.house_number, c.street].filter(Boolean).join(" ").trim() || null
+      : null;
+
   return {
     id: a.id,
     title: a.title ?? "Appointment",
@@ -136,6 +158,9 @@ function toDiaryEvent(a: any): DiaryEvent {
     leadRef: a.leads?.lead_number != null ? leadRef(a.leads.lead_number) : null,
     contractId: a.contract_id ?? null,
     contractRef: a.contracts?.contract_number != null ? contractRef(a.contracts.contract_number) : null,
+    siteAddress,
+    siteTown: (useSite ? site.site_town : c?.town) ?? null,
+    sitePostcode: (useSite ? site.site_postcode : c?.postcode) ?? null,
   };
 }
 

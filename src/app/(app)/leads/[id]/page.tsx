@@ -18,6 +18,7 @@ import { getUserOrder } from "@/lib/data/user-layouts";
 import { ChecklistToggle, StageChanger } from "@/components/crm/lead-interactions";
 import { ConvertToContractButton } from "@/components/crm/convert-to-contract";
 import { BookAppointmentButton } from "@/components/crm/book-appointment-button";
+import { AppointmentComment } from "@/components/crm/appointment-comment";
 import { getDiaryStaff } from "@/lib/data/staff";
 import { cn } from "@/lib/utils";
 
@@ -256,9 +257,11 @@ function AppointmentsPanel({
                   <div className="text-[12px] text-[#71717a]">
                     {[when || "No date set", a.assignedTo].filter(Boolean).join(" · ")}
                   </div>
-                  {a.notes && (
-                    <div className="mt-0.5 line-clamp-2 text-[12px] text-[#71717a]">{a.notes}</div>
-                  )}
+                  <AppointmentComment
+                    id={a.id}
+                    value={a.notes}
+                    className="mt-0.5 text-[12px]"
+                  />
                 </div>
               </li>
             );

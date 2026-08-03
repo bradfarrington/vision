@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { addDays, isSameDay, isWeekend, startOfMonth, startOfWeek, toDateParam } from "@/lib/diary";
-import { WORK_CATEGORIES } from "@/lib/appointments";
+import { useCategory } from "@/components/crm/diary-colours";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
 
@@ -103,7 +103,7 @@ export function DiaryMonth({ events, anchor }: { events: DiaryEvent[]; anchor: s
 }
 
 function MonthPill({ event }: { event: DiaryEvent }) {
-  const cat = WORK_CATEGORIES.find((c) => c.key === event.category)!;
+  const cat = useCategory(event.category);
   const start = new Date(event.startsAt);
   const href = event.contractId
     ? `/contracts/${event.contractId}`

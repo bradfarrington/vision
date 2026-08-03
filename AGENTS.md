@@ -1331,6 +1331,55 @@ screen where a view can be made your STARTING point.
   refreshed the page, and the diary carried on drawing the old time** — it was rendering a list
   captured before the edit. Any component holding an optimistic copy of server data needs this.
 
+### What shows on a diary card — per user — built 2026-08-03
+
+- **The card's contents are the USER's choice**, via the same `card-fields.tsx` machine the kanban
+  uses — the registry is `appointment-fields.tsx`, a `ListColumn<DiaryEvent>[]` because that IS the
+  shape that module consumes. Persisted per user in `user_ui_layouts` (`diary_card_fields`), so the
+  fitter who wants the site address and the office that wants the reference both get their way.
+- **TIME AND DURATION ARE OFF BY DEFAULT** (Brad, 2026-08-03). On the day grid the block's POSITION
+  says when it is and its HEIGHT says how long; printing both again inside a 34px box spent the whole
+  card restating the grid. Both remain available — the week grid has no time axis, so some people
+  will want them back.
+- **Every field is a BARE line, not a labelled row.** The kanban's `Label … value` shape needs a card
+  ~270px wide; a diary block is a third of that and half a row tall.
+- **The picker lives in the LEGEND, not the toolbar** — the legend is already the "how this is drawn"
+  bar, and the toolbar has no width left (§ it is ONE ROW).
+- **The site address is carried ON the event** (`siteAddress`/`siteTown`/`sitePostcode`), resolved in
+  `getDiary` from the lead's or contract's `site_*` with the customer's address as the fallback when
+  the job is "same as customer". A fitter needs where the WORK is, not where the bill goes.
+
+### The legend's colours are the TENANT's — decided 2026-08-03
+
+**This reverses the "platform-fixed" rule the legend shipped with.** Those four bands were hard-coded
+so a tenant's brand couldn't make a survey read like a cancellation — but a tenant choosing its own
+legend deliberately is a different thing from the accent leaking in, and every firm already has its
+own idea of what colour a fit is.
+
+- **One colour is stored per category — the strong one.** The pale block fill is DERIVED from it
+  (`color-mix(… 14%, #fff)`), so the pair can't drift into something unreadable and nobody has to
+  pick two colours to change one.
+- **Tenant-wide, not per user.** A legend is a shared language ("the blue ones are fits"); two people
+  seeing different colours for the same job makes it useless. Contrast the CARD FIELDS above, which
+  are per user precisely because they're a way of reading, not a shared meaning.
+- **Stored in `public.tenant_settings`** (`20260803090000`, **apply BY HAND**) — a new one-row-per-
+  tenant table with ordinary tenant-isolation RLS. **NOT on `companies`**: its only write policy is
+  platform-admin, deliberately, and widening that so staff can recolour a legend would hand them the
+  plan and seat-limit columns too. That table is also the obvious home for the **per-company working
+  hours** `lib/diary.ts` is waiting for.
+- **The hex is validated server-side as well as in the picker** — it lands in a style attribute, and
+  a client check is a convenience, never the guard.
+- Reaches every block, chip and month cell through `DiaryColoursProvider` + `useCategory()`. **Don't
+  import `WORK_CATEGORIES` directly for rendering any more** — that bypasses the tenant's choice.
+
+### Appointment comments — built 2026-08-03
+
+`appointments.notes` was already stored and already displayed on the lead's Appointments card and the
+contract's Fitting tab — but settable ONLY by reopening the whole booking dialog, which is the
+difference between a field that exists and one people use. It is now **inline click-to-edit on both**
+(`AppointmentComment`), Enter to save, Escape to abandon, and available as a diary card field. One
+column behind all three, so they can't disagree about what the comment is.
+
 ## Right-click belongs to the app — decided 2026-08-03
 
 **The browser's context menu is suppressed across the CRM** (`SuppressNativeMenu`, mounted once in

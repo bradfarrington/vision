@@ -322,6 +322,9 @@ export function Popover({
   caret,
   badge,
   active,
+  swatch,
+  swatchBorder,
+  quiet,
   width = 272,
   children,
 }: {
@@ -336,6 +339,11 @@ export function Popover({
   badge?: number;
   /** Light the trigger as active without a badge (e.g. a named selection). */
   active?: boolean;
+  /** A colour chip in place of an icon — the diary legend's swatches. */
+  swatch?: string;
+  swatchBorder?: string;
+  /** Legend weight rather than toolbar weight: no border, regular text. */
+  quiet?: boolean;
   width?: number;
   children: (close: () => void) => React.ReactNode;
 }) {
@@ -360,20 +368,32 @@ export function Popover({
         // badge, so it stays obvious from across the screen; OPEN is only
         // outlined; idle is neutral.
         className={cn(
-          TOOLBAR_H,
-          "inline-flex items-center gap-[7px] rounded-lg border px-3 text-[13px] font-semibold transition-colors",
-          badge || active
+          quiet
+            ? "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11.5px] text-[#52525b] transition-colors hover:bg-[#f4f4f5]"
+            : cn(
+                TOOLBAR_H,
+                "inline-flex items-center gap-[7px] rounded-lg border px-3 text-[13px] font-semibold transition-colors",
+              ),
+          quiet
+            ? null
+            : badge || active
             ? "border-[var(--accent-blue)] bg-[var(--accent-tint)] text-[var(--accent-blue)]"
             : open
               ? "border-[var(--accent-blue)] bg-white text-[var(--accent-blue)]"
               : "border-[#e7e7ea] bg-white text-[#3f3f46] hover:bg-[#fafafa]",
         )}
-        aria-label={badge ? `${label} — ${badge} applied` : label}
+        aria-label={swatch ? `${label} — change colour` : badge ? `${label} — ${badge} applied` : label}
       >
+        {swatch && (
+          <span
+            className="size-3 shrink-0 rounded"
+            style={{ background: swatch, border: swatchBorder ? `1px solid ${swatchBorder}55` : undefined }}
+          />
+        )}
         {icon && <Icon name={icon} size={13} />}
         {/* Capped: a trigger that states its selection ("Staff: Gary Whitmore")
             must not be able to push a toolbar onto a second row. */}
-        <span className="min-w-0 max-w-[110px] truncate">{label}</span>
+        <span className={cn("min-w-0 truncate", !quiet && "max-w-[110px]")}>{label}</span>
         {badge ? (
           <span className="flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--accent-blue)] px-1 text-[10.5px] font-bold text-white">
             {badge}

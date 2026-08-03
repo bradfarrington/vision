@@ -11,6 +11,7 @@ import { useDialogs } from "./dialogs";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import type { DiaryStaff } from "@/lib/data/staff";
 import type { TenantOption } from "@/lib/data/customer-record";
+import { AppointmentComment } from "@/components/crm/appointment-comment";
 import { cn } from "@/lib/utils";
 
 // The contract's Fitting tab (design screen 05b): every appointment against
@@ -152,9 +153,13 @@ function Row({ appt }: { appt: DiaryEvent }) {
           <span className="size-2 shrink-0 rounded-full" style={{ background: cat.fg }} />
           <span className="truncate font-semibold text-[#0a0a0a]">{appt.title}</span>
         </span>
-        {appt.notes && (
-          <span className="mt-0.5 block truncate text-[10.5px] text-[#71717a]">{appt.notes}</span>
-        )}
+        {/* The comment is EDITABLE here: it's what the person going needs to
+            read, and it was previously only settable by reopening the booking. */}
+        <AppointmentComment
+          id={appt.id}
+          value={appt.notes}
+          className="mt-0.5 text-[10.5px]"
+        />
       </span>
 
       <span className="tabular-nums text-[#3f3f46]">

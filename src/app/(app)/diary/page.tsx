@@ -28,6 +28,11 @@ import { JobTypeFilter, StaffFilter } from "@/components/crm/diary-filters";
 import { NewAppointmentButton } from "@/components/crm/new-appointment-button";
 import { ViewToggle } from "@/components/crm/view-toggle";
 import { ViewStateSaver } from "@/components/crm/view-state";
+import { CardFieldsProvider } from "@/components/crm/card-fields";
+import { APPOINTMENT_CARD_SPEC } from "@/components/crm/appointment-fields";
+import { getUserPref } from "@/lib/data/user-layouts";
+import { getTenantSettings } from "@/lib/data/tenant-settings";
+import { DiaryColoursProvider } from "@/components/crm/diary-colours";
 
 // The diary — transcribed from design screens 07 (day), 08a (week), 08b (month).
 //
@@ -67,7 +72,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
     .filter(Boolean)
     .filter((c): c is WorkCategory => WORK_CATEGORIES.some((w) => w.key === c));
 
-  const [events, staff, opts, views, defaultViewId] = await Promise.all([
+  const [events, staff, opts, views, defaultViewId, cardFields, settings] = await Promise.all([
     getDiary({
       from: from.toISOString(),
       to: to.toISOString(),
@@ -79,6 +84,10 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
     getTenantOptionLists(["appointment_type"]),
     getSavedViews("diary"),
     getDefaultViewId("diary"),
+    // Which fields each user wants on a diary card — theirs, not the tenant's.
+    getUserPref("diary_card_fields"),
+    // The tenant's own legend colours (fails soft to the defaults).
+    getTenantSettings(),
   ]);
 
   // Both working views draw a COLUMN per staff member, so a staff filter
@@ -106,6 +115,9 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
   return (
     <>
       <ViewStateSaver />
+      {/* The tenant's legend colours reach every block, chip and month cell
+          through one provider — see components/crm/diary-colours.tsx. */}
+      <DiaryColoursProvider colours={settings.diaryColours}>
       {/* No side/bottom padding on the root — the grid runs to the panel edges,
           same as the list table. The gutter lives on the toolbar block. */}
       <div className="flex flex-1 flex-col gap-[14px] overflow-hidden pt-[22px]">
@@ -184,7 +196,10 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
             the clock and would remount every render): the views hold their
             events in state for optimistic drags, so a new day or filter must
             start from the server's list rather than the previous one's. */}
+        {/* One provider around both working views: the cards read from it and
+            the legend's "Card fields" button writes to it. */}
         {view === "day" && (
+          <CardFieldsProvider spec={APPOINTMENT_CARD_SPEC} saved={cardFields}>
           <DiaryDayView
             key={gridKey}
             events={events}
@@ -192,18 +207,22 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
             day={anchor.toISOString()}
             types={opts.appointment_type ?? []}
           />
+          </CardFieldsProvider>
         )}
         {view === "week" && (
-          <DiaryWeekView
-            key={gridKey}
-            events={events}
-            days={spannedDays.map((d) => d.toISOString())}
-            staff={shownStaff}
-            types={opts.appointment_type ?? []}
-          />
+          <CardFieldsProvider spec={APPOINTMENT_CARD_SPEC} saved={cardFields}>
+            <DiaryWeekView
+              key={gridKey}
+              events={events}
+              days={spannedDays.map((d) => d.toISOString())}
+              staff={shownStaff}
+              types={opts.appointment_type ?? []}
+            />
+          </CardFieldsProvider>
         )}
         {view === "month" && <DiaryMonth events={events} anchor={anchor.toISOString()} />}
       </div>
+      </DiaryColoursProvider>
     </>
   );
 }

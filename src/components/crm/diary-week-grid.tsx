@@ -25,7 +25,9 @@ import {
   workingSpan,
   type DayBlock,
 } from "@/lib/diary";
-import { WORK_CATEGORIES, durationLabel, suitsCategory } from "@/lib/appointments";
+import { durationLabel, suitsCategory } from "@/lib/appointments";
+import { CardFieldsBody, CardFieldsButton } from "@/components/crm/card-fields";
+import { CategoryColourButton, useCategory, useWorkCategories } from "@/components/crm/diary-colours";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
 
@@ -489,8 +491,7 @@ function JobChip({
     }, 0);
     return () => clearTimeout(t);
   }, [isDragging]);
-  const cat = WORK_CATEGORIES.find((c) => c.key === event.category)!;
-  const ref = event.contractRef ?? event.leadRef;
+  const cat = useCategory(event.category);
   const href = event.contractId
     ? `/contracts/${event.contractId}`
     : event.leadId
@@ -500,27 +501,28 @@ function JobChip({
         : null;
 
   const time = start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  // Contents are the user's choice (appointment-fields.tsx); the chip owns its
+  // frame, its colour band and the continuation markers.
   const body = (
     <>
-      <span className="flex items-baseline gap-1.5">
-        <span className="shrink-0 text-[10.5px] font-bold tabular-nums text-[#0a0a0a]">
-          {continuedFrom ? "cont." : time}
+      {(continuedFrom || continuesInto || event.provisional) && (
+        <span className="flex items-baseline gap-1.5">
+          {continuedFrom && (
+            <span className="shrink-0 text-[10px] font-bold text-[#71717a]">cont.</span>
+          )}
+          {continuesInto && !continuedFrom && (
+            <span className="shrink-0 text-[10px] text-[#71717a]">&rarr;</span>
+          )}
+          {event.provisional && (
+            <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]">
+              Prov
+            </span>
+          )}
         </span>
-        <span className="truncate text-[10px] text-[#71717a]">
-          {durationLabel(minutes)}
-          {continuesInto && " →"}
-        </span>
-        {event.provisional && (
-          <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]">
-            Prov
-          </span>
-        )}
+      )}
+      <span className="min-w-0" style={{ color: cat.fg }}>
+        <CardFieldsBody row={event} />
       </span>
-      <span className="block truncate text-[11px] font-semibold" style={{ color: cat.fg }}>
-        {ref && <span className="font-mono">{ref} · </span>}
-        {event.customerName ?? event.title}
-      </span>
-      <span className="block truncate text-[10px] leading-tight text-[#52525b]">{event.title}</span>
     </>
   );
 
@@ -660,23 +662,24 @@ export function cellStart(day: Date, block: DayBlock): Date {
 }
 
 function Legend() {
+  const categories = useWorkCategories();
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-[#e7e7ea] py-2.5 pl-3 pr-[26px]">
-      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+    <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[#e7e7ea] py-2 pl-3 pr-[26px]">
+      <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
         Legend
       </span>
-      {WORK_CATEGORIES.filter((c) => c.key !== "other").map((c) => (
-        <span key={c.key} className="flex items-center gap-1.5 text-[11.5px] text-[#52525b]">
-          <span className="size-3 rounded" style={{ background: c.bg }} />
-          {c.label}
-        </span>
-      ))}
-      <span className="flex items-center gap-1.5 text-[11.5px] text-[#52525b]">
+      {categories
+        .filter((c) => c.key !== "other")
+        .map((c) => (
+          <CategoryColourButton key={c.key} category={c} />
+        ))}
+      <span className="flex items-center gap-1.5 px-1.5 text-[11.5px] text-[#52525b]">
         <span className="size-3 rounded border-[1.5px] border-dashed border-[#a1a1aa]" />
         Provisional
       </span>
-      <span className="ml-auto text-[11px] text-[#a1a1aa]">
-        Click a cell to book that person that morning or afternoon
+      <span className="ml-auto flex items-center gap-2.5">
+        <span className="text-[11px] text-[#a1a1aa]">Click a cell to book</span>
+        <CardFieldsButton />
       </span>
     </div>
   );

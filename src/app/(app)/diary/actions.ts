@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyId } from "@/lib/company";
-import { overlaps } from "@/lib/appointments";
+import { overlaps, WORK_CATEGORIES } from "@/lib/appointments";
 import { searchJobs, type JobOption } from "@/lib/data/jobs";
 import type { Database } from "@/lib/supabase/types";
 
@@ -203,6 +203,69 @@ export async function findJobs(input: {
   scope?: "open" | "all";
 }): Promise<JobOption[]> {
   return searchJobs({ query: input.query, scope: input.scope });
+}
+
+/**
+ * The comment on an appointment — set from the lead's Appointments card, the
+ * contract's Fitting tab, or the booking dialog. One column (`notes`), so the
+ * three can't disagree about what the comment is.
+ */
+export async function setAppointmentNotes(
+  id: string,
+  notes: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("appointments")
+    .update({ notes: notes.trim() || null } as Database["public"]["Tables"]["appointments"]["Update"])
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/diary");
+  return {};
+}
+
+/**
+ * Recolour one of the diary's job types for the WHOLE TENANT.
+ *
+ * Tenant-wide rather than per user on purpose: a legend is a shared language
+ * ("the blue ones are fits"), and two people seeing different colours for the
+ * same job would make it useless. Stored in `tenant_settings`, whose RLS pins
+ * the row to the caller's company — `companies` is admin-write for a reason
+ * and recolouring a legend must not open the billing columns.
+ */
+export async function setDiaryColour(
+  category: string,
+  hex: string,
+): Promise<{ error?: string }> {
+  // The value lands in a style attribute, so it is checked HERE as well as in
+  // the picker: a client check is a convenience, never the guard.
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return { error: "That isn't a hex colour." };
+  if (!WORK_CATEGORIES.some((c) => c.key === category)) return { error: "Unknown job type." };
+
+  const supabase = await createClient();
+  const companyId = await getCompanyId();
+  if (!companyId) return { error: "No tenant" };
+
+  // Loose client until the migration is applied and the types regenerated.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const { data } = await db.from("tenant_settings").select("settings").maybeSingle();
+  const settings = ((data?.settings ?? {}) as Record<string, unknown>) ?? {};
+  const diaryColours = { ...((settings.diaryColours ?? {}) as Record<string, string>), [category]: hex };
+
+  const { error } = await db.from("tenant_settings").upsert(
+    {
+      company_id: companyId,
+      settings: { ...settings, diaryColours },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "company_id" },
+  );
+  if (error) return { error: error.message };
+
+  revalidatePath("/diary");
+  revalidatePath("/dashboard");
+  return {};
 }
 
 function revalidateOwners(input: BookingInput) {

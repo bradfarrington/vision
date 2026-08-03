@@ -26,7 +26,9 @@ import {
   slotLabel,
   toDateParam,
 } from "@/lib/diary";
-import { WORK_CATEGORIES, durationLabel, suitsCategory, type WorkCategory } from "@/lib/appointments";
+import { durationLabel, suitsCategory, type WorkCategory } from "@/lib/appointments";
+import { CardFieldsBody, CardFieldsButton } from "@/components/crm/card-fields";
+import { CategoryColourButton, useCategory, useWorkCategories } from "@/components/crm/diary-colours";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
 
@@ -491,8 +493,7 @@ function JobBlock({
   // detail, the rest read as a continuation.
   const isContinuation = !isSameDay(start, day);
 
-  const cat = WORK_CATEGORIES.find((c) => c.key === event.category)!;
-  const ref = event.contractRef ?? event.leadRef;
+  const cat = useCategory(event.category);
   const href = event.contractId
     ? `/contracts/${event.contractId}`
     : event.leadId
@@ -509,32 +510,28 @@ function JobBlock({
   // customer too.
   const compact = spanMinutes <= SLOT_MINUTES;
 
+  // WHICH fields these are is the user's choice — see appointment-fields.tsx
+  // (the "Card fields" button in the legend). The block owns its frame, the
+  // colour band and the continuation markers; the contents are theirs.
   const body = (
     <>
-      <span className="flex items-baseline gap-1.5">
-        <span className="shrink-0 text-[10.5px] font-bold tabular-nums text-[#0a0a0a]">
-          {startedBefore || isContinuation
-            ? "cont."
-            : start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+      {(startedBefore || isContinuation || event.provisional) && (
+        <span className="flex items-baseline gap-1.5">
+          {(startedBefore || isContinuation) && (
+            <span className="shrink-0 text-[10px] font-bold text-[#71717a]">cont.</span>
+          )}
+          {event.provisional && (
+            <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]">
+              Prov
+            </span>
+          )}
         </span>
-        {!compact && (
-          <span className="truncate text-[10px] text-[#71717a]">{durationLabel(mins)}</span>
-        )}
-        {event.provisional && (
-          <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-[0.04em] text-[#a1a1aa]">
-            Prov
-          </span>
-        )}
+      )}
+      <span className="min-w-0" style={{ color: cat.fg }}>
+        <CardFieldsBody row={event} />
       </span>
-      <span className="block truncate text-[11px] font-semibold" style={{ color: cat.fg }}>
-        {ref && <span className="font-mono">{ref} · </span>}
-        {event.customerName ?? event.title}
-      </span>
-      {!compact && (
-        <span className="block truncate text-[10px] text-[#52525b]">
-          {event.title}
-          {continuesAfter && " →"}
-        </span>
+      {continuesAfter && !compact && (
+        <span className="block text-[10px] text-[#71717a]">&rarr;</span>
       )}
     </>
   );
@@ -625,23 +622,29 @@ function packIntoLanes(events: DiaryEvent[]): DiaryEvent[][] {
 }
 
 function Legend() {
+  const categories = useWorkCategories();
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-[#e7e7ea] pl-3 pr-[26px] py-2.5">
-      <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
+    <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[#e7e7ea] py-2 pl-3 pr-[26px]">
+      <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[#a1a1aa]">
         Legend
       </span>
-      {WORK_CATEGORIES.filter((c) => c.key !== "other").map((c) => (
-        <span key={c.key} className="flex items-center gap-1.5 text-[11.5px] text-[#52525b]">
-          <span className="size-3 rounded" style={{ background: c.bg }} />
-          {c.label}
-        </span>
-      ))}
-      <span className="flex items-center gap-1.5 text-[11.5px] text-[#52525b]">
+      {/* Each swatch is a colour picker — the legend is where you READ the
+          colours, so it's where you change them. */}
+      {categories
+        .filter((c) => c.key !== "other")
+        .map((c) => (
+          <CategoryColourButton key={c.key} category={c} />
+        ))}
+      <span className="flex items-center gap-1.5 px-1.5 text-[11.5px] text-[#52525b]">
         <span className="size-3 rounded border-[1.5px] border-dashed border-[#a1a1aa]" />
         Provisional
       </span>
-      <span className="ml-auto text-[11px] text-[#a1a1aa]">
-        Click a slot to book · {SLOT_MINUTES}-minute blocks
+      {/* The card picker lives HERE rather than in the toolbar: the legend is
+          already the "how this is drawn" bar, and the toolbar has no width
+          left (AGENTS.md § it is ONE ROW). */}
+      <span className="ml-auto flex items-center gap-2.5">
+        <span className="text-[11px] text-[#a1a1aa]">{SLOT_MINUTES}-minute blocks</span>
+        <CardFieldsButton />
       </span>
     </div>
   );
