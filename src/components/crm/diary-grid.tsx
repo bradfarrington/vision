@@ -18,13 +18,13 @@ import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
-// The diary's TIME GRID — times down the left, columns across the top, and a
-// job occupying as many half-hour blocks as it lasts.
+// The diary's TIME GRID — times down the left, one column per STAFF member
+// across the top, and a job occupying as many half-hour blocks as it lasts.
 //
-// One component serves both views; only what a COLUMN means changes:
-//   Day view  → one column per staff member
-//   Week view → one column per day
-// Time is always the y-axis, so switching period never reorients the screen.
+// This is the DAY view. The week is a different shape (staff across the top,
+// days down the left — see diary-week-grid.tsx): a week of half-hour rows can
+// only be drawn by making a column a day, which piles the whole team's jobs
+// into one lane and stops saying whose they are.
 //
 // Everything derives from DAY_START_HOUR / DAY_END_HOUR / SLOT_MINUTES in
 // lib/diary — the single place the per-company working hours will replace.

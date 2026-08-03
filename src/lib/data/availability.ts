@@ -6,6 +6,7 @@ import {
   addDays,
   isWeekend,
   startOfDay,
+  workingSpan,
 } from "@/lib/diary";
 
 // ---------------------------------------------------------------------------
@@ -147,47 +148,6 @@ export async function findSlots(req: SlotRequest): Promise<SlotSuggestion[]> {
   }
 
   return out;
-}
-
-/**
- * Split a job into the working stretches it occupies. A 2.5-day job doesn't run
- * continuously — it runs 07:00–17:00, stops, and resumes the next working day.
- * Treating it as one long interval would mark every evening and weekend as
- * "busy" and find almost nothing.
- */
-function workingSpan(
-  start: Date,
-  duration: number,
-  includeWeekends: boolean,
-): { start: number; end: number }[] {
-  const out: { start: number; end: number }[] = [];
-  let remaining = duration;
-  const cursor = new Date(start);
-
-  // Cap the walk so a bad duration can't spin forever.
-  for (let guard = 0; guard < 400 && remaining > 0; guard++) {
-    if (!includeWeekends && isWeekend(cursor)) {
-      nextMorning(cursor);
-      continue;
-    }
-    const dayEnd = new Date(cursor);
-    dayEnd.setHours(DAY_END_HOUR, 0, 0, 0);
-    const available = Math.max(0, (+dayEnd - +cursor) / 60_000);
-    if (available <= 0) {
-      nextMorning(cursor);
-      continue;
-    }
-    const used = Math.min(available, remaining);
-    out.push({ start: +cursor, end: +cursor + used * 60_000 });
-    remaining -= used;
-    if (remaining > 0) nextMorning(cursor);
-  }
-  return out;
-}
-
-function nextMorning(cursor: Date) {
-  cursor.setDate(cursor.getDate() + 1);
-  cursor.setHours(DAY_START_HOUR, 0, 0, 0);
 }
 
 /** Nothing already booked collides with this stretch. Half-open, so

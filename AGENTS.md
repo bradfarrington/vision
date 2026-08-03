@@ -1136,11 +1136,31 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
 
 `/diary`, `view=day|week|month` as a URL param like `/leads?view=board`.
 
-- **Day and week share ONE time grid** (`diary-grid.tsx`): times down the left in half-hour blocks,
-  columns across the top, a job occupying as many blocks as it lasts. **Only what a COLUMN means
-  changes** — staff on the day, days on the week — so time is always the y-axis and switching period
-  never reorients the screen. The two can't drift because there is one grid.
-- **This DEPARTS from design screens 07/08a**, which laid the day out as staff ROWS against an hour
+- **STAFF are the columns in BOTH working views** (changed 2026-08-03 at Brad's call — the week used
+  to put days in the columns). The same person sits in the same place whichever period you're on;
+  only what runs down the LEFT changes:
+  - **Day = a TIME grid** (`diary-grid.tsx`) — half-hour slots down the left, a job occupying as many
+    blocks as it lasts. The surface for working the clock.
+  - **Week = a MATRIX** (`diary-week-grid.tsx`) — days down the left, a cell being one person on one
+    day, holding their jobs in time order. The surface for "who is on what, and where is the gap".
+- **The week gave up its time axis on purpose, and that is the whole change.** A week of half-hour
+  rows can only be drawn by making a COLUMN a day, which pours the entire team's jobs into one lane —
+  so the old week could never say whose a job was without opening it, which is the first thing anyone
+  asks of a week. Time didn't disappear, it moved onto the card (each chip carries its start and
+  duration). **Don't "restore" the shared grid** — the two views answer different questions and one
+  shape cannot carry both.
+- **A multi-day fit occupies EVERY day cell it runs through**, because a row is a day — showing a
+  3-day installation only on Monday reads as two free days that aren't. The splitter is
+  **`workingSpan`, moved out of the availability engine into `lib/diary.ts`** so the week grid and the
+  slot finder agree on which days a 2.5-day job consumes (it stops at 17:00, resumes the next working
+  morning, skips weekends). A private copy in either would drift. Continuation days read "cont.",
+  and a job carrying on shows "→".
+- **A week cell scrolls its own jobs** rather than growing its row: one busy person must not set the
+  height of everybody else's Tuesday. Same rule, same reason, as a kanban column.
+- **Clicking a week cell books THAT person on THAT day** — both axes are answered by the click, so
+  the dialog only has to ask the time, which its own `TimePicker` does. (The day view's click fixes
+  the time instead, since a column there is a person and a row is a slot.)
+- **The day view DEPARTS from design screens 07/08a**, which laid the day out as staff ROWS against an hour
   ruler. Brad asked for the column form and it is better here: a row against a ruler spends most of
   its width on empty time, where a column shows only what's booked (ten staff fit where four did).
 - **ROWS FLEX.** The grid fills its container and the slots divide it evenly; `MIN_SLOT_H` (34px) is
@@ -1150,8 +1170,9 @@ theory. `20260802092000_appointments_merge` folds fitting into appointments and 
 - **Everything derives from `DAY_START_HOUR` / `DAY_END_HOUR` / `SLOT_MINUTES`** in `lib/diary.ts`
   (07:00–17:00, 30 min). **No hour is hard-coded in the rendering** — that file is the single place
   the per-company working hours setting will replace, and the slot finder reads the same numbers.
-- **The crosshair**: hovering a cell lights BOTH the time in the gutter and the column header, so
-  you can read off which slot and whose it is without tracing the row and column by eye.
+- **The crosshair is on BOTH grids**: hovering a cell lights the left gutter (the time on the day,
+  the date on the week) AND the staff header, so you can read off whose slot it is without tracing
+  the row and column by eye.
 - **The window label IS a date picker.** Stepping a week at a time is fine for "next week" and
   useless for "the week of 14 March" — twenty clicks. `DatePicker` gained a `button` variant with a
   `triggerLabel`, because the diary shows its WINDOW there rather than the anchor date it emits.

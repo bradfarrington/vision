@@ -93,8 +93,11 @@ Taken before Phase 5b: nothing in the diary depends on quotes, and four placehol
 data inconsistency all resolved into it.
 - [x] Merge the TWO appointment tables into one (`20260802092000`) — the dashboard's diary read a
       table nothing wrote, so wizard-booked appointments were invisible to it
-- [x] Day + week time grid: times down the left in half-hour blocks, staff (day) or days (week) as
-      columns, jobs spanning the blocks they occupy, crosshair on hover — `diary-grid.tsx`
+- [x] Day time grid: half-hour blocks down the left, staff as columns, jobs spanning the blocks they
+      occupy, crosshair on hover — `diary-grid.tsx`
+- [x] Week matrix: staff across the top, days down the left, a cell being one person on one day —
+      `diary-week-grid.tsx` (2026-08-03; the week was day-columns until then, which never said whose
+      a job was). Multi-day fits fill every day they run through, via the slot finder's `workingSpan`
 - [x] Month calendar (density overview, click a day to drop into it)
 - [x] Fixed block-colour legend (Installation · Survey · Service · Provisional)
 - [x] Provisional vs confirmed (dashed vs filled, per design)

@@ -2,21 +2,30 @@
 
 import { useState } from "react";
 
-import { isSameDay, toDateParam } from "@/lib/diary";
 import { DiaryGrid, type GridColumn } from "@/components/crm/diary-grid";
+import {
+  DiaryWeekGrid,
+  cellStart,
+  spanDays,
+  type WeekCell,
+  type WeekColumn,
+} from "@/components/crm/diary-week-grid";
 import { BookingDialog, type BookingSeed } from "@/components/crm/booking-dialog";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import type { DiaryStaff } from "@/lib/data/staff";
 import type { TenantOption } from "@/lib/data/customer-record";
 
-// What a COLUMN means, per view. The grid itself (times down the left, jobs
-// positioned by start and duration) is identical either way — only the columns
-// change, which is why the two views can't drift apart.
+// The two working views, and what each axis means:
 //
-//   Day  → one column per staff member, all on the same date
-//   Week → one column per day, everyone's jobs together
+//   Day  → a TIME grid: half-hour slots down the left, one column per staff
+//          member. The surface for working the clock.
+//   Week → a MATRIX: staff across the top, days down the left. The surface for
+//          seeing who is on what, and where the team has a gap.
 //
-// Time is always the y-axis, so switching period never reorients the screen.
+// STAFF are the columns in BOTH, which is the point of the week's shape: the
+// same person sits in the same place whichever period you're looking at. The
+// week used to put DAYS in the columns with everybody's jobs piled into them,
+// which never told you whose a job was without opening it.
 
 /** Match an event to staff by id, falling back to the free-text names. */
 function staffFor(e: DiaryEvent, staff: DiaryStaff[]): string[] {
@@ -117,29 +126,62 @@ export function DiaryWeekView({
   types: TenantOption[];
 }) {
   const [seed, setSeed] = useState<BookingSeed | null>(null);
+  const dates = days.map((iso) => new Date(iso));
 
-  const columns: GridColumn[] = days.map((iso) => {
-    const d = new Date(iso);
-    const today = isSameDay(d, new Date());
-    return {
-      key: toDateParam(d),
-      label: d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" }),
-      hint: today ? "Today" : d.toLocaleDateString("en-GB", { month: "short" }),
-      day: d,
-      // The day header links into that day, where the same jobs are split out
-      // per staff member — the natural next move from "Thursday looks heavy".
-      href: `/diary?view=day&d=${toDateParam(d)}`,
-      events: events.filter((e) => isSameDay(new Date(e.startsAt), d)),
-    };
-  });
+  // (day, person) → that person's jobs on that day. A multi-day fit is spread
+  // across every day cell it runs through, and a job with two people on it
+  // lands in both their columns — the same rule the day view follows.
+  const cells = new Map<string, WeekCell[]>();
+  let anyUnassigned = false;
+
+  for (const e of events) {
+    const ids = staffFor(e, staff);
+    const keys = ids.length ? ids : ["unassigned"];
+    if (!ids.length) anyUnassigned = true;
+
+    for (const { day, cell } of spanDays(e)) {
+      for (const id of keys) {
+        const k = `${day}|${id}`;
+        if (!cells.has(k)) cells.set(k, []);
+        cells.get(k)!.push(cell);
+      }
+    }
+  }
+  for (const list of cells.values()) list.sort((a, b) => +a.start - +b.start);
+
+  const columns: WeekColumn[] = staff.map((s) => ({
+    key: s.id,
+    label: s.name,
+    hint: s.role,
+    initials: s.initials,
+  }));
+
+  // A job with nobody on it is exactly what needs chasing, so it gets its own
+  // column rather than being dropped off the grid.
+  if (anyUnassigned) {
+    columns.push({
+      key: "unassigned",
+      label: "Unassigned",
+      hint: "Needs an owner",
+      initials: "—",
+      muted: true,
+    });
+  }
 
   return (
     <>
-      <DiaryGrid
+      <DiaryWeekGrid
         columns={columns}
-        // On the week view a column is a DAY, so the slot fixes the when and
-        // the dialog still has to ask who.
-        onPick={(_columnKey, start) => setSeed({ startsAt: start, staffIds: [] })}
+        days={dates}
+        cells={cells}
+        // A cell is a PERSON on a DAY, so a click fixes both — the dialog only
+        // has to ask what time, which its own TimePicker does.
+        onPick={(columnKey, day) =>
+          setSeed({
+            startsAt: cellStart(day),
+            staffIds: columnKey === "unassigned" ? [] : [columnKey],
+          })
+        }
       />
       <BookingDialog
         open={!!seed}

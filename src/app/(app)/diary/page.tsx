@@ -65,9 +65,9 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
     getTenantOptionLists(["appointment_type"]),
   ]);
 
-  // The day view draws a row per staff member, so a staff filter narrows the
-  // ROWS as well as the events — otherwise you'd filter the diary and still
-  // stare at ten empty lanes.
+  // Both working views draw a COLUMN per staff member, so a staff filter
+  // narrows the columns as well as the events — otherwise you'd filter the
+  // diary and still stare at ten empty lanes.
   const shownStaff = staffIds.length ? staff.filter((s) => staffIds.includes(s.id)) : staff;
 
   // The days the columns span: one for the day view, seven for the week.
@@ -120,9 +120,10 @@ export default async function DiaryPage({ searchParams }: { searchParams: Search
           </div>
         </div>
 
-        {/* Day and week share ONE time grid — times down the left in half-hour
-            blocks, a job spanning as many as it lasts. Only what a column means
-            changes: staff on the day, days on the week. */}
+        {/* STAFF are the columns in both working views — the same person sits
+            in the same place whichever period you're on. The day puts half-hour
+            slots down the left (working the clock); the week puts DAYS down the
+            left (who is on what, and where the gaps are). */}
         {view === "day" && (
           <DiaryDayView
             events={events}
