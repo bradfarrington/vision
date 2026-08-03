@@ -11,6 +11,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -24,7 +26,7 @@ import {
   slotLabel,
   toDateParam,
 } from "@/lib/diary";
-import { WORK_CATEGORIES, durationLabel } from "@/lib/appointments";
+import { WORK_CATEGORIES, durationLabel, suitsCategory, type WorkCategory } from "@/lib/appointments";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +61,8 @@ export type GridColumn = {
   hint?: string | null;
   /** Avatar initials, for the staff columns. */
   initials?: string;
+  /** The staff member's trade, for the drop-suitability check. */
+  role?: string | null;
   /** The day this column represents. Staff columns all share the view's day. */
   day: Date;
   events: DiaryEvent[];
@@ -95,11 +99,48 @@ export function DiaryGrid({
   // one you mean far better than rect overlap does.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  // While dragging, the preview highlights the slots the job would ACTUALLY
+  // fill — an hour-long job lights two half-hour rows, a two-hour job four.
+  // Highlighting only the cell under the pointer asks someone to picture the
+  // rest, which is the one thing a diary shouldn't make you do.
+  const [drag, setDrag] = useState<{ slots: number; category: WorkCategory } | null>(null);
+  const [over, setOver] = useState<{ col: string; slot: number } | null>(null);
+
+  const clearDrag = () => {
+    setDrag(null);
+    setOver(null);
+  };
+
+  function onDragStart(e: DragStartEvent) {
+    const job = columns.flatMap((c) => c.events).find((x) => x.id === String(e.active.id));
+    const mins = job?.duration ?? 60;
+    setDrag({
+      slots: Math.max(1, Math.ceil(mins / SLOT_MINUTES)),
+      category: job?.category ?? "other",
+    });
+  }
+
+  /** Can't take this job — the column is closed for the drag and says so. */
+  const blocked = (col: GridColumn) => !!drag && !suitsCategory(col.role, drag.category);
+
+  function onDragOver(e: DragOverEvent) {
+    if (!e.over) {
+      setOver(null);
+      return;
+    }
+    const [col, slot] = String(e.over.id).split("|");
+    setOver({ col, slot: Number(slot) });
+  }
+
   function onDragEnd(e: DragEndEvent) {
+    const wasDragging = drag;
+    clearDrag();
     if (!e.over || !onMove) return;
     const [colKey, slot] = String(e.over.id).split("|");
     const col = columns.find((c) => c.key === colKey);
-    if (!col) return;
+    // Belt and braces: the slots in a blocked column are disabled droppables,
+    // so this shouldn't fire — but a drop that lands anyway must not write.
+    if (!col || (wasDragging && !suitsCategory(col.role, wasDragging.category))) return;
     const start = new Date(col.day);
     start.setHours(0, 0, 0, 0);
     start.setMinutes(DAY_START_HOUR * 60 + Number(slot) * SLOT_MINUTES);
@@ -117,7 +158,15 @@ export function DiaryGrid({
   return (
     // Stable DndContext id — dnd-kit builds aria ids from a global counter
     // otherwise, and SSR and hydration disagree (AGENTS.md § Rearrangeable cards).
-    <DndContext id="diary-day" sensors={sensors} collisionDetection={pointerWithin} onDragEnd={onDragEnd}>
+    <DndContext
+      id="diary-day"
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={clearDrag}
+    >
     <div className="flex min-h-0 flex-1 flex-col">
       {/* One scroller for BOTH axes, so the gutter and headers stay pinned to
           their own edges while the grid moves under them. */}
@@ -138,12 +187,19 @@ export function DiaryGrid({
             />
             {columns.map((col) => {
               const active = hover?.col === col.key || picked?.col === col.key;
+              const shut = blocked(col);
               return (
                 <div
                   key={col.key}
                   className={cn(
                     "flex flex-1 items-center gap-2 border-b border-r border-[#e7e7ea] px-2.5 py-2 transition-colors",
-                    active ? "bg-[var(--accent-tint)]" : col.muted ? "bg-[#fafafa]" : "bg-white",
+                    shut
+                      ? "bg-[#fdecec] text-[#d64545]"
+                      : active
+                        ? "bg-[var(--accent-tint)]"
+                        : col.muted
+                          ? "bg-[#fafafa]"
+                          : "bg-white",
                   )}
                   style={{ minWidth: MIN_COL }}
                 >
@@ -234,6 +290,13 @@ export function DiaryGrid({
                 picked={picked}
                 setHover={setHover}
                 onContext={onContext}
+                blocked={blocked(col)}
+                // The span this drop would occupy, in this column only.
+                preview={
+                  drag && over?.col === col.key && !blocked(col)
+                    ? { from: over.slot, to: over.slot + drag.slots }
+                    : null
+                }
                 onPickSlot={(slot, start) => {
                   setPicked({ col: col.key, slot });
                   onPick?.(col.key, start);
@@ -258,6 +321,8 @@ function Column({
   setHover,
   onPickSlot,
   onContext,
+  preview,
+  blocked,
 }: {
   col: GridColumn;
   slots: number[];
@@ -266,6 +331,9 @@ function Column({
   setHover: (v: { col: string; slot: number } | null) => void;
   onPickSlot: (slot: number, start: Date) => void;
   onContext?: (event: DiaryEvent, x: number, y: number) => void;
+  preview: { from: number; to: number } | null;
+  /** This person can't take the job being dragged — closed, and shown as such. */
+  blocked: boolean;
 }) {
   const lanes = packIntoLanes(col.events);
 
@@ -274,8 +342,14 @@ function Column({
       className={cn(
         "relative flex flex-1 flex-col border-r border-[#e7e7ea]",
         (isWeekend(col.day) || col.muted) && "bg-[#fafafa]",
+        blocked && "bg-[#fdecec]/60",
       )}
-      style={{ minWidth: MIN_COL }}
+      // Red DASHED, inset so it reads as the column being closed rather than as
+      // a border between columns.
+      style={{
+        minWidth: MIN_COL,
+        ...(blocked ? { outline: "2px dashed #e9a3a3", outlineOffset: "-2px" } : null),
+      }}
       onMouseLeave={() => setHover(null)}
     >
       {/* Empty slot cells — the gridlines, the hover target, and what you click
@@ -286,8 +360,10 @@ function Column({
           key={i}
           col={col}
           index={i}
+          inPreview={!!preview && i >= preview.from && i < preview.to}
           isHover={hover?.col === col.key && hover.slot === i}
           isPicked={picked?.col === col.key && picked.slot === i}
+          blocked={blocked}
           onEnter={() => setHover({ col: col.key, slot: i })}
           onPick={() => {
             const start = new Date(col.day);
@@ -322,6 +398,8 @@ function Column({
 function Slot({
   col,
   index,
+  inPreview,
+  blocked,
   isHover,
   isPicked,
   onEnter,
@@ -329,12 +407,17 @@ function Slot({
 }: {
   col: GridColumn;
   index: number;
+  blocked: boolean;
+  /** Part of the span the dragged job would fill, not just the cell under the pointer. */
+  inPreview: boolean;
   isHover: boolean;
   isPicked: boolean;
   onEnter: () => void;
   onPick: () => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `${col.key}|${index}` });
+  // A disabled droppable can't become `over`, so a blocked column can't even
+  // show a landing preview — there is nothing to land on.
+  const { setNodeRef } = useDroppable({ id: `${col.key}|${index}`, disabled: blocked });
   const onTheHour = index % 2 === 0;
 
   return (
@@ -346,7 +429,7 @@ function Slot({
       className={cn(
         "flex-1 transition-colors",
         onTheHour ? "border-t border-[#e7e7ea]" : "border-t border-[#f4f4f5]",
-        isOver
+        inPreview
           ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
           : isPicked
             ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"

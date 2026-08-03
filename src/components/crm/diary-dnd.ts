@@ -4,8 +4,6 @@ import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { moveBooking } from "@/app/(app)/diary/actions";
-import { suitsCategory } from "@/lib/appointments";
-import { useDialogs } from "./dialogs";
 import type { MenuTarget } from "./appointment-menu";
 import type { BookingSeed } from "./booking-dialog";
 import type { DiaryEvent } from "@/lib/data/appointments";
@@ -17,8 +15,9 @@ import type { DiaryStaff } from "@/lib/data/staff";
 // The two layouts are different enough that they each own their own droppables
 // — a day cell is (person, time), a week cell is (person, half-day) — but
 // everything that happens AFTER the drop is identical, and that's the part
-// worth having one copy of: the suitability check, the optimistic move, the
-// revert, and the right-click menu's state.
+// worth having one copy of: the optimistic move, the revert, and the
+// right-click menu's state. (Suitability is enforced on the way DOWN, by the
+// grids — an unsuitable column isn't a drop target at all.)
 // ---------------------------------------------------------------------------
 
 export function useDiaryMoves({
@@ -29,8 +28,22 @@ export function useDiaryMoves({
   staff: DiaryStaff[];
 }) {
   const router = useRouter();
-  const { confirm } = useDialogs();
   const [events, setEvents] = useState(initial);
+
+  // The local list is ONLY ever ahead of the server for the length of a drag.
+  // The moment the server sends a new one — after a move lands, after the
+  // booking dialog saves an edit, after any `router.refresh()` — that becomes
+  // the truth and the optimistic copy is thrown away.
+  //
+  // Without this the state silently outlived its data: editing an appointment's
+  // time in the dialog wrote to the database and refreshed the page, and the
+  // diary carried on drawing the old time because it was rendering from a list
+  // captured before the edit.
+  const [rendered, setRendered] = useState(initial);
+  if (rendered !== initial) {
+    setRendered(initial);
+    setEvents(initial);
+  }
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [seed, setSeed] = useState<BookingSeed | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,19 +82,11 @@ export function useDiaryMoves({
       const sameStaff = job.staffIds.join(",") === nextStaff.join(",");
       if (sameTime && sameStaff) return;
 
-      // Is it their kind of work? A WARNING, not a wall — see the note on
-      // suitsCategory. The message names the mismatch rather than saying "not
-      // allowed", because the person dragging usually knows something we don't.
+      // Suitability is enforced by the GRIDS, not here: a column that can't
+      // take the job is a disabled droppable drawn red-dashed, so an invalid
+      // move never reaches this. A confirm at this point would be a second,
+      // quieter answer to a question already answered on the way down.
       const person = staffId ? staff.find((s) => s.id === staffId) : null;
-      if (person && !suitsCategory(person.role, job.category)) {
-        const ok = await confirm({
-          title: `Put this on ${person.name}?`,
-          message: `${person.name} is ${article(person.role)} and this is ${article(job.category)} job. That may be exactly right — the diary just doesn't know it. Nothing else changes.`,
-          confirmLabel: "Assign anyway",
-          tone: "warning",
-        });
-        if (!ok) return;
-      }
 
       // Optimistic: the block lands where you dropped it immediately. A job
       // that hangs in its old slot until a round-trip finishes reads as broken.
@@ -110,15 +115,8 @@ export function useDiaryMoves({
         router.refresh();
       });
     },
-    [events, staff, confirm, router],
+    [events, staff, router],
   );
 
   return { events, move, menu, setMenu, seed, setSeed, edit, error, setError };
-}
-
-/** "an installer" / "a surveyor" — small, but it's the difference between a
- *  sentence and a slug in a message someone reads mid-drag. */
-function article(word: string | null | undefined): string {
-  const w = (word ?? "").toLowerCase().trim() || "unassigned";
-  return /^[aeiou]/.test(w) ? `an ${w}` : `a ${w}`;
 }

@@ -4,11 +4,12 @@
 import { DiaryGrid, type GridColumn } from "@/components/crm/diary-grid";
 import { AppointmentMenu } from "@/components/crm/appointment-menu";
 import { useDiaryMoves } from "@/components/crm/diary-dnd";
-import { MIDDAY_HOUR, DAY_START_HOUR } from "@/lib/diary";
+
 import {
   DiaryWeekGrid,
   cellStart,
   spanBlocks,
+  weekDropStart,
   type WeekCell,
   type WeekColumn,
 } from "@/components/crm/diary-week-grid";
@@ -76,6 +77,7 @@ export function DiaryDayView({
     key: s.id,
     label: s.name,
     hint: s.role,
+    role: s.role,
     initials: s.initials,
     day: date,
     events: byStaff.get(s.id) ?? [],
@@ -169,6 +171,7 @@ export function DiaryWeekView({
     key: s.id,
     label: s.name,
     hint: s.role,
+    role: s.role,
     initials: s.initials,
   }));
 
@@ -191,24 +194,13 @@ export function DiaryWeekView({
         columns={columns}
         days={dates}
         cells={cells}
-        // A week cell is (person, half-day). The time of day is KEPT when you
-        // drop into the same half it was already in, and snapped to the start
-        // of the other half when you cross over — so an 09:00 survey dragged to
-        // Thursday afternoon becomes 12:00 rather than staying at 09:00 in a
-        // cell that says PM.
+        // A week cell is (person, half-day). `weekDropStart` decides the time —
+        // the SAME function the drop preview highlights with, so what lights up
+        // is what you get.
         onMove={(id, day, block, columnKey) => {
           const job = events.find((e) => e.id === id);
-          const at = new Date(day);
-          const was = job ? new Date(job.startsAt) : null;
-          const keepsTime =
-            was && (was.getHours() < MIDDAY_HOUR) === (block === "am");
-          at.setHours(
-            keepsTime ? was!.getHours() : block === "am" ? DAY_START_HOUR : MIDDAY_HOUR,
-            keepsTime ? was!.getMinutes() : 0,
-            0,
-            0,
-          );
-          move(id, at, columnKey === "unassigned" ? null : columnKey);
+          if (!job) return;
+          move(id, weekDropStart(job, day, block), columnKey === "unassigned" ? null : columnKey);
         }}
         onContext={(e, x, y) => setMenu({ event: e, x, y })}
         // A cell is a PERSON in a HALF-DAY, so a click fixes both and seeds the

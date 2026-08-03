@@ -11,6 +11,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -24,7 +25,7 @@ import {
   workingSpan,
   type DayBlock,
 } from "@/lib/diary";
-import { WORK_CATEGORIES, durationLabel } from "@/lib/appointments";
+import { WORK_CATEGORIES, durationLabel, suitsCategory } from "@/lib/appointments";
 import type { DiaryEvent } from "@/lib/data/appointments";
 import { cn } from "@/lib/utils";
 
@@ -65,8 +66,9 @@ const BLOCKS: { key: DayBlock; label: string }[] = [
 export type WeekColumn = {
   key: string;
   label: string;
-  /** Second line under the name — the staff role. */
+  /** Second line under the name — the staff role. Also the suitability check. */
   hint?: string | null;
+  role?: string | null;
   initials?: string;
   muted?: boolean;
 };
@@ -111,11 +113,65 @@ export function DiaryWeekGrid({
   // job must still open its record.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
+  // Every block the dragged job would fill, not just the cell under the
+  // pointer: a full day lights AM and PM, a two-day fit lights four blocks.
+  const [dragJob, setDragJob] = useState<DiaryEvent | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Set<string>>(new Set());
+  /** Which staff column the pointer is over — the preview belongs to one. */
+  const [dropCol, setDropCol] = useState<string | null>(null);
+
+  const jobById = (id: string) => {
+    for (const list of cells.values()) {
+      const hit = list.find((c) => c.event.id === id);
+      if (hit) return hit.event;
+    }
+    return null;
+  };
+
+  /** Can't take this job — closed for the drag, and shown as closed. */
+  const blocked = (col: WeekColumn) => !!dragJob && !suitsCategory(col.role, dragJob.category);
+
+  const clearDrag = () => {
+    setDragJob(null);
+    setDragId(null);
+    setPreview(new Set());
+    setDropCol(null);
+  };
+
+  function onDragOver(e: DragOverEvent) {
+    const job = dragId ? jobById(dragId) : null;
+    if (!e.over || !job) {
+      setPreview(new Set());
+      setDropCol(null);
+      return;
+    }
+    const [dayKey, block, colKey] = String(e.over.id).split("|");
+    setDropCol(colKey);
+    const day = days.find((d) => toDateParam(d) === dayKey);
+    if (!day || (block !== "am" && block !== "pm")) return;
+
+    // The same splitter the grid renders with, from the same landing time the
+    // drop will use — so the highlight can't promise a shape the drop won't
+    // produce.
+    const start = weekDropStart(job, day, block);
+    const rows = workingSpan(start, job.duration ?? 60).map((s) => {
+      const at = new Date(s.start);
+      return `${toDateParam(at)}|${at.getHours() < MIDDAY_HOUR ? "am" : "pm"}`;
+    });
+    setPreview(new Set(rows.length ? rows : [`${dayKey}|${block}`]));
+  }
+
   function onDragEnd(e: DragEndEvent) {
+    const job = dragJob;
+    clearDrag();
     if (!e.over || !onMove) return;
     const [dayKey, block, colKey] = String(e.over.id).split("|");
     const day = days.find((d) => toDateParam(d) === dayKey);
     if (!day || (block !== "am" && block !== "pm")) return;
+    // Belt and braces — a blocked column's cells are disabled droppables.
+    const col = columns.find((c) => c.key === colKey);
+    if (job && col && !suitsCategory(col.role, job.category)) return;
     onMove(String(e.active.id), day, block, colKey);
   }
 
@@ -129,7 +185,19 @@ export function DiaryWeekGrid({
 
   return (
     // Stable id — see the day grid.
-    <DndContext id="diary-week" sensors={sensors} collisionDetection={pointerWithin} onDragEnd={onDragEnd}>
+    <DndContext
+      id="diary-week"
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={(e) => {
+        const id = String(e.active.id);
+        setDragId(id);
+        setDragJob(jobById(id));
+      }}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDragCancel={clearDrag}
+    >
     <div className="flex min-h-0 flex-1 flex-col">
       {/* One scroller for BOTH axes, so the day gutter and the staff headers
           stay pinned to their own edges while the grid moves under them. No
@@ -146,12 +214,19 @@ export function DiaryWeekGrid({
             />
             {columns.map((col) => {
               const active = hover?.col === col.key;
+              const shut = blocked(col);
               return (
                 <div
                   key={col.key}
                   className={cn(
                     "flex flex-1 items-center gap-2 border-b border-r border-[#e7e7ea] px-2.5 py-2 transition-colors",
-                    active ? "bg-[var(--accent-tint)]" : col.muted ? "bg-[#fafafa]" : "bg-white",
+                    shut
+                      ? "bg-[#fdecec] text-[#d64545]"
+                      : active
+                        ? "bg-[var(--accent-tint)]"
+                        : col.muted
+                          ? "bg-[#fafafa]"
+                          : "bg-white",
                   )}
                   style={{ minWidth: MIN_COL }}
                 >
@@ -275,6 +350,11 @@ export function DiaryWeekGrid({
                             <Cell
                               key={col.key}
                               id={`${rowKey}|${col.key}`}
+                              // Highlighted only in the column being dropped
+                              // on: the same job in someone else's row would be
+                              // a different booking.
+                              inPreview={preview.has(rowKey) && dropCol === col.key}
+                              blocked={blocked(col)}
                               day={day}
                               weekend={weekend}
                               muted={col.muted}
@@ -305,6 +385,8 @@ export function DiaryWeekGrid({
 
 function Cell({
   id,
+  inPreview,
+  blocked,
   day,
   weekend,
   muted,
@@ -316,6 +398,9 @@ function Cell({
   onContext,
 }: {
   id: string;
+  inPreview: boolean;
+  /** This person can't take the job being dragged. */
+  blocked: boolean;
   day: Date;
   weekend: boolean;
   muted?: boolean;
@@ -326,22 +411,29 @@ function Cell({
   onPick: () => void;
   onContext?: (event: DiaryEvent, x: number, y: number) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+  // Disabled, so a blocked column can't even become the drop target — there is
+  // nothing to land on, and no landing preview to mislead with.
+  const { setNodeRef } = useDroppable({ id, disabled: blocked });
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
         "relative flex min-w-0 flex-1 flex-col border-r border-[#e7e7ea] transition-colors",
-        isOver
-          ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
-          : lit
-            ? "bg-[var(--accent-tint)]"
-            : weekend || muted
-              ? "bg-[#fafafa]"
-              : "bg-white",
+        blocked
+          ? "bg-[#fdecec]/60"
+          : inPreview
+            ? "bg-[var(--accent-tint)] ring-1 ring-inset ring-[var(--accent-blue)]"
+            : lit
+              ? "bg-[var(--accent-tint)]"
+              : weekend || muted
+                ? "bg-[#fafafa]"
+                : "bg-white",
       )}
-      style={{ minWidth: MIN_COL }}
+      style={{
+        minWidth: MIN_COL,
+        ...(blocked ? { outline: "2px dashed #e9a3a3", outlineOffset: "-2px" } : null),
+      }}
       onMouseEnter={onEnter}
     >
       {/* The empty cell IS the booking target — the whole cell, so a
@@ -533,6 +625,31 @@ export function spanBlocks(event: DiaryEvent): { row: string; cell: WeekCell }[]
       continuesInto: i < pieces.length - 1,
     },
   }));
+}
+
+/**
+ * Where a job dropped on (day, half-day) would actually START.
+ *
+ * The time of day is KEPT when the drop stays in the half it was already in,
+ * and snapped to the start of the other half when it crosses over — so an
+ * 09:00 survey dragged to Thursday afternoon becomes 12:00 rather than sitting
+ * at 09:00 in a cell labelled PM.
+ *
+ * ONE function, used by both the drop PREVIEW and the drop itself: two copies
+ * would eventually disagree, and the disagreement would be a highlight that
+ * lies about where the job is going.
+ */
+export function weekDropStart(job: DiaryEvent, day: Date, block: DayBlock): Date {
+  const was = new Date(job.startsAt);
+  const keepsTime = (was.getHours() < MIDDAY_HOUR) === (block === "am");
+  const at = startOfDay(day);
+  at.setHours(
+    keepsTime ? was.getHours() : block === "am" ? DAY_START_HOUR : MIDDAY_HOUR,
+    keepsTime ? was.getMinutes() : 0,
+    0,
+    0,
+  );
+  return at;
 }
 
 /** The instant a booking made from an empty cell should start. */

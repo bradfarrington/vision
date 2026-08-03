@@ -1308,13 +1308,28 @@ screen where a view can be made your STARTING point.
   - **The grids are keyed on the RAW query params** (`view|d|staff|cat`) so the locally-held
     optimistic list can't outlive the query it came from — changing day with stale state would show
     yesterday's jobs.
-- **Suitability WARNS, it does not block** (`suitsCategory` in `lib/appointments.ts`). There's no
-  table of who does what, so it's derived from the two things we have: the job's colour band and the
-  staff member's free-text `role`, matched loosely. A mismatch raises a `warning` confirm naming it
-  ("Gary is a surveyor and this is an installation job") with **Assign anyway** — the same call as
-  the clash check, and for the same reason: the firm where the surveyor also fits conservatories must
-  not be stopped, and a rule the app invented is a rule people learn to work around. **An
-  unrecognised role matches everything** — never object on the strength of data we don't understand.
+- **The DROP PREVIEW is the job's real span, not the cell under the pointer.** An hour-long job
+  lights two half-hour rows on the day grid; a full day lights AM and PM on the week grid, a two-day
+  fit four blocks. Making someone picture the rest is the one thing a diary shouldn't do. The week's
+  preview and the week's drop both go through **`weekDropStart`** — one function, because two copies
+  would drift into a highlight that lies about where the job is going.
+- **An unsuitable column CANNOT be dropped on** (Brad, 2026-08-03 — this reverses the warn-and-allow
+  call this first shipped with). While dragging, a person who can't take the job gets a **red dashed
+  outline, a pale red wash and a red header**, and their cells are **disabled droppables** — so they
+  can't become the drop target and can't show a landing preview either. `onDragEnd` re-checks anyway;
+  a drop that somehow lands must not write.
+  - The rule is `suitsCategory` (`lib/appointments.ts`): there's no table of who does what, so it's
+    the job's colour band against the staff member's free-text `role`, matched loosely. **An
+    unrecognised role matches everything** — never close a column on the strength of data we don't
+    understand.
+  - **The booking dialog still lets you pick anyone.** Choosing a name in "Who" is a deliberate act
+    with the whole booking in front of you; dragging is a flick of the wrist. The block belongs on
+    the gesture that can go wrong by accident.
+- **The optimistic list must never outlive the server's.** `useDiaryMoves` re-seeds from props the
+  moment a new list arrives (the render-time "adjust state when a prop changes" pattern). Without it
+  the state silently went stale: **editing an appointment's time in the dialog wrote to the database,
+  refreshed the page, and the diary carried on drawing the old time** — it was rendering a list
+  captured before the edit. Any component holding an optimistic copy of server data needs this.
 
 ## Right-click belongs to the app — decided 2026-08-03
 
