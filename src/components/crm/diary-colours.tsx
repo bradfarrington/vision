@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { setDiaryColour } from "@/app/(app)/diary/actions";
 import { WORK_CATEGORIES, type WorkCategory, type WorkCategoryDef } from "@/lib/appointments";
 import type { DiaryColours } from "@/lib/data/tenant-settings";
+import { ColourPicker, isHex } from "@/components/crm/colour-picker";
 import { Popover } from "@/components/crm/data-list";
 import { cn } from "@/lib/utils";
 
@@ -60,16 +61,20 @@ export function DiaryColoursProvider({
 // The picker
 
 /**
- * A ready-made palette plus a hex field.
+ * A GRID: hues across, shades down.
  *
- * The presets exist because most people want "a green" and not a colour
- * science exercise, and because they're pre-checked to stay legible as text on
- * their own 14% tint — which a freely-chosen pale yellow would not be. The hex
- * field is there for the firm that has a brand colour it wants matched exactly.
+ * A single row of twelve made you hunt for "a slightly darker green"; laid out
+ * as a matrix the eye can find a hue by column and a weight by row, which is
+ * how everyone reads a palette. Every value sits in the 600–800 range because
+ * these colours are used as TEXT on their own 14% tint — a pastel would be
+ * unreadable there, and the picker below is the escape hatch for anyone who
+ * wants one anyway.
  */
-const PRESETS = [
-  "#1f56a3", "#2f7de1", "#0e7490", "#1a7f3e", "#4d7c0f", "#b86e00",
-  "#c2410c", "#d64545", "#a21caf", "#6d28d9", "#3f3f46", "#71717a",
+const PALETTE: string[][] = [
+  ["#b91c1c", "#c2410c", "#a16207", "#4d7c0f", "#047857", "#0f766e", "#1d4ed8", "#6d28d9"],
+  ["#dc2626", "#ea580c", "#ca8a04", "#65a30d", "#059669", "#0d9488", "#2563eb", "#7c3aed"],
+  ["#991b1b", "#9a3412", "#854d0e", "#3f6212", "#065f46", "#115e59", "#1e40af", "#5b21b6"],
+  ["#be185d", "#a21caf", "#0369a1", "#0e7490", "#18181b", "#3f3f46", "#52525b", "#71717a"],
 ];
 
 export function CategoryColourButton({ category }: { category: WorkCategoryDef }) {
@@ -77,10 +82,12 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
   const [pending, start] = useTransition();
   const [hex, setHex] = useState(category.fg);
   const [error, setError] = useState<string | null>(null);
+  /** The drag-to-choose picker, opened from the swatch beside the hex field. */
+  const [custom, setCustom] = useState(false);
 
   const apply = (value: string, close?: () => void) => {
     const clean = value.trim();
-    if (!/^#[0-9a-f]{6}$/i.test(clean)) {
+    if (!isHex(clean)) {
       setError("Use a 6-digit hex colour, like #2f7de1.");
       return;
     }
@@ -99,7 +106,7 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
   return (
     <Popover
       label={category.label}
-      width={228}
+      width={248}
       // The swatch IS the trigger's icon — the label alone would make the
       // legend a row of buttons rather than a legend.
       swatch={category.bg}
@@ -112,8 +119,8 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
             {category.label}
           </p>
 
-          <div className="grid grid-cols-6 gap-1.5">
-            {PRESETS.map((p) => (
+          <div className="grid grid-cols-8 gap-1">
+            {PALETTE.flat().map((p) => (
               <button
                 key={p}
                 type="button"
@@ -125,7 +132,7 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
                 aria-label={p}
                 title={p}
                 className={cn(
-                  "size-6 rounded-md border transition-transform hover:scale-110",
+                  "aspect-square rounded-[5px] border transition-transform hover:scale-110",
                   p.toLowerCase() === category.fg.toLowerCase()
                     ? "border-[#0a0a0a]"
                     : "border-black/10",
@@ -135,10 +142,23 @@ export function CategoryColourButton({ category }: { category: WorkCategoryDef }
             ))}
           </div>
 
+          {custom && (
+            <ColourPicker value={isHex(hex) ? hex : category.fg} onChange={setHex} />
+          )}
+
           <div className="flex items-center gap-1.5">
-            <span
-              className="size-6 shrink-0 rounded-md border border-black/10"
-              style={{ background: /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#fff" }}
+            {/* The swatch is the way IN to the custom picker — clicking the
+                colour to change the colour is where anyone would press. */}
+            <button
+              type="button"
+              onClick={() => setCustom((c) => !c)}
+              aria-label={custom ? "Close the colour picker" : "Pick a custom colour"}
+              title={custom ? "Close the colour picker" : "Pick a custom colour"}
+              className={cn(
+                "size-7 shrink-0 rounded-md border transition-transform hover:scale-105",
+                custom ? "border-[var(--accent-blue)] ring-2 ring-[var(--accent-tint)]" : "border-black/15",
+              )}
+              style={{ background: isHex(hex) ? hex : "#fff" }}
             />
             <input
               value={hex}

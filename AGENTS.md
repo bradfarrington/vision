@@ -1367,6 +1367,21 @@ own idea of what colour a fit is.
   platform-admin, deliberately, and widening that so staff can recolour a legend would hand them the
   plan and seat-limit columns too. That table is also the obvious home for the **per-company working
   hours** `lib/diary.ts` is waiting for.
+- **The palette is a GRID — hues across, shades down** (`PALETTE` in `diary-colours.tsx`). A single
+  row made you hunt for "a slightly darker green"; a matrix lets the eye find a hue by column and a
+  weight by row. Every value sits in the 600–800 range because these colours are used as TEXT on
+  their own 14% tint, where a pastel is unreadable.
+- **Clicking the swatch beside the hex field opens a DRAG-TO-CHOOSE picker** (`colour-picker.tsx`) —
+  a saturation/brightness square over a hue slider. **Hand-built, like `DatePicker` and `TimePicker`
+  before it**: `<input type="color">` opens the OPERATING SYSTEM's colour panel, which is a different
+  window on every platform, unstyleable, and on macOS a floating palette that outlives the popover
+  that opened it. **There are now no native date, time or colour inputs in the CRM.**
+  - Hue is held in STATE rather than derived from the hex: at black or pure white the hue is
+    mathematically undefined, so reading it back would snap the handle to red the moment you dragged
+    into a corner.
+  - It uses POINTER CAPTURE, not window listeners, so the drag keeps following the pointer outside
+    the square — which is how you reach pure white or pure black — and can't be lost to another
+    element crossing underneath.
 - **The hex is validated server-side as well as in the picker** — it lands in a style attribute, and
   a client check is a convenience, never the guard.
 - Reaches every block, chip and month cell through `DiaryColoursProvider` + `useCategory()`. **Don't
